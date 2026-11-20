@@ -224,14 +224,14 @@ def main() -> int:
           const atk0 = e.atk;
           __game.Battle.bossAct(e);            // hp 30% → 狂暴
           const enraged = e.enraged, atk1 = e.atk;
-          e.acts = 3; e.hp = 500;              // 下一次是第 4 次行動 → 回血
+          e.acts = 4; e.hp = 500;              // 下一次是第 5 次行動 → 回血（血量 50% < 70%）
           const hpBefore = e.hp;
           __game.Battle.bossAct(e);
           return {atk0, atk1, enraged, hpBefore, hpAfter: e.hp, acts: e.acts};
         })()""")
         check("Boss 半血狂暴：攻擊 +35%",
               boss["enraged"] is True and boss["atk1"] == round(boss["atk0"] * 1.35), str(boss))
-        check("Boss 每 4 次行動回血 10%",
+        check("Boss 低於 70% 血時每 5 次行動回血 8%",
               boss["hpAfter"] > boss["hpBefore"], f"{boss['hpBefore']} -> {boss['hpAfter']}")
 
         # ---------- 7. 抽卡 ----------

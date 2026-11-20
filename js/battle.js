@@ -284,8 +284,9 @@
       e.atk = Math.round(e.atk * 1.35);
       emit('bossRage', { name: e.name, enemyId: e.id });
     }
-    if (e.acts % 4 === 0 && e.hp < e.maxHp) {
-      const heal = Math.round(e.maxHp * 0.10);
+    // 只在血量低於 70% 時、每 5 次行動回 8%：避免低戰力玩家被無限回血鎖死
+    if (e.acts % 5 === 0 && e.hp < e.maxHp * 0.7) {
+      const heal = Math.round(e.maxHp * 0.08);
       e.hp = Math.min(e.maxHp, e.hp + heal);
       emit('bossHeal', { name: e.name, enemyId: e.id, amount: heal, hp: e.hp, maxHp: e.maxHp });
       return;
