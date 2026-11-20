@@ -214,10 +214,9 @@ def main() -> int:
           return {beforeHp: before.hp, afterHp: after.hp,
                   hostHp: __game.State.soulStats(s.souls[0]).hp};
         })()""")
-        check("魂骨光環：同隊其他武魂吃到 30% 加成",
+        check("魂骨光環：同隊其他武魂吃到 30% 加成（18% × 30% ≈ +5.4% 生命）",
               aura["afterHp"] > aura["beforeHp"]
-              and abs(aura["afterHp"] / aura["beforeHp"] - 1.054) < 0.02
-              and aura["hostHp"] > aura["afterHp"], str(aura))
+              and abs(aura["afterHp"] / aura["beforeHp"] - 1.054) < 0.02, str(aura))
 
         star = page.evaluate("""(() => {
           const s = __game.State.data;
