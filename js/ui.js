@@ -18,7 +18,7 @@
   let tab = 'battle';
   let lastSnapKey = '';
   let unitEls = new Map();     // id -> element
-  let enemyEl = null;
+  let enemyEls = new Map();    // id -> element（一波可能 1–3 隻）
   let toastTimer = 0;
 
   /* ================= 初始化 ================= */
@@ -96,7 +96,7 @@
     bossBtn.textContent = snap.pendingBoss ? '挑戰 BOSS' : `清怪 ${snap.kills}/${snap.needed}`;
 
     renderTeam(snap.units);
-    renderEnemy(snap.enemy);
+    renderEnemies(snap.enemies || [], snap.mode);
   }
 
   function renderTeam(units) {
@@ -130,23 +130,31 @@
     });
   }
 
-  function renderEnemy(e) {
+  function renderEnemies(list, mode) {
     const row = $('#enemyRow');
-    if (!e) { row.innerHTML = ''; enemyEl = null; return; }
-    if (!enemyEl || enemyEl.dataset.id !== e.id) {
+    const key = list.map((e) => e.id).join(',');
+    if (row.dataset.ids !== key) {
       row.innerHTML = '';
-      const el = document.createElement('div');
-      el.className = 'unit enemy';
-      el.dataset.id = e.id;
-      el.innerHTML = `
-        <div class="name" style="font-size:10px">${e.name}</div>
-        <div class="body">${e.emoji}</div>
-        <div class="bars"><div class="bar hp"><i></i></div></div>`;
-      row.appendChild(el);
-      enemyEl = el;
+      enemyEls.clear();
+      row.dataset.ids = key;
+      list.forEach((e) => {
+        const el = document.createElement('div');
+        el.className = 'unit enemy' + (mode === 'boss' || e.boss ? ' bossUnit' : '');
+        el.dataset.id = e.id;
+        el.innerHTML = `
+          <div class="name" style="font-size:9px">${e.name}</div>
+          <div class="body">${e.emoji}</div>
+          <div class="bars"><div class="bar hp"><i></i></div></div>`;
+        row.appendChild(el);
+        enemyEls.set(e.id, el);
+      });
     }
-    $('.bar.hp > i', enemyEl).style.width = Math.max(0, (e.hp / e.maxHp) * 100) + '%';
-    enemyEl.classList.toggle('dead', !e.alive);
+    list.forEach((e) => {
+      const el = enemyEls.get(e.id);
+      if (!el) return;
+      $('.bar.hp > i', el).style.width = Math.max(0, (e.hp / e.maxHp) * 100) + '%';
+      el.classList.toggle('dead', !e.alive);
+    });
   }
 
   /* ================= 武魂 ================= */
@@ -565,7 +573,9 @@
   function onBattleEvent(ev) {
     switch (ev.type) {
       case 'hit': {
-        const target = ev.side === 'enemy' ? $('#enemyRow .unit') : $(`#teamRow .unit:nth-child(${unitIndex(ev.unit) + 1})`);
+        const target = ev.side === 'enemy'
+          ? (enemyEls.get(ev.enemyId) || $('#enemyRow .unit'))
+          : $(`#teamRow .unit:nth-child(${unitIndex(ev.unit) + 1})`);
         if (target) {
           target.classList.add('hit');
           setTimeout(() => target.classList.remove('hit'), 180);
@@ -579,6 +589,19 @@
       case 'stun':
         if (ev.who === 'enemy') banner('纏繞！');
         break;
+      case 'aoe':
+        addLog(`群攻命中 ${ev.count} 隻魂獸`, 'c-purple');
+        break;
+      case 'bossRage':
+        banner('狂暴');
+        addLog(`${ev.name} 進入狂暴（攻擊 +35%）`, 'c-bad');
+        break;
+      case 'bossHeal': {
+        const el = enemyEls.get(ev.enemyId);
+        if (el) floatNum(el, '+' + fmt(ev.amount), 'heal');
+        addLog(`${ev.name} 回復 10% 生命`, 'c-bad');
+        break;
+      }
       case 'shield':
         floatNum($(`#teamRow .unit:nth-child(${unitIndex(ev.unit) + 1})`), '護盾', 'skill');
         break;
@@ -587,9 +610,12 @@
         banner(ev.name);
         break;
       }
-      case 'kill':
-        addLog(`擊殺${ev.boss ? '守關魂獸' : '魂獸'}：魂幣 +${fmt(ev.coins)}、經驗 +${fmt(ev.exp)}`, ev.boss ? 'c-gold' : '');
+      case 'kill': {
+        const left = ev.left ? `（剩 ${ev.left} 隻）` : '';
+        addLog(`擊殺${ev.boss ? '守關魂獸' : '魂獸'}${left}：魂幣 +${fmt(ev.coins)}、經驗 +${fmt(ev.exp)}`,
+          ev.boss ? 'c-gold' : '');
         break;
+      }
       case 'levelup':
         banner('境界提升');
         addLog(`等級提升 → Lv.${ev.level}`, 'c-ok');
@@ -637,14 +663,16 @@
 
   function floatNum(el, text, cls) {
     if (!el) return;
+    if (typeof text === 'string' && /^[-+]?0$/.test(text)) return;   // 護盾吃滿的 0 不顯示
     const host = $('#floaters');
     if (!host) return;
+    while (host.children.length > 11) host.removeChild(host.firstChild);
     const hr = host.getBoundingClientRect();
     const r = el.getBoundingClientRect();
     const span = document.createElement('span');
     span.className = 'float-num ' + (cls || '');
     span.textContent = text;
-    span.style.left = (r.left - hr.left + r.width / 2) + 'px';
+    span.style.left = (r.left - hr.left + r.width / 2 + (Math.random() * 18 - 9)) + 'px';
     span.style.top = (r.top - hr.top - 8) + 'px';
     host.appendChild(span);
     setTimeout(() => span.remove(), 900);

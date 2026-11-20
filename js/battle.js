@@ -1,6 +1,7 @@
 /* ==========================================================================
  * battle.js — ATB 自動戰鬥、技能、關卡推進、獵魂
- * 只負責「算出發生什麼事」，畫面交給 ui.js（事件 → UI 更新 / 飄字 / 光圈）。
+ * 支援一波 1–3 隻敵人：群攻武魂（強攻系）打全體才有意義。
+ * Boss 被動：血量 ≤40% 狂暴一次、每 4 次行動回血 10%。
  * ========================================================================== */
 (function (global) {
   'use strict';
@@ -14,21 +15,26 @@
     mode: 'farm',                 // farm | boss | hunt
     running: false,
     units: [],
-    enemy: null,
+    enemies: [],
     ticker: 0,
     huntBeast: null,
-    events: [],
     pendingBoss: false,
     autoReviveAt: 0,
-    defeatFlash: 0,
+    waveNo: 0,
   };
+
+  /* 舊介面：Battle.state.enemy / snapshot().enemy 仍回傳「第一隻活著的敵人」 */
+  Object.defineProperty(B, 'enemy', {
+    get() {
+      const alive = B.enemies.filter((e) => e.alive);
+      return alive[0] || B.enemies[0] || null;
+    },
+  });
 
   const listeners = new Set();
   function on(fn) { listeners.add(fn); return () => listeners.delete(fn); }
   function emit(type, data) {
     const ev = Object.assign({ type, at: Date.now() }, data || {});
-    B.events.push(ev);
-    if (B.events.length > 60) B.events.shift();
     listeners.forEach((fn) => { try { fn(ev); } catch (e) { /* UI 不該弄死戰鬥 */ } });
   }
 
@@ -45,24 +51,58 @@
     });
   }
 
-  /* ---------- 建立敵人 ---------- */
-  function spawnEnemy(kind) {
+  /* ---------- 建立敵人（一波 1–3 隻）---------- */
+  function waveSize(kind) {
+    if (kind === 'boss' || kind === 'hunt') return 1;
+    const stage = State.data.stage;
+    if (stage < 3) return 1;
+    const r = Math.random();
+    if (stage < 8) return r < 0.75 ? 1 : 2;
+    return r < 0.5 ? 1 : (r < 0.85 ? 2 : 3);
+  }
+
+  function spawnWave(kind) {
+    B.waveNo++;
     if (kind === 'hunt') {
       const beast = B.huntBeast;
-      B.enemy = {
+      B.enemies = [{
         id: beast.id, name: beast.name, emoji: beast.emoji,
         maxHp: beast.hp, hp: beast.hp, atk: beast.atk, def: Math.round(beast.atk * 0.35),
-        spd: 88, gauge: 0, stun: 0, alive: true, boss: true, hunt: true,
-      };
+        spd: 88, gauge: 0, stun: 0, alive: true, boss: true, hunt: true, acts: 0, enraged: false,
+      }];
       return;
     }
     const isBoss = kind === 'boss';
     const st = CFG.enemyStats(State.data.stage, isBoss);
-    B.enemy = {
-      id: 'e' + Date.now().toString(36), name: st.name, emoji: st.emoji,
-      maxHp: st.hp, hp: st.hp, atk: st.atk, def: st.def,
-      spd: st.spd, gauge: 0, stun: 0, alive: true, boss: st.boss,
-    };
+    const n = waveSize(kind);
+    // 多隻時單隻較弱（總血量約 1.3 倍），才不會讓群攻變成唯一解
+    const hpScale = isBoss ? 1 : (n > 1 ? 0.66 : 1);
+    const atkScale = isBoss ? 1 : (n > 1 ? 0.8 : 1);
+    B.enemies = Array.from({ length: n }, (_, i) => {
+      const hp = Math.round(st.hp * hpScale);
+      return {
+        id: 'e' + B.waveNo + '_' + i,
+        name: n > 1 ? `${st.name} ${i + 1}` : st.name,
+        emoji: st.emoji,
+        maxHp: hp, hp,
+        atk: Math.round(st.atk * atkScale),
+        def: st.def,
+        spd: st.spd + i * 3,
+        gauge: Math.random() * 0.25,
+        stun: 0, alive: true, boss: !!st.boss, acts: 0, enraged: false,
+      };
+    });
+  }
+
+  function aliveEnemies() { return B.enemies.filter((e) => e.alive); }
+
+  /* 自動戰鬥聚焦：打血最少的（清怪最快） */
+  function targetEnemy() {
+    const alive = aliveEnemies();
+    if (!alive.length) return null;
+    let best = alive[0];
+    for (const e of alive) if (e.hp < best.hp) best = e;
+    return best;
   }
 
   /* ---------- 對外操作 ---------- */
@@ -70,7 +110,7 @@
     buildTeam();
     B.mode = 'farm';
     B.pendingBoss = false;
-    if (!B.enemy || !B.enemy.alive) spawnEnemy('farm');
+    if (!aliveEnemies().length) spawnWave('farm');
     start();
   }
 
@@ -85,7 +125,6 @@
   }
 
   function refreshTeam() {
-    // 陣容／武魂變動時重建，保留當前敵人
     const old = new Map(B.units.map((u) => [u.id, u]));
     buildTeam();
     B.units.forEach((u) => {
@@ -99,7 +138,7 @@
     if (!State.teamSouls().length) return { ok: false, msg: '沒有上陣武魂' };
     B.mode = 'boss';
     B.pendingBoss = false;
-    spawnEnemy('boss');
+    spawnWave('boss');
     reviveTeam(false);
     emit('bossStart', { stage: State.data.stage });
     return { ok: true };
@@ -114,7 +153,7 @@
     if (State.data.level < beast.reqLevel) return { ok: false, msg: `需等級 ${beast.reqLevel} 才能挑戰` };
     B.huntBeast = beast;
     B.mode = 'hunt';
-    spawnEnemy('hunt');
+    spawnWave('hunt');
     reviveTeam(false);
     emit('huntStart', { beast });
     return { ok: true };
@@ -132,13 +171,12 @@
   function backToFarm() {
     B.mode = 'farm';
     B.huntBeast = null;
-    spawnEnemy('farm');
+    spawnWave('farm');
   }
 
   /* ---------- 主循環 ---------- */
   function tick() {
-    if (B.mode === 'hunt' && !B.enemy) { backToFarm(); return; }
-    if (!B.enemy) spawnEnemy(B.mode === 'boss' ? 'boss' : 'farm');
+    if (!B.enemies.length) spawnWave(B.mode === 'hunt' ? 'hunt' : (B.mode === 'boss' ? 'boss' : 'farm'));
 
     // 全滅 → 2 秒後自動復活（放置遊戲不要卡死）
     if (!B.units.some((u) => u.alive)) {
@@ -149,8 +187,8 @@
       if (Date.now() >= B.autoReviveAt) {
         B.autoReviveAt = 0;
         reviveTeam(true);
-        if (B.mode === 'boss') { B.mode = 'farm'; spawnEnemy('farm'); }
-        if (B.mode === 'hunt') { B.mode = 'farm'; B.huntBeast = null; spawnEnemy('farm'); }
+        if (B.mode === 'boss') { B.mode = 'farm'; spawnWave('farm'); }
+        if (B.mode === 'hunt') { B.mode = 'farm'; B.huntBeast = null; spawnWave('farm'); }
         emit('revived', {});
       }
       return;
@@ -162,58 +200,60 @@
       u.gauge += (u.spd / 100) * ATB_SPEED;
       if (u.gauge < 1) continue;
       u.gauge = 0;
-      if (!B.enemy || !B.enemy.alive) continue;
+      if (!aliveEnemies().length) break;
       unitAct(u);
-      if (!B.enemy || !B.enemy.alive) break;
+      if (!aliveEnemies().length) break;
     }
 
-    // 敵方行動
-    if (B.enemy && B.enemy.alive) {
-      B.enemy.gauge += (B.enemy.spd / 100) * ATB_SPEED;
-      if (B.enemy.gauge >= 1) {
-        B.enemy.gauge = 0;
-        if (B.enemy.stun > 0) {
-          B.enemy.stun--;
-          emit('stun', { who: 'enemy' });
-        } else {
-          enemyAct();
-        }
-      }
+    // 敵方行動（每隻各自跑行動條）
+    for (const e of B.enemies) {
+      if (!e.alive) continue;
+      e.gauge += (e.spd / 100) * ATB_SPEED;
+      if (e.gauge < 1) continue;
+      e.gauge = 0;
+      if (e.stun > 0) { e.stun--; emit('stun', { who: 'enemy', enemyId: e.id }); continue; }
+      if (e.boss) bossAct(e); else enemyAct(e);
     }
-
-    // 擊殺處理（在函式內 emit）
   }
 
   /* ---------- 我方行動 ---------- */
   function unitAct(u) {
     if (u.buffTurns > 0) { u.buffTurns--; if (u.buffTurns === 0) u.buffAtk = 0; }
-    if (u.mp >= SKILL_MP) {
-      u.mp = 0;
-      castSkill(u);
-      return;
-    }
-    const dmg = calcDamage(u.atk * (1 + u.buffAtk), B.enemy.def, 0.9, 1.1);
-    hitEnemy(dmg, u, false);
+    if (u.mp >= SKILL_MP) { u.mp = 0; castSkill(u); return; }
+    const t = targetEnemy();
+    if (!t) return;
+    const dmg = calcDamage(u.atk * (1 + u.buffAtk), t.def, 0.9, 1.1);
+    hitEnemy(t, dmg, u, false);
     u.mp = Math.min(SKILL_MP, u.mp + MP_PER_ACTION);
   }
 
   function castSkill(u) {
-    const e = B.enemy;
-    emit('skill', { unit: u, name: (CFG.SOUL_BY_ID[u.id] || {}).skillName || '魂技' });
+    emit('skill', { unit: u, role: u.role, name: (CFG.SOUL_BY_ID[u.id] || {}).skillName || '魂技' });
+
     if (u.role === 'atk') {
-      const dmg = calcDamage(u.atk * (1 + u.buffAtk) * 2.0, e.def, 0.95, 1.05);
-      hitEnemy(dmg, u, true);
+      // 強攻系：全體 200%（多波時才看得出價值）
+      const targets = aliveEnemies();
+      for (const e of targets) {
+        const dmg = calcDamage(u.atk * (1 + u.buffAtk) * 2.0, e.def, 0.95, 1.05);
+        hitEnemy(e, dmg, u, true);
+      }
+      if (targets.length > 1) emit('aoe', { count: targets.length });
     } else if (u.role === 'ctrl') {
-      const dmg = calcDamage(u.atk * (1 + u.buffAtk) * 1.2, e.def, 0.95, 1.05);
-      hitEnemy(dmg, u, true);
-      if (Math.random() < 0.45 && e.alive) { e.stun = Math.max(e.stun, 1); emit('stun', { who: 'enemy' }); }
+      const t = targetEnemy();
+      if (t) {
+        hitEnemy(t, calcDamage(u.atk * (1 + u.buffAtk) * 1.2, t.def, 0.95, 1.05), u, true);
+        if (Math.random() < 0.45 && t.alive) {
+          t.stun = Math.max(t.stun, 1);
+          emit('stun', { who: 'enemy', enemyId: t.id });
+        }
+      }
     } else if (u.role === 'def') {
       const shield = Math.round(u.maxHp * 0.22);
       B.units.forEach((x) => { if (x.alive) x.shield += shield; });
       u.taunt = 2;
       emit('shield', { unit: u, shield });
-      const dmg = calcDamage(u.atk * 0.8, e.def, 0.9, 1.1);
-      hitEnemy(dmg, u, false);
+      const t = targetEnemy();
+      if (t) hitEnemy(t, calcDamage(u.atk * 0.8, t.def, 0.9, 1.1), u, false);
     } else {
       // 輔助：全隊回復 + 攻擊加成
       B.units.forEach((x) => {
@@ -226,20 +266,35 @@
     }
   }
 
-  function hitEnemy(dmg, u, isSkill) {
-    const e = B.enemy;
-    if (!e || !e.alive) return;
-    e.hp -= dmg;
-    emit('hit', { side: 'enemy', amount: dmg, crit: isSkill, unit: u, hp: Math.max(0, e.hp), maxHp: e.maxHp });
-    if (e.hp <= 0) {
-      e.hp = 0; e.alive = false;
-      onEnemyDead();
+  function hitEnemy(enemy, dmg, u, isSkill) {
+    if (!enemy || !enemy.alive) return;
+    enemy.hp -= dmg;
+    emit('hit', {
+      side: 'enemy', enemyId: enemy.id, amount: dmg, crit: isSkill, unit: u,
+      hp: Math.max(0, enemy.hp), maxHp: enemy.maxHp,
+    });
+    if (enemy.hp <= 0) { enemy.hp = 0; enemy.alive = false; onEnemyDead(enemy); }
+  }
+
+  /* ---------- Boss 被動 ---------- */
+  function bossAct(e) {
+    e.acts++;
+    if (!e.enraged && e.hp / e.maxHp <= 0.4) {
+      e.enraged = true;
+      e.atk = Math.round(e.atk * 1.35);
+      emit('bossRage', { name: e.name, enemyId: e.id });
     }
+    if (e.acts % 4 === 0 && e.hp < e.maxHp) {
+      const heal = Math.round(e.maxHp * 0.10);
+      e.hp = Math.min(e.maxHp, e.hp + heal);
+      emit('bossHeal', { name: e.name, enemyId: e.id, amount: heal, hp: e.hp, maxHp: e.maxHp });
+      return;
+    }
+    enemyAct(e);
   }
 
   /* ---------- 敵方行動 ---------- */
-  function enemyAct() {
-    const e = B.enemy;
+  function enemyAct(e) {
     const alive = B.units.filter((u) => u.alive);
     if (!alive.length) return;
     const taunters = alive.filter((u) => u.taunt > 0);
@@ -253,7 +308,9 @@
       if (absorbed > 0) emit('absorb', { unit: target, amount: absorbed });
     }
     target.hp -= left;
-    emit('hit', { side: 'team', unit: target, amount: left, maxHp: target.maxHp, hp: Math.max(0, target.hp) });
+    if (left > 0) {
+      emit('hit', { side: 'team', unit: target, amount: left, maxHp: target.maxHp, hp: Math.max(0, target.hp) });
+    }
     if (target.hp <= 0) {
       target.hp = 0; target.alive = false;
       emit('down', { unit: target });
@@ -261,8 +318,9 @@
   }
 
   /* ---------- 擊殺結算 ---------- */
-  function onEnemyDead() {
+  function onEnemyDead(enemy) {
     const s = State.data;
+
     if (B.mode === 'hunt') {
       const beast = B.huntBeast;
       const ring = State.newRing(beast.tier);
@@ -286,6 +344,7 @@
     emit('kill', {
       stage: s.stage, boss: isBoss, coins: coinGain, exp: expGain,
       kills: s.kills, levelUps: expRes.levelUps || 0,
+      left: aliveEnemies().length, enemyId: enemy && enemy.id,
     });
     if (expRes.levelUps) emit('levelup', { level: s.level });
 
@@ -295,31 +354,37 @@
       s.kills = 0;
       B.mode = 'farm';
       emit('stageClear', { stage: s.stage });
-    } else if (s.kills >= CFG.BASE_KILLS_PER_STAGE && !B.pendingBoss) {
+      spawnWave('farm');
+      return;
+    }
+
+    // 這一波清完才出下一波；還有敵人就不重生
+    if (aliveEnemies().length) return;
+
+    if (s.kills >= CFG.BASE_KILLS_PER_STAGE && !B.pendingBoss) {
       B.pendingBoss = true;
       emit('bossReady', { stage: s.stage });
     }
-
-    // 每個小怪回復 12% 生命，避免放置久了全滅
     B.units.forEach((u) => {
       if (u.alive) u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.12);
     });
-    spawnEnemy(B.mode === 'boss' ? 'boss' : 'farm');
+    spawnWave('farm');
   }
 
   /* ---------- 傷害公式 ---------- */
   function calcDamage(atk, def, lo, hi) {
     const base = atk * (lo + Math.random() * (hi - lo)) - def * 0.4;
     const crit = Math.random() < 0.1;
-    const dmg = Math.max(1, Math.round(base * (crit ? 1.8 : 1)));
-    return crit ? dmg : dmg;
+    return Math.max(1, Math.round(base * (crit ? 1.8 : 1)));
   }
 
   function snapshot() {
+    const alive = aliveEnemies();
     return {
       mode: B.mode,
       units: B.units.map((u) => ({ ...u })),
-      enemy: B.enemy ? { ...B.enemy } : null,
+      enemies: B.enemies.map((e) => ({ ...e })),
+      enemy: alive[0] ? { ...alive[0] } : (B.enemies[0] ? { ...B.enemies[0] } : null),
       pendingBoss: B.pendingBoss,
       kills: State.data.kills,
       needed: CFG.BASE_KILLS_PER_STAGE,
@@ -329,7 +394,9 @@
 
   global.Battle = {
     init, start, stop, refreshTeam, challengeBoss, hunt, backToFarm, reviveTeam,
-    on, snapshot,
+    on, snapshot, spawnWave, targetEnemy,
+    /* 測試用內部鉤子（不影響遊戲流程） */
+    unitAct, castSkill, hitEnemy, bossAct, enemyAct,
     get state() { return B; },
   };
 })(window);

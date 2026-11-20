@@ -170,6 +170,70 @@ def main() -> int:
         check("擊敗 BOSS 進到下一關、回到掛機", stage["stage"] >= 2 and stage["best"] >= 2 and stage["mode"] == "farm",
               str(stage))
 
+        # ---------- 6b. 多波小怪 + 群攻 + Boss 被動 ----------
+        wave = page.evaluate("""(() => {
+          const St = __game.State, B = __game.Battle.state;
+          St.data.stage = 12;
+          const sizes = [];
+          for (let i = 0; i < 24; i++) { __game.Battle.spawnWave('farm'); sizes.push(B.enemies.length); }
+          return {sizes, max: Math.max(...sizes), min: Math.min(...sizes)};
+        })()""")
+        check("多波：高等關卡會出 1–3 隻魂獸",
+              wave["max"] >= 2 and wave["min"] >= 1, str(wave))
+
+        aoe = page.evaluate("""(() => {
+          const B = __game.Battle.state;
+          B.mode = 'farm';
+          B.enemies = [0,1,2].map((i) => ({
+            id: 'aoe' + i, name: '群怪' + i, emoji: '🦟',
+            maxHp: 900, hp: 900, atk: 1, def: 0, spd: 1,
+            gauge: 0, stun: 0, alive: true, boss: false, acts: 0, enraged: false,
+          }));
+          const u = B.units.find((x) => x.role === 'atk') || B.units[0];
+          u.role = 'atk'; u.atk = 120; u.mp = 100;
+          const before = B.enemies.map((e) => e.hp);
+          __game.Battle.castSkill(u);
+          const after = B.enemies.map((e) => e.hp);
+          return {before, after, hits: after.filter((hp, i) => hp < before[i]).length};
+        })()""")
+        check("群攻（強攻系魂技）會同時打到 3 隻", aoe["hits"] == 3, str(aoe))
+
+        respawn = page.evaluate("""(() => {
+          const B = __game.Battle.state;
+          B.mode = 'farm';
+          B.enemies = [0,1,2].map((i) => ({
+            id: 'w' + i, name: '群怪' + i, emoji: '🦟',
+            maxHp: 500, hp: 500, atk: 1, def: 0, spd: 1,
+            gauge: 0, stun: 0, alive: true, boss: false, acts: 0, enraged: false,
+          }));
+          __game.Battle.hitEnemy(B.enemies[0], 99999, {}, false);
+          return {count: B.enemies.length, alive: B.enemies.filter((e) => e.alive).length};
+        })()""")
+        check("打死一隻不會馬上補滿整波（要清完才出下一波）",
+              respawn["count"] == 3 and respawn["alive"] == 2, str(respawn))
+
+        boss = page.evaluate("""(() => {
+          const B = __game.Battle.state;
+          B.mode = 'boss';
+          B.enemies = [{
+            id: 'bossX', name: '測試守關獸', emoji: '👹',
+            maxHp: 1000, hp: 300, atk: 100, def: 0, spd: 1,
+            gauge: 0, stun: 0, alive: true, boss: true, acts: 0, enraged: false,
+          }];
+          const e = B.enemies[0];
+          const atk0 = e.atk;
+          __game.Battle.bossAct(e);            // hp 30% → 狂暴
+          const enraged = e.enraged, atk1 = e.atk;
+          e.acts = 3; e.hp = 500;              // 下一次是第 4 次行動 → 回血
+          const hpBefore = e.hp;
+          __game.Battle.bossAct(e);
+          return {atk0, atk1, enraged, hpBefore, hpAfter: e.hp, acts: e.acts};
+        })()""")
+        check("Boss 半血狂暴：攻擊 +35%",
+              boss["enraged"] is True and boss["atk1"] == round(boss["atk0"] * 1.35), str(boss))
+        check("Boss 每 4 次行動回血 10%",
+              boss["hpAfter"] > boss["hpBefore"], f"{boss['hpBefore']} -> {boss['hpAfter']}")
+
         # ---------- 7. 抽卡 ----------
         page.evaluate("__game.switchTab('gacha')")
         pull = page.evaluate("""(() => {
@@ -417,7 +481,7 @@ def main() -> int:
     if FAILS:
         print(f"RESULT: FAIL ({len(FAILS)}: {', '.join(FAILS)})")
         return 1
-    print("RESULT: PASS（自動戰鬥 / 升級 / 獵魂掉環 / 魂環上限 / BOSS 推進 / 抽卡 / 兌換碼 / 存檔碼 / 離線收益 / 版面）")
+    print("RESULT: PASS（自動戰鬥 / 多波群攻 / Boss 狂暴回血 / 升級 / 獵魂掉環 / 魂環上限 / 魂骨 / 簽到 / 抽卡 / 兌換碼 / 存檔碼 / 離線收益 / 版面）")
     return 0
 
 
