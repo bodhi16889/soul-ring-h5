@@ -324,8 +324,9 @@ body {
 .ci-cell .l { font-size: 8px; color: #bdb2d6; padding: 0 1px; line-height: 1.2;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ci-cell.done { opacity: .45; }
-.ci-cell.done::after { content: "✓"; position: absolute; inset: 0; display: grid; place-items: center;
-  font-size: 22px; color: var(--ok); text-shadow: 0 0 8px rgba(87, 217, 139, .6); }
+.ci-cell.done::after { content: "✓"; position: absolute; top: -4px; right: -4px;
+  width: 14px; height: 14px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 10px; font-weight: 700; background: var(--ok); color: #06130b; }
 .ci-cell.today { border-color: var(--gold); box-shadow: 0 0 14px rgba(255, 209, 102, .35);
   animation: ciPulse 1.8s ease-in-out infinite; }
 .ci-cell.big .e { font-size: 18px; }
