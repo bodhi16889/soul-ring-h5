@@ -374,8 +374,9 @@
 
     const isBoss = B.mode === 'boss';
     const r = CFG.killReward(s.stage);
-    const coinGain = isBoss ? r.coins * 8 : r.coins;
-    const expGain = isBoss ? r.exp * 8 : r.exp;
+    const mul = State.incomeMul();
+    const coinGain = Math.round((isBoss ? r.coins * 8 : r.coins) * mul);
+    const expGain = Math.round((isBoss ? r.exp * 8 : r.exp) * mul);
     State.addCoins(coinGain);
     const expRes = State.addExp(s, expGain);
     s.stats.kills++;

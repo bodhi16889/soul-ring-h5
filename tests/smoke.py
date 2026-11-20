@@ -508,6 +508,73 @@ def main() -> int:
               and pace["expPerKill1"] >= 10 and pace["baboonHp"] <= 260
               and 1000 <= pace["autoBossMs"] <= 3000, str(pace))
 
+        # ---------- 11d. 轉生（魂印）與無限關卡 ----------
+        gate = page.evaluate("""(() => {
+          const St = __game.State, s = St.data;
+          s.bestStage = 12; s.level = 12; s.marks = 0; s.rebirths = 0;
+          const info = St.rebirthInfo();
+          const r = St.doRebirth();
+          return {gain: info.gain, can: info.can, ok: r.ok, msg: r.msg,
+                  bestStage: s.bestStage, level: s.level};
+        })()""")
+        check("轉生條件：歷史最高未達 20 關會被擋下",
+              gate["can"] is False and gate["ok"] is False and gate["gain"] == 0, str(gate))
+
+        reb = page.evaluate("""(() => {
+          const St = __game.State, s = St.data;
+          s.bestStage = 30; s.level = 30; s.stage = 30; s.coins = 9999;
+          s.ringBag = [{uid:'rx', tier:'violet', name:'千年魂環', equipped:null}];
+          s.souls[0].rings = []; s.souls[0].level = 30;
+          const star0 = s.souls[0].star;
+          const atk0 = St.soulStats(s.souls[0]).atk;
+          const info = St.rebirthInfo();
+          const r = St.doRebirth();
+          const atk1 = St.soulStats(s.souls[0]).atk;
+          return {info, r, star0, star1: s.souls[0].star, atk0, atk1,
+                  level: s.level, stage: s.stage, coins: s.coins, rings: s.ringBag.length,
+                  bestStage: s.bestStage, marks: s.marks, rebirths: s.rebirths};
+        })()""")
+        check("轉生：魂印增加、等級/關卡/魂幣/魂環歸零、最高關卡保留",
+              reb["r"]["ok"] is True and reb["marks"] == reb["info"]["gain"] and reb["marks"] >= 5
+              and reb["level"] == 1 and reb["stage"] == 1 and reb["coins"] == 0
+              and reb["rings"] == 0 and reb["bestStage"] == 30 and reb["rebirths"] == 1, str(reb))
+        check("轉生保留武魂與星級", reb["star0"] == reb["star1"], f"{reb['star0']} → {reb['star1']}")
+
+        perm = page.evaluate("""(() => {
+          const St = __game.State, s = St.data;
+          const mk = s.marks;
+          const st = St.teamStats();
+          return {marks: mk, income: St.incomeMul(), power: St.power(),
+                  bonusPct: Math.round(CFG.REBIRTH.perMark.atk * 100 * mk)};
+        })()""")
+        check("魂印是永久加成：收益倍率 > 1、戰力重算",
+              perm["marks"] >= 5 and perm["income"] > 1 and perm["power"] > 0
+              and perm["bonusPct"] >= 30, str(perm))
+
+        inf = page.evaluate("""(() => {
+          const St = __game.State, s = St.data;
+          s.stage = 120;
+          const a = __game.CFG.enemyStats(120, false);
+          const b = __game.CFG.enemyStats(400, false);
+          return {a, b, area1: __game.CFG.areaFor(1), area120: __game.CFG.areaFor(120),
+                  area500: __game.CFG.areaFor(500),
+                  kills120: __game.CFG.killReward(120)};
+        })()""")
+        check("無限關卡：第 120、400 關數值仍可算、地圖名循環、難度不失控",
+              inf["b"]["hp"] > inf["a"]["hp"] and inf["b"]["hp"] < 1e15
+              and inf["area120"] != inf["area1"] and inf["area500"] != ""
+              and inf["kills120"]["exp"] > 0,
+              f"hp {inf['a']['hp']:.3g} → {inf['b']['hp']:.3g}, {inf['area1']} / {inf['area120']} / {inf['area500']}")
+
+        page.evaluate("__game.Battle.init(); __game.renderAll()")
+        rb_ui = page.evaluate("""({
+          box: !!document.getElementById('rebirthBox'),
+          text: (document.getElementById('rebirthBox') || {}).textContent || '',
+          marks: (document.getElementById('marks') || {}).textContent,
+        })""")
+        check("轉生 UI：武魂頁有轉生卡、頂部顯示魂印", rb_ui["box"] and "魂印" in rb_ui["text"]
+              and rb_ui["marks"] not in (None, "", "0"), str(rb_ui)[:160])
+
         # ---------- 12. 版面 ----------
         page.wait_for_selector("#stage", state="visible", timeout=5000)
         layout = page.evaluate("""({

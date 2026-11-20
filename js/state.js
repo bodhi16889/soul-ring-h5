@@ -33,6 +33,8 @@
       cd: {},                // 魂獸 id -> 下次可獵時間
       codes: [],
       checkin: { lastDay: '', streak: 0, total: 0 },   // 每日簽到
+      rebirths: 0,           // 轉生次數
+      marks: 0,              // 魂印：永久加成（每點全屬性 +6%）
       settings: { autoBoss: true, autoHunt: true, autoRing: true },   // 放置用開關
       stats: { kills: 0, hunts: 0, pulls: 0 },
       lastSave: Date.now(),
@@ -67,6 +69,8 @@
     out.cd = (d && d.cd) || {};
     out.codes = Array.isArray(d && d.codes) ? d.codes : [];
     out.checkin = Object.assign({ lastDay: '', streak: 0, total: 0 }, (d && d.checkin) || {});
+    out.rebirths = Math.max(0, out.rebirths | 0);
+    out.marks = Math.max(0, out.marks | 0);
     out.settings = Object.assign({ autoBoss: true, autoHunt: true, autoRing: true }, (d && d.settings) || {});
     out.slots = Math.max(1, Math.min(5, out.slots | 0 || 1));
     out.team = out.team.filter((id) => out.souls.some((s) => s.id === id)).slice(0, out.slots);
@@ -119,8 +123,9 @@
     const minutes = Math.floor(capped / 60000);
     if (minutes < 1) return null;
     const rate = CFG.offlinePerMinute(s.stage);
-    const coins = rate.coins * minutes;
-    const exp = rate.exp * minutes;
+    const mul = 1 + CFG.REBIRTH.perMark.income * s.marks;
+    const coins = Math.round(rate.coins * minutes * mul);
+    const exp = Math.round(rate.exp * minutes * mul);
     s.coins += coins;
     addExp(s, exp, { silent: true });
     s.lastSave = now;
@@ -171,11 +176,12 @@
     const rb = ringBonus(soul);
     const own = boneOf(soul) || { atk: 0, hp: 0, def: 0, spd: 0 };
     const aura = teamAura(soul.id);
+    const pm = CFG.REBIRTH.perMark;
     return {
-      atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk + own.atk + aura.atk)),
-      hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp + own.hp + aura.hp)),
-      def: Math.round(base.def * starMul * lvMul * (1 + own.def + aura.def)),
-      spd: Math.round(base.spd * (1 + own.spd + aura.spd)),
+      atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk + own.atk + aura.atk + pm.atk * S.marks)),
+      hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp + own.hp + aura.hp + pm.hp * S.marks)),
+      def: Math.round(base.def * starMul * lvMul * (1 + own.def + aura.def + pm.def * S.marks)),
+      spd: Math.round(base.spd * (1 + own.spd + aura.spd + pm.spd * S.marks)),
       role: base.role,
       name: base.name,
       emoji: base.emoji,
@@ -199,6 +205,9 @@
     const t = teamStats();
     return Math.round(t.atk * 2.2 + t.hp * 0.35 + t.def * 2.5 + t.spd * 0.6);
   }
+
+  /* 魂印帶來的收益倍率（魂幣/經驗） */
+  function incomeMul() { return 1 + CFG.REBIRTH.perMark.income * S.marks; }
 
   function totalRingsEquipped() {
     let n = 0;
@@ -391,6 +400,39 @@
     return { kind: 'new', id: picked.id, name: CFG.SOUL_BY_ID[picked.id].name, star: picked.star };
   }
 
+  /* ---------- 轉生 ---------- */
+  function rebirthInfo() {
+    const gain = CFG.rebirthGain(S.bestStage, S.level);
+    return {
+      gain,
+      can: gain > 0,
+      marks: S.marks,
+      rebirths: S.rebirths,
+      bestStage: S.bestStage,
+      minStage: CFG.REBIRTH.minStage,
+      bonusText: `全屬性 +${Math.round(CFG.REBIRTH.perMark.atk * 100 * S.marks)}% · 收益 +${Math.round(CFG.REBIRTH.perMark.income * 100 * S.marks)}%`,
+    };
+  }
+
+  /* 轉生：保留武魂/星級/魂骨/魂印/簽到，重置本輪進度 */
+  function doRebirth() {
+    const info = rebirthInfo();
+    if (!info.can) return { ok: false, msg: `歷史最高關卡需達 ${CFG.REBIRTH.minStage} 關` };
+    S.marks += info.gain;
+    S.rebirths += 1;
+    S.level = 1;
+    S.exp = 0;
+    S.stage = 1;
+    S.kills = 0;
+    S.coins = 0;
+    S.ringBag = [];
+    S.souls.forEach((soul) => { soul.rings = []; soul.level = 1; });
+    S.cd = {};
+    S.lastSave = Date.now();
+    save(true);
+    return { ok: true, gain: info.gain, marks: S.marks, rebirths: S.rebirths };
+  }
+
   /* ---------- 每日簽到 ---------- */
   function dayKey(d) {
     const x = d || new Date();
@@ -484,7 +526,7 @@
     load, save, reset,
     addExp, addCoins, spendCoins, addDiamonds, spendDiamonds,
     soulStats, teamSouls, teamStats, power,
-    totalRingsEquipped, levelCap, atCap,
+    totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth,
     newRing, ringSlotsOf, ringBonus, equipRing, unequipRing, autoEquipBestRing, freeRings,
     boneOf, freeBones, equippedBones, teamAura, equipBone, unequipBone,
     starUpInfo, starUp,

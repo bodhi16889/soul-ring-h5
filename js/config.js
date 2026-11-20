@@ -68,8 +68,16 @@
   function expNeed(level) { return Math.round(8 * Math.pow(level, 1.3) + 6 * level); }
   function levelCap(ringsEquipped) { return Math.min(MAX_LEVEL, 10 + 10 * ringsEquipped); }
 
+  /* 無限關卡的難度曲線：前 60 關指數（1.16），之後轉慢速（1.06）
+     → 深關不會變成 1e27 這種天文數字，轉生才有意義 */
+  function stageMul(stage, fast, slow, pivot) {
+    const f = Math.min(stage, pivot);
+    const rest = Math.max(0, stage - pivot);
+    return Math.pow(fast, f - 1) * Math.pow(slow, rest);
+  }
+
   function enemyStats(stage, isBoss) {
-    const mul = Math.pow(1.16, stage - 1);
+    const mul = stageMul(stage, 1.16, 1.06, 60);
     return {
       hp: Math.round(42 * mul * (isBoss ? 3.0 : 1)),
       atk: Math.round(7 * mul * (isBoss ? 1.0 : 1)),
@@ -117,6 +125,21 @@
     { day: 7, kind: 'gift',     ring: 'black', tickets: 3, diamonds: 888, label: '萬年魂環＋888💎', emoji: '🎁' },
   ];
 
+  /* ---------- 轉生（魂印）----------
+   * 條件：歷史最高關卡 ≥ 20
+   * 收益：floor(bestStage/5) + floor(level/10) 點魂印
+   * 每點魂印：全屬性 +6%（速度 +2%）、魂幣與經驗 +4%
+   */
+  const REBIRTH = {
+    minStage: 20,
+    perMark: { atk: 0.06, hp: 0.06, def: 0.06, spd: 0.02, income: 0.04 },
+  };
+
+  function rebirthGain(bestStage, level) {
+    if (!bestStage || bestStage < REBIRTH.minStage) return 0;
+    return Math.floor(bestStage / 5) + Math.floor((level || 1) / 10);
+  }
+
   /* ---------- 兌換碼 ---------- */
   const CODES = {
     VIP666:    { diamonds: 8888,  tickets: 5,  msg: '鑽石 8888、覺醒券 5' },
@@ -128,6 +151,7 @@
     RING_TIERS, TIER_BY_KEY, SOULS, SOUL_BY_ID, ROLE_LABEL, ROLE_COLOR,
     BEASTS, BEAST_BY_ID, STAGE_AREAS, areaFor,
     MAX_LEVEL, BASE_KILLS_PER_STAGE, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY,
+    REBIRTH, rebirthGain, stageMul,
     PULL_COST_TICKET, PULL_COST_DIAMOND, PULL10_COST_TICKET, PULL10_COST_DIAMOND,
     expNeed, levelCap, enemyStats, killReward, offlinePerMinute,
     PULL_POOL, BONES, BONE_BY_ID, BONE_AURA, bonePullWeight,

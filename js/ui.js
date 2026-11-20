@@ -360,6 +360,44 @@
     });
   }
 
+  function renderRebirth() {
+    const box = $('#rebirthBox');
+    if (!box) return;
+    const info = State.rebirthInfo();
+    const pm = CFG.REBIRTH.perMark;
+    box.innerHTML = `
+      <h3><span>🌀 轉生 · 魂印 <span class="rb-mark">${info.marks}</span></span>
+          <span class="hint">第 ${info.rebirths + 1} 次</span></h3>
+      <div class="rb-line">歷史最高：第 <b>${info.bestStage}</b> 關（需 ${info.minStage} 關）</div>
+      <div class="rb-line">目前加成：全屬性 +${Math.round(pm.atk * 100 * info.marks)}% · 收益 +${Math.round(pm.income * 100 * info.marks)}%</div>
+      <div class="rb-line">這次轉生可得：<b style="color:var(--gold)">+${info.gain} 魂印</b>（每點全屬性 +6%、收益 +4%）</div>
+      <div class="rb-line" style="opacity:.75">轉生會重置等級／關卡／魂幣／魂環；武魂、星級、魂骨、魂印會保留。</div>
+      <button id="btnRebirth" class="wide-btn ${info.can ? '' : ''}" ${info.can ? '' : 'disabled'}>
+        ${info.can ? `轉生（+${info.gain} 魂印）` : `需歷史最高 ${info.minStage} 關`}
+      </button>`;
+    const btn = $('#btnRebirth');
+    if (btn) btn.addEventListener('click', () => {
+      if (!info.can) return toast(`歷史最高關卡需達 ${info.minStage} 關`);
+      if (btn.dataset.armed === '1') { doRebirthNow(); return; }
+      btn.dataset.armed = '1';
+      btn.classList.add('armed');
+      btn.textContent = '再按一次確認轉生（會重置本輪）';
+      clearTimeout(renderRebirth._t);
+      renderRebirth._t = setTimeout(() => {
+        if (btn.isConnected) { btn.dataset.armed = ''; btn.classList.remove('armed'); renderRebirth(); }
+      }, 4000);
+    });
+  }
+
+  function doRebirthNow() {
+    const r = State.doRebirth();
+    if (!r.ok) return toast(r.msg);
+    Battle.init();
+    renderAll();
+    banner('轉生');
+    toast(`轉生完成：魂印 +${r.gain}（累計 ${r.marks}）`);
+  }
+
   /* ================= 魂環 ================= */
   function bindRings() { /* 由 renderRings 綁定 */ }
 
@@ -552,6 +590,11 @@
     $('#playerName').textContent = s.name;
     $('#coins').textContent = fmt(s.coins);
     $('#diamonds').textContent = fmt(s.diamonds);
+    const mk = $('#marks');
+    if (mk) {
+      mk.textContent = s.marks > 0 ? `🌀${s.marks}` : '';
+      mk.style.display = s.marks > 0 ? '' : 'none';
+    }
     const p = State.power();
     const el = $('#power');
     if (el.textContent !== String(p)) {
@@ -566,6 +609,7 @@
     renderBattle();
     renderSouls();
     renderBones();
+    renderRebirth();
     renderRings();
     renderHunt();
     renderCheckin();
