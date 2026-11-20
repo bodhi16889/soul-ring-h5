@@ -37,6 +37,8 @@
     renderAll();
 
     if (res.offline) showOffline(res.offline);
+    const ci = State.checkinInfo();
+    if (ci.canCheck) setTimeout(() => toast('今日簽到可領取 🎁'), 1400);
     if (res.corrupted) toast('存檔損毀，已建立新檔');
 
     setInterval(() => { State.save(); renderTop(); }, 5000);
@@ -48,7 +50,8 @@
     global.__game = {
       get ready() { return true; },
       State, Battle, CFG,
-      switchTab, openModal, closeModal,
+      switchTab, openModal, closeModal, renderAll,
+      checkinInfo: () => State.checkinInfo(),
       get tab() { return tab; },
     };
   }
@@ -453,6 +456,14 @@
 
   /* ================= 覺醒抽卡 ================= */
   function bindGacha() {
+    $('#btnCheckin').addEventListener('click', () => {
+      const r = State.checkIn();
+      if (!r.ok) return toast(r.msg);
+      State.save(true);
+      renderAll();
+      toast(`第 ${r.dayIndex} 天簽到：${r.reward.label}（連續 ${r.streak} 天）`);
+      banner(`連續簽到 ${r.streak} 天`);
+    });
     $('#btnPull1').addEventListener('click', () => doPull(1));
     $('#btnPull10').addEventListener('click', () => doPull(10));
     $('#btnCode').addEventListener('click', () => {
@@ -491,6 +502,30 @@
     }).join('');
   }
 
+  function renderCheckin() {
+    const info = State.checkinInfo();
+    const cells = CFG.CHECKIN.map((r) => {
+      const isToday = info.canCheck && r.day === info.dayIndex;
+      const done = !info.canCheck ? r.day <= info.dayIndex : r.day < info.dayIndex;
+      const big = r.day === 7 ? ' big' : '';
+      return `<div class="ci-cell${done ? ' done' : ''}${isToday ? ' today' : ''}${big}" title="${r.label}">
+        <div class="d">第${r.day}天</div>
+        <div class="e">${r.emoji}</div>
+        <div class="l">${r.label.replace(/\s/g, '')}</div>
+      </div>`;
+    }).join('');
+    $('#checkinGrid').innerHTML = cells;
+    $('#streakInfo').textContent = info.streak > 0 ? `連續 ${info.streak} 天` : '連續簽到有獎';
+    const btn = $('#btnCheckin');
+    btn.disabled = !info.canCheck;
+    btn.textContent = info.canCheck
+      ? `領取第 ${info.dayIndex} 天獎勵（${info.reward.label}）`
+      : `今天已簽到 · 明天再來`;
+    const dot = $('#checkinDot');
+    if (dot) dot.classList.toggle('hidden', !info.canCheck);
+    return info;
+  }
+
   function renderGacha() {
     const s = State.data;
     $('#ticketInfo').textContent = `覺醒券 ${s.tickets} · 鑽石 ${fmt(s.diamonds)}`;
@@ -522,6 +557,7 @@
     renderBones();
     renderRings();
     renderHunt();
+    renderCheckin();
     renderGacha();
   }
 

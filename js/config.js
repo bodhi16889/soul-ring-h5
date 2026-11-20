@@ -104,6 +104,17 @@
   function starUpBones(star) { return Math.max(1, star - 2); }            // 3→4:1、4→5:2
   function starUpCoin(star) { return star <= 3 ? 1200 : 6000; }
 
+  /* ---------- 每日簽到（7 天一輪，連續簽到 streak 會保留）---------- */
+  const CHECKIN = [
+    { day: 1, kind: 'coins',    amount: 3000,  label: '魂幣 3000',        emoji: '🪙' },
+    { day: 2, kind: 'diamonds', amount: 120,   label: '鑽石 120',         emoji: '💎' },
+    { day: 3, kind: 'tickets',  amount: 2,     label: '覺醒券 2',         emoji: '🎟️' },
+    { day: 4, kind: 'coins',    amount: 12000, label: '魂幣 12000',       emoji: '🪙' },
+    { day: 5, kind: 'ring',     tier: 'yellow', label: '百年魂環',        emoji: '🟡' },
+    { day: 6, kind: 'diamonds', amount: 500,   label: '鑽石 500',         emoji: '💎' },
+    { day: 7, kind: 'gift',     ring: 'black', tickets: 3, diamonds: 888, label: '萬年魂環＋888💎', emoji: '🎁' },
+  ];
+
   /* ---------- 兌換碼 ---------- */
   const CODES = {
     VIP666:    { diamonds: 8888,  tickets: 5,  msg: '鑽石 8888、覺醒券 5' },
@@ -118,6 +129,6 @@
     PULL_COST_TICKET, PULL_COST_DIAMOND, PULL10_COST_TICKET, PULL10_COST_DIAMOND,
     expNeed, levelCap, enemyStats, killReward, offlinePerMinute,
     PULL_POOL, BONES, BONE_BY_ID, BONE_AURA, bonePullWeight,
-    starUpBones, starUpCoin, CODES,
+    starUpBones, starUpCoin, CHECKIN, CODES,
   };
 })(window);

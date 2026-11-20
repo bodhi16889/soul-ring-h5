@@ -89,6 +89,11 @@
     <!-- 覺醒 -->
     <section class="view" data-view="gacha">
       <div class="panel-head"><h2>武魂殿</h2><span id="ticketInfo" class="hint"></span></div>
+      <div class="checkin-box">
+        <div class="checkin-head"><span>每日簽到</span><span id="streakInfo" class="hint"></span></div>
+        <div id="checkinGrid" class="checkin-grid"></div>
+        <button id="btnCheckin" class="wide-btn small checkin-btn">領取今日獎勵</button>
+      </div>
       <div class="gacha-box">
         <div class="gacha-art">✦</div>
         <button id="btnPull1" class="wide-btn">覺醒一次（1 券 / 100 💎）</button>
@@ -98,6 +103,7 @@
         <input id="codeInput" placeholder="輸入兌換碼" maxlength="20" />
         <button id="btnCode" class="wide-btn small">兌換</button>
       </div>
+      <p class="hint">機率：武魂 ★5 3% · ★4 12% · ★3 以下 70% · 魂骨 15%（每抽）</p>
       <p class="hint">測試兌換碼：VIP666、DOULUO888、TANG3</p>
       <div id="pullResult" class="pull-result"></div>
     </section>
@@ -109,7 +115,7 @@
     <button class="nav-btn" data-tab="souls"><span>🌀</span>武魂</button>
     <button class="nav-btn" data-tab="rings"><span>💠</span>魂環</button>
     <button class="nav-btn" data-tab="hunt"><span>🐾</span>獵魂</button>
-    <button class="nav-btn" data-tab="gacha"><span>✨</span>覺醒</button>
+    <button class="nav-btn" data-tab="gacha"><span>✨<i id="checkinDot" class="dot hidden"></i></span>覺醒</button>
   </nav>
 
   <!-- ===== 彈窗 ===== -->

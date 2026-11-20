@@ -32,6 +32,7 @@
       bones: [],             // [{uid, id}] 未裝備的魂骨
       cd: {},                // 魂獸 id -> 下次可獵時間
       codes: [],
+      checkin: { lastDay: '', streak: 0, total: 0 },   // 每日簽到
       stats: { kills: 0, hunts: 0, pulls: 0 },
       lastSave: Date.now(),
     };
@@ -64,6 +65,7 @@
     out.ringBag = Array.isArray(d && d.ringBag) ? d.ringBag : [];
     out.cd = (d && d.cd) || {};
     out.codes = Array.isArray(d && d.codes) ? d.codes : [];
+    out.checkin = Object.assign({ lastDay: '', streak: 0, total: 0 }, (d && d.checkin) || {});
     out.slots = Math.max(1, Math.min(5, out.slots | 0 || 1));
     out.team = out.team.filter((id) => out.souls.some((s) => s.id === id)).slice(0, out.slots);
     out.souls.forEach((s) => {
@@ -353,6 +355,59 @@
     return { kind: 'new', id: picked.id, name: CFG.SOUL_BY_ID[picked.id].name, star: picked.star };
   }
 
+  /* ---------- 每日簽到 ---------- */
+  function dayKey(d) {
+    const x = d || new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}`;
+  }
+  function prevDayKey(d) {
+    const x = new Date((d || new Date()).getTime());
+    x.setDate(x.getDate() - 1);
+    return dayKey(x);
+  }
+  function checkinInfo(now) {
+    const c = S.checkin;
+    const today = dayKey(now);
+    const canCheck = c.lastDay !== today;
+    const continuous = c.lastDay === prevDayKey(now);
+    const nextTotal = c.total + 1;
+    const dayIndex = ((nextTotal - 1) % CFG.CHECKIN.length) + 1;
+    return {
+      canCheck,
+      today,
+      streak: canCheck ? (continuous ? c.streak + 1 : 1) : c.streak,
+      total: c.total,
+      dayIndex: canCheck ? dayIndex : (((c.total - 1) % CFG.CHECKIN.length) + 1),
+      reward: CFG.CHECKIN[dayIndex - 1],
+      continuous,
+    };
+  }
+  function grantCheckinReward(r) {
+    if (!r) return;
+    if (r.kind === 'coins') S.coins += r.amount;
+    else if (r.kind === 'diamonds') S.diamonds += r.amount;
+    else if (r.kind === 'tickets') S.tickets += r.amount;
+    else if (r.kind === 'ring') S.ringBag.push(newRing(r.tier));
+    else if (r.kind === 'gift') {
+      if (r.ring) S.ringBag.push(newRing(r.ring));
+      if (r.tickets) S.tickets += r.tickets;
+      if (r.diamonds) S.diamonds += r.diamonds;
+    }
+  }
+  function checkIn(now) {
+    const info = checkinInfo(now);
+    if (!info.canCheck) return { ok: false, msg: '今天已經簽過了，明天再來' };
+    const c = S.checkin;
+    c.streak = info.streak;
+    c.total += 1;
+    c.lastDay = dayKey(now);
+    const idx = ((c.total - 1) % CFG.CHECKIN.length);
+    const reward = CFG.CHECKIN[idx];
+    grantCheckinReward(reward);
+    return { ok: true, reward, dayIndex: idx + 1, streak: c.streak, total: c.total };
+  }
+
   /* ---------- 兌換碼 ---------- */
   function redeem(code) {
     const key = String(code || '').trim().toUpperCase();
@@ -398,6 +453,7 @@
     boneOf, freeBones, equippedBones, teamAura, equipBone, unequipBone,
     starUpInfo, starUp,
     slotNextCost, slotNextLevel, canExpand, expandSlot, toggleTeam,
+    dayKey, checkinInfo, checkIn,
     pullOnce, rollOne, redeem, exportCode, importCode,
     offlineGain, OFFLINE_CAP_H,
   };

@@ -261,6 +261,72 @@ def main() -> int:
         code3 = page.evaluate("(() => __game.State.redeem('NOPE'))()")
         check("無效兌換碼會被拒絕", code3["ok"] is False, str(code3))
 
+        # ---------- 8b. 每日簽到（7 天一輪）----------
+        ci = page.evaluate("""(() => {
+          const St = __game.State, s = St.data;
+          s.checkin = { lastDay: '', streak: 0, total: 0 };
+          const d0 = new Date(2026, 0, 10, 12, 0, 0);
+          const coins0 = s.coins;
+          const r1 = St.checkIn(d0);
+          const again = St.checkIn(d0);                      // 同一天不能領第二次
+          const r2 = St.checkIn(new Date(2026, 0, 11, 12));  // 隔天連續
+          const r3 = St.checkIn(new Date(2026, 0, 12, 12));
+          const r4 = St.checkIn(new Date(2026, 0, 15, 12));  // 斷簽後重來
+          return {r1, again, r2, r3, r4, coins: s.coins - coins0,
+                  checkin: {...s.checkin}};
+        })()""")
+        check("簽到：第一天可領、同一天不能再領",
+              ci["r1"]["ok"] is True and ci["r1"]["dayIndex"] == 1
+              and ci["again"]["ok"] is False and ci["coins"] >= 3000, f"{ci['r1']} / {ci['again']}")
+        check("連續簽到 streak 會累加（第 2、3 天）",
+              ci["r2"]["streak"] == 2 and ci["r2"]["dayIndex"] == 2
+              and ci["r3"]["streak"] == 3 and ci["r3"]["dayIndex"] == 3, f"{ci['r2']} / {ci['r3']}")
+        check("斷簽後 streak 重置為 1", ci["r4"]["streak"] == 1 and ci["r4"]["ok"] is True, str(ci["r4"]))
+
+        day7 = page.evaluate("""(() => {
+          const St = __game.State, s = St.data;
+          s.checkin = { lastDay: St.dayKey(new Date(2026, 0, 20, 12)), streak: 6, total: 6 };
+          const rings0 = s.ringBag.length, tickets0 = s.tickets, dia0 = s.diamonds;
+          const r = St.checkIn(new Date(2026, 0, 21, 12));
+          return {r, rings: s.ringBag.length - rings0, tickets: s.tickets - tickets0,
+                  diamonds: s.diamonds - dia0,
+                  tier: s.ringBag[s.ringBag.length - 1] && s.ringBag[s.ringBag.length - 1].tier};
+        })()""")
+        check("第 7 天給大獎（萬年魂環＋券 3＋鑽石 888）",
+              day7["r"]["dayIndex"] == 7 and day7["rings"] == 1
+              and day7["tickets"] == 3 and day7["diamonds"] == 888 and day7["tier"] == "black",
+              str(day7))
+
+        ui_ci = page.evaluate("""(() => {
+          const St = __game.State, s = St.data;
+          s.checkin = { lastDay: '', streak: 0, total: 0 };   // 回到可領狀態
+          __game.renderAll();
+          const info = __game.checkinInfo();
+          return {
+            cells: document.querySelectorAll('.ci-cell').length,
+            today: document.querySelectorAll('.ci-cell.today').length,
+            btn: document.getElementById('btnCheckin').textContent.trim(),
+            disabled: document.getElementById('btnCheckin').disabled,
+            dot: !document.getElementById('checkinDot').classList.contains('hidden'),
+            canCheck: info.canCheck,
+          };
+        })()""")
+        check("簽到 UI：7 格、今日高亮、按鈕可領、頁籤紅點",
+              ui_ci["cells"] == 7 and ui_ci["today"] == 1 and ui_ci["disabled"] is False
+              and ui_ci["dot"] is True and "第 1 天" in ui_ci["btn"], str(ui_ci))
+
+        page.evaluate("__game.State.checkIn(); __game.State.save(true)")
+        page.reload(wait_until="load")
+        page.wait_for_function("window.__game && window.__game.ready", timeout=20000)
+        ci_kept = page.evaluate("""({
+          checkin: __game.State.data.checkin,
+          canCheck: __game.checkinInfo().canCheck,
+          btnDisabled: document.getElementById('btnCheckin').disabled,
+        })""")
+        check("簽到狀態會存檔，當天重載後不能再領",
+              ci_kept["checkin"]["total"] >= 1 and ci_kept["canCheck"] is False
+              and ci_kept["btnDisabled"] is True, str(ci_kept))
+
         # ---------- 9. 存檔碼往返 ----------
         roundtrip = page.evaluate("""(() => {
           const s = __game.State.data;

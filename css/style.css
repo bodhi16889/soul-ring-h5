@@ -311,6 +311,32 @@ body {
 .bone-blue { color: #6ea8ff; background: #6ea8ff; }
 .bone-gold { color: #ffd166; background: #ffd166; }
 
+/* 每日簽到 */
+.checkin-box { border: 1px solid var(--line); border-radius: 14px; padding: 10px; margin-bottom: 10px;
+  background: radial-gradient(circle at 15% 0%, rgba(255, 209, 102, .12), transparent 60%); }
+.checkin-head { display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 12px; color: var(--gold); margin-bottom: 8px; letter-spacing: .06em; }
+.checkin-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.ci-cell { position: relative; border-radius: 9px; padding: 6px 2px 5px; text-align: center;
+  border: 1px solid var(--line); background: rgba(255, 255, 255, .04); }
+.ci-cell .d { font-size: 9px; color: var(--muted); }
+.ci-cell .e { font-size: 16px; line-height: 1.2; }
+.ci-cell .l { font-size: 8px; color: #bdb2d6; padding: 0 1px; line-height: 1.2;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ci-cell.done { opacity: .45; }
+.ci-cell.done::after { content: "✓"; position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: 22px; color: var(--ok); text-shadow: 0 0 8px rgba(87, 217, 139, .6); }
+.ci-cell.today { border-color: var(--gold); box-shadow: 0 0 14px rgba(255, 209, 102, .35);
+  animation: ciPulse 1.8s ease-in-out infinite; }
+.ci-cell.big .e { font-size: 18px; }
+@keyframes ciPulse { 0%, 100% { box-shadow: 0 0 8px rgba(255, 209, 102, .25); } 50% { box-shadow: 0 0 20px rgba(255, 209, 102, .55); } }
+.checkin-btn { margin-top: 8px; }
+.checkin-btn:disabled { opacity: .5; }
+.dot { position: absolute; transform: translate(10px, -6px); width: 7px; height: 7px; border-radius: 50%;
+  background: var(--bad); box-shadow: 0 0 8px var(--bad); }
+.dot.hidden { display: none; }
+.nav-btn span { position: relative; display: inline-block; }
+
 /* 抽卡 */
 .gacha-box { text-align: center; border: 1px solid var(--line); border-radius: 14px; padding: 14px 12px 12px; background: radial-gradient(circle at 50% 0%, rgba(160, 107, 255, .22), transparent 65%); }
 .gacha-art { font-size: 48px; color: var(--gold); text-shadow: 0 0 28px rgba(255, 209, 102, .8); margin-bottom: 6px; animation: spinSlow 6s linear infinite; }
