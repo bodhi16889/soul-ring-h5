@@ -35,7 +35,7 @@
       checkin: { lastDay: '', streak: 0, total: 0 },   // 每日簽到
       rebirths: 0,           // 轉生次數
       marks: 0,              // 魂印：永久加成（每點全屬性 +6%）
-      settings: { autoBoss: true, autoHunt: true, autoRing: true },   // 放置用開關
+      settings: { autoBoss: true, autoHunt: true, autoRing: true, autoMerge: true },   // 放置用開關
       stats: { kills: 0, hunts: 0, pulls: 0 },
       lastSave: Date.now(),
     };
@@ -71,7 +71,7 @@
     out.checkin = Object.assign({ lastDay: '', streak: 0, total: 0 }, (d && d.checkin) || {});
     out.rebirths = Math.max(0, out.rebirths | 0);
     out.marks = Math.max(0, out.marks | 0);
-    out.settings = Object.assign({ autoBoss: true, autoHunt: true, autoRing: true }, (d && d.settings) || {});
+    out.settings = Object.assign({ autoBoss: true, autoHunt: true, autoRing: true, autoMerge: true }, (d && d.settings) || {});
     out.slots = Math.max(1, Math.min(5, out.slots | 0 || 1));
     out.team = out.team.filter((id) => out.souls.some((s) => s.id === id)).slice(0, out.slots);
     out.souls.forEach((s) => {
@@ -208,6 +208,71 @@
   function power() {
     const t = teamStats();
     return Math.round(t.atk * 2.2 + t.hp * 0.35 + t.def * 2.5 + t.spd * 0.6);
+  }
+
+  /* ---------- 魂環合成：3 個同階 → 1 個高一階 ---------- */
+  function mergeInfo() {
+    const free = freeRings();
+    const out = {};
+    CFG.RING_ORDER.forEach((tier) => {
+      const n = free.filter((r) => r.tier === tier).length;
+      out[tier] = { count: n, can: tiersMergeable(tier) && n >= CFG.RING_MERGE_COUNT };
+    });
+    return out;
+  }
+  function tiersMergeable(tier) {
+    const i = CFG.RING_ORDER.indexOf(tier);
+    return i >= 0 && i < CFG.RING_ORDER.length - 1;
+  }
+  /* 合成一次（指定階）；回傳新魂環 */
+  function mergeRings(tier) {
+    if (!tiersMergeable(tier)) return { ok: false, msg: '十萬年魂環已是最高階' };
+    const pool = freeRings().filter((r) => r.tier === tier);
+    if (pool.length < CFG.RING_MERGE_COUNT) {
+      return { ok: false, msg: `需要 ${CFG.RING_MERGE_COUNT} 個同階魂環（目前 ${pool.length}）` };
+    }
+    const take = pool.slice(0, CFG.RING_MERGE_COUNT);
+    const counts = {};
+    take.forEach((r) => { const el = r.element || 'wind'; counts[el] = (counts[el] || 0) + 1; });
+    const element = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+    const uids = new Set(take.map((r) => r.uid));
+    S.ringBag = S.ringBag.filter((r) => !uids.has(r.uid));
+    const nextTier = CFG.RING_ORDER[CFG.RING_ORDER.indexOf(tier) + 1];
+    const ring = newRing(nextTier, element);
+    S.ringBag.push(ring);
+    return { ok: true, ring, nextTier, element };
+  }
+  /* 一鍵合成：由低到高，合到不能再合 */
+  function mergeAll() {
+    let made = 0;
+    const gained = [];
+    for (const tier of CFG.RING_ORDER) {
+      if (!tiersMergeable(tier)) continue;
+      let guard = 0;
+      while (freeRings().filter((r) => r.tier === tier).length >= CFG.RING_MERGE_COUNT && guard < 500) {
+        const r = mergeRings(tier);
+        if (!r.ok) break;
+        made++;
+        gained.push(r.nextTier);
+        guard++;
+      }
+    }
+    return { ok: made > 0, made, gained, bag: S.ringBag.length, free: freeRings().length };
+  }
+
+  /* 自動合成：只合十年/百年（保護千年以上，讓玩家自己決定要不要衝真身） */
+  function mergeLowTiers() {
+    if ((S.settings || {}).autoMerge === false) return { made: 0 };
+    let made = 0;
+    for (const tier of ['white', 'yellow']) {
+      let guard = 0;
+      while (freeRings().filter((r) => r.tier === tier).length >= CFG.RING_MERGE_COUNT && guard < 100) {
+        const r = mergeRings(tier);
+        if (!r.ok) break;
+        made++; guard++;
+      }
+    }
+    return { made };
   }
 
   /* ---------- 武魂真身（3/6/9 個萬年以上魂環）---------- */
@@ -580,6 +645,7 @@
     soulStats, teamSouls, teamStats, power,
     totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth,
     trueBodyOf, resonanceOf, ringSkillOf, hasFreeRingSlot,
+    mergeInfo, mergeRings, mergeAll, mergeLowTiers,
     newRing, ringSlotsOf, ringBonus, equipRing, unequipRing, autoEquipBestRing, freeRings,
     boneOf, freeBones, equippedBones, teamAura, equipBone, unequipBone,
     starUpInfo, starUp,

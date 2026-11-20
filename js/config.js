@@ -58,10 +58,12 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.3.0';        // 1.3.0 = 9 環槽 / 魂環技能 / 共鳴 / 真身
+  const VERSION = '1.3.1';        // 1.3.0 = 9 環槽 / 魂環技能 / 共鳴 / 真身
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個魂環槽
   const MAX_RING_SLOTS = 9;         // 單一武魂最多 9 槽（GDD）
+  const RING_ORDER = ['white', 'yellow', 'violet', 'black', 'red'];  // 合成階梯
+  const RING_MERGE_COUNT = 3;       // 3 個同階 → 1 個高一階
   const BASE_KILLS_PER_STAGE = 8;           // 每關殺 8 隻小怪出 BOSS（放置遊戲不要拖）
   const AUTO_BOSS_DELAY = 1800;            // 清完小怪後幾毫秒自動挑戰 BOSS
   const AUTO_HUNT_DELAY = 2500;            // 卡等時幾毫秒自動去獵魂
@@ -181,6 +183,7 @@
     BEASTS, BEAST_BY_ID, STAGE_AREAS, areaFor,
     VERSION, MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
     RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR,
+    RING_ORDER, RING_MERGE_COUNT,
     BASE_KILLS_PER_STAGE, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY,
     REBIRTH, rebirthGain, stageMul,
     PULL_COST_TICKET, PULL_COST_DIAMOND, PULL10_COST_TICKET, PULL10_COST_DIAMOND,

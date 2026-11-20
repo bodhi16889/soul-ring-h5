@@ -448,7 +448,42 @@
       </div>`;
     }).join('');
 
-    $('#ringList').innerHTML = (equippedHtml || '') + bagHtml;
+    const info = State.mergeInfo();
+    const mergeRows = CFG.RING_ORDER.slice(0, -1).map((tier) => {
+      const t = CFG.TIER_BY_KEY[tier];
+      const m = info[tier];
+      return `<div class="merge-row">
+        <span class="ring-dot ${t.css}"></span>
+        <span class="mr-name">${t.name}</span>
+        <span class="mr-count">${m.count} / ${CFG.RING_MERGE_COUNT}</span>
+        <button class="mini-btn" data-merge="${tier}" ${m.can ? '' : 'disabled'}>合成</button>
+      </div>`;
+    }).join('');
+    const mergeBox = `<div class="merge-box">
+      <div class="merge-head"><b>魂環合成</b><span class="hint">3 個同階 → 1 個高一階（不會動已裝備的）</span></div>
+      ${mergeRows}
+      <button id="btnMergeAll" class="wide-btn small" style="margin-top:8px">一鍵合成（白・黃・紫・黑 全部合到不能再合）</button>
+    </div>`;
+
+    $('#ringList').innerHTML = mergeBox + (equippedHtml || '') + bagHtml;
+    $$('#ringList [data-merge]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = State.mergeRings(b.dataset.merge);
+        if (!r.ok) return toast(r.msg);
+        State.save(true);
+        renderAll();
+        toast(`合成成功：${CFG.TIER_BY_KEY[r.nextTier].name}`);
+      });
+    });
+    const allBtn = $('#btnMergeAll');
+    if (allBtn) allBtn.addEventListener('click', () => {
+      const r = State.mergeAll();
+      if (!r.ok) return toast('沒有可合成的魂環（每階需 3 個）');
+      State.save(true);
+      renderAll();
+      toast(`一鍵合成：${r.made} 次，剩餘背包 ${r.free} 個`);
+    });
+
     $$('#ringList [data-eq]').forEach((b) => {
       b.addEventListener('click', () => {
         const r = State.equipRing(b.dataset.soul, b.dataset.eq);
@@ -692,6 +727,9 @@
         banner('獵魂');
         addLog(`進入 ${ev.beast.name} 的領域（${ev.beast.year}）`, 'c-purple');
         break;
+      case 'autoMerge':
+        addLog(`自動合成 ${ev.made} 次低階魂環（3 個 → 1 個高一階）`, 'c-ok');
+        break;
       case 'autoRing': {
         const t = CFG.TIER_BY_KEY[ev.ring.tier];
         addLog(`已自動裝備 ${t ? t.name : '魂環'} → 等級上限 ${State.levelCap()}`, 'c-ok');
@@ -837,6 +875,9 @@
       <div class="hint" style="margin-top:4px">若武魂頁的魂環槽顯示 /3 或等級上限是 90，代表瀏覽器還在使用舊檔：請開 <b>?v=2</b> 或清快取。</div>
       <div style="margin-top:8px">存檔會自動保存在這台裝置的瀏覽器；換裝置請用存檔碼。</div>
       <div class="acts" style="display:flex;gap:8px;margin-top:10px">
+        <button class="mini-btn" id="btnAutoMerge">自動合成低階環：${(s.settings.autoMerge === false) ? '關' : '開'}</button>
+      </div>
+      <div class="acts" style="display:flex;gap:8px;margin-top:8px">
         <button class="mini-btn" id="btnAutoBoss">自動挑戰 BOSS：${s.settings.autoBoss === false ? '關' : '開'}</button>
         <button class="mini-btn" id="btnAutoHunt">卡等自動獵魂：${s.settings.autoHunt === false ? '關' : '開'}</button>
         <button class="mini-btn" id="btnAutoRing">自動裝備魂環：${s.settings.autoRing === false ? '關' : '開'}</button>
@@ -850,6 +891,14 @@
         <button class="mini-btn ghost" id="btnReset">重新開始</button>
       </div>`,
       [{ text: '關閉', kind: '' }]);
+
+    $('#btnAutoMerge').addEventListener('click', () => {
+      const st = State.data.settings;
+      st.autoMerge = st.autoMerge === false;
+      State.save(true);
+      $('#btnAutoMerge').textContent = `自動合成低階環：${st.autoMerge ? '開' : '關'}`;
+      toast(`自動合成 ${st.autoMerge ? '已開啟（只合十年/百年）' : '已關閉'}`);
+    });
 
     $('#btnAutoBoss').addEventListener('click', () => {
       const st = State.data.settings;

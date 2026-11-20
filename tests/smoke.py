@@ -621,6 +621,8 @@ def main() -> int:
 
         reso = page.evaluate("""(() => {
           const St = __game.State, B = __game.Battle.state, s = St.data;
+          const rnd = Math.random;
+          Math.random = () => 0.5;      // 固定傷害浮動與暴擊，讓倍率可精確比較
           const run = (rings) => {
             s.level = 60;
             s.ringBag = []; s.souls.forEach((x) => { x.rings = []; });
@@ -640,12 +642,13 @@ def main() -> int:
           // 對照組：同樣 3 個千年環，但元素不同 → 沒有共鳴
           const mixed = run(['poison', 'wood', 'wind']);
           const same = run(['poison', 'poison', 'poison']);
+          Math.random = rnd;
           return {mixed, same, ratio: +(same / mixed).toFixed(3),
                   reso: St.resonanceOf(s.souls[0])};
         })()""")
         check("屬性共鳴：3 個同系魂環 → 魂技傷害 ×1.25（同年份對照）",
               reso["reso"] and reso["reso"]["count"] == 3
-              and 1.18 <= reso["ratio"] <= 1.32, str(reso))
+              and abs(reso["ratio"] - 1.25) < 0.01, str(reso))
 
         body = page.evaluate("""(() => {
           const St = __game.State, s = St.data;
@@ -668,6 +671,76 @@ def main() -> int:
         check("武魂真身：3 個萬年魂環 → 全屬性 +15%（已驗加成確實生效）",
               body["tb"]["high"] == 3 and body["tb"]["bonus"] == 0.15
               and body["bonus"] == 0.15 and 1.12 <= body["ratio"] <= 1.20, str(body))
+
+        # ---------- 11f. 魂環合成（3 個同階 → 1 個高一階）----------
+        merge1 = page.evaluate("""(() => {
+          const St = __game.State, s = St.data;
+          s.level = 60; s.ringBag = []; s.souls.forEach((x) => { x.rings = []; });
+          ['white','white','white'].forEach((t, i) => s.ringBag.push(St.newRing(t, i === 0 ? 'poison' : 'wind')));
+          const before = {bag: s.ringBag.length, white: St.freeRings().filter(r => r.tier === 'white').length};
+          const r = St.mergeRings('white');
+          return {before, r: {ok: r.ok, next: r.nextTier, el: r.element},
+                  bag: s.ringBag.length, yellow: s.ringBag.filter(x => x.tier === 'yellow').length,
+                  left: s.ringBag.filter(x => x.tier === 'white').length};
+        })()""")
+        check("合成：3 個十年環 → 1 個百年環（保留多數元素）",
+              merge1["r"]["ok"] is True and merge1["r"]["next"] == "yellow"
+              and merge1["yellow"] == 1 and merge1["left"] == 0
+              and merge1["r"]["el"] == "wind" and merge1["bag"] == 1, str(merge1))
+
+        merge2 = page.evaluate("""(() => {
+          const St = __game.State, s = St.data;
+          s.ringBag = []; s.souls.forEach((x) => { x.rings = []; });
+          s.ringBag.push(St.newRing('white','wind'), St.newRing('white','wind'));
+          const few = St.mergeRings('white');
+          s.ringBag.push(St.newRing('red','water'), St.newRing('red','water'), St.newRing('red','water'));
+          const top = St.mergeRings('red');
+          return {few: {ok: few.ok, msg: few.msg}, top: {ok: top.ok, msg: top.msg}};
+        })()""")
+        check("合成：不足 3 個會被擋、十萬年環不能合成",
+              merge2["few"]["ok"] is False and merge2["top"]["ok"] is False, str(merge2))
+
+        merge3 = page.evaluate("""(() => {
+          const St = __game.State, s = St.data;
+          s.level = 60; s.ringBag = []; s.souls.forEach((x) => { x.rings = []; });
+          for (let i = 0; i < 9; i++) s.ringBag.push(St.newRing('white', 'wind'));
+          const before = St.freeRings().length;
+          const all = St.mergeAll();
+          // 已裝備的環不能被合成吃掉
+          const eqRing = St.newRing('violet', 'water');
+          s.ringBag.push(eqRing); St.equipRing(s.souls[0].id, eqRing.uid);
+          const bagBefore = s.ringBag.length;
+          for (let i = 0; i < 3; i++) s.ringBag.push(St.newRing('white', 'wind'));
+          St.mergeAll();
+          return {before, all: {ok: all.ok, made: all.made},
+                  white: s.ringBag.filter(r => r.tier === 'white' && !r.equipped).length,
+                  yellow: s.ringBag.filter(r => r.tier === 'yellow').length,
+                  violet: s.ringBag.filter(r => r.tier === 'violet').length,
+                  stillEquipped: s.souls[0].rings.length,
+                  equippedViolet: s.ringBag.filter(r => r.equipped && r.tier === 'violet').length,
+                  bagBefore};
+        })()""")
+        check("一鍵合成：9 個白 → 3 黃 → 1 紫；已裝備的不會被吃掉",
+              merge3["all"]["ok"] is True and merge3["all"]["made"] == 4
+              and merge3["white"] == 0 and merge3["yellow"] == 1 and merge3["violet"] == 2
+              and merge3["stillEquipped"] == 1 and merge3["equippedViolet"] == 1, str(merge3))
+
+        auto_m = page.evaluate("""(() => {
+          const St = __game.State, s = St.data;
+          s.settings = {autoBoss:false, autoHunt:false, autoRing:true, autoMerge:true};
+          s.level = 60; s.ringBag = []; s.souls.forEach((x) => { x.rings = []; });
+          for (let i = 0; i < 3; i++) s.ringBag.push(St.newRing('white', 'wind'));
+          const r = St.mergeLowTiers();
+          s.settings.autoMerge = false;
+          for (let i = 0; i < 3; i++) s.ringBag.push(St.newRing('white', 'wind'));
+          const r2 = St.mergeLowTiers();
+          return {on: r.made, off: r2.made, yellow: s.ringBag.filter(x => x.tier === 'yellow').length};
+        })()""")
+        check("自動合成：預設開啟、關掉後不再合成",
+              auto_m["on"] == 1 and auto_m["off"] == 0 and auto_m["yellow"] >= 1, str(auto_m))
+
+        page.evaluate("__game.State.data.settings = {autoBoss:false, autoHunt:false, autoRing:true, autoMerge:true};"
+                      " __game.State.save(true)")
 
         # ---------- 12. 版面 ----------
         page.wait_for_selector("#stage", state="visible", timeout=5000)

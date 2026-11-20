@@ -397,6 +397,8 @@
       emit('huntWin', { beast, ring });
       const auto = State.autoEquipBestRing();
       if (auto) emit('autoRing', { soul: auto.soul, ring: auto.ring });
+      const merged = State.mergeLowTiers();
+      if (merged && merged.made > 0) emit('autoMerge', { made: merged.made });
       backToFarm();
       return;
     }
