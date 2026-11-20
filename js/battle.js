@@ -234,12 +234,7 @@
     const s = State.data;
     const cfg = s.settings || {};
 
-    if (B.pendingBoss && cfg.autoBoss !== false && B.mode === 'farm') {
-      B.autoAt = now + CFG.AUTO_BOSS_DELAY;
-      setTimeout(() => { if (B.pendingBoss && B.mode === 'farm') challengeBoss(); }, CFG.AUTO_BOSS_DELAY);
-      return;
-    }
-
+    // 卡等時「獵魂」優先於「打 BOSS」：卡等打王沒有任何經驗，先拿環才有成長
     if (cfg.autoHunt !== false && B.mode === 'farm' && State.atCap()) {
       const ready = CFG.BEASTS.filter((b) => s.level >= b.reqLevel && (s.cd[b.id] || 0) <= now);
       const beast = ready[ready.length - 1];   // 打得到就挑最高階的
@@ -248,7 +243,13 @@
         setTimeout(() => {
           if (B.mode === 'farm' && State.atCap()) hunt(beast.id);
         }, CFG.AUTO_HUNT_DELAY);
+        return;
       }
+    }
+
+    if (B.pendingBoss && cfg.autoBoss !== false && B.mode === 'farm') {
+      B.autoAt = now + CFG.AUTO_BOSS_DELAY;
+      setTimeout(() => { if (B.pendingBoss && B.mode === 'farm') challengeBoss(); }, CFG.AUTO_BOSS_DELAY);
     }
   }
 

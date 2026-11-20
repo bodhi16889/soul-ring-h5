@@ -474,6 +474,24 @@ def main() -> int:
         check("卡等自動獵魂：等級到上限會自己進魂獸戰",
               auto_hunt["ok"] is True and auto_hunt.get("ms", 9999) < 9000, str(auto_hunt))
 
+        prio = page.evaluate("""(() => new Promise((resolve) => {
+          const St = __game.State, B = __game.Battle.state;
+          St.data.settings = {autoBoss: true, autoHunt: true};
+          St.data.level = 10; St.data.exp = 0;
+          St.data.ringBag = []; St.data.souls.forEach((x) => { x.rings = []; });
+          St.data.cd = {};
+          B.mode = 'farm'; B.huntBeast = null;
+          __game.Battle.spawnWave('farm');
+          B.pendingBoss = true;          // 同時有待挑戰的 BOSS
+          const t0 = Date.now();
+          const iv = setInterval(() => {
+            if (B.mode === 'hunt') { clearInterval(iv); resolve({ok: true, mode: B.mode}); }
+            else if (B.mode === 'boss') { clearInterval(iv); resolve({ok: false, mode: B.mode}); }
+            else if (Date.now() - t0 > 8000) { clearInterval(iv); resolve({ok: false, mode: B.mode}); }
+          }, 100);
+        }))()""")
+        check("卡等時獵魂優先於打 BOSS（先拿環才有成長）", prio["ok"] is True, str(prio))
+
         page.evaluate("__game.State.data.settings = {autoBoss:false, autoHunt:false};"
                       " __game.State.save(true); __game.Battle.init()")
 
