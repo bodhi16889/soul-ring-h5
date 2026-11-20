@@ -20,7 +20,7 @@
    * skill 由 battle.js 依 role 實作，這裡只給倍率與描述
    */
   const SOULS = [
-    { id: 'haotian',  name: '昊天錘',     emoji: '🔨', role: 'atk',  star: 3, atk: 14, hp: 120, def: 6,  spd: 92,  skillName: '昊天九絕',   skillText: '對全體敵人造成 70% 攻擊傷害' },
+    { id: 'haotian',  name: '昊天錘',     emoji: '🔨', role: 'atk',  star: 3, atk: 16, hp: 130, def: 6,  spd: 92,  skillName: '昊天九絕',   skillText: '對全體敵人造成 200% 攻擊傷害' },
     { id: 'phoenix',  name: '邪火鳳凰',   emoji: '🔥', role: 'atk',  star: 4, atk: 17, hp: 105, def: 5,  spd: 104, skillName: '鳳凰火焰',   skillText: '對單體造成 200% 傷害並灼燒' },
     { id: 'bluemoss', name: '藍銀草',     emoji: '🌿', role: 'ctrl', star: 3, atk: 10, hp: 140, def: 8,  spd: 96,  skillName: '藍銀纏繞',   skillText: '單體 60% 傷害，40% 機率暈眩 1 回合' },
     { id: 'fox',      name: '魅惑天狐',   emoji: '🦊', role: 'ctrl', star: 4, atk: 11, hp: 118, def: 6,  spd: 112, skillName: '魅惑領域',   skillText: '全體 45% 傷害，命中者減速 30%' },
@@ -40,8 +40,8 @@
    * tier 決定掉落的魂環年份；reqLevel 是建議等級（低於會被勸退）
    */
   const BEASTS = [
-    { id: 'baboon', name: '風狒狒',     emoji: '🐒', tier: 'white',  year: '十年',   hp: 320,  atk: 18,  reqLevel: 10, cdSec: 25 },
-    { id: 'mandala', name: '曼陀羅蛇',  emoji: '🐍', tier: 'yellow', year: '百年',   hp: 900,  atk: 34,  reqLevel: 20, cdSec: 40 },
+    { id: 'baboon', name: '風狒狒',     emoji: '🐒', tier: 'white',  year: '十年',   hp: 220,  atk: 12,  reqLevel: 10, cdSec: 18 },
+    { id: 'mandala', name: '曼陀羅蛇',  emoji: '🐍', tier: 'yellow', year: '百年',   hp: 640,  atk: 26,  reqLevel: 20, cdSec: 30 },
     { id: 'spider', name: '人面魔蛛',   emoji: '🕷', tier: 'violet', year: '千年',   hp: 2400, atk: 62,  reqLevel: 30, cdSec: 60 },
     { id: 'darkbear', name: '暗金恐爪熊', emoji: '🐾', tier: 'black', year: '萬年',   hp: 6200, atk: 118, reqLevel: 40, cdSec: 90 },
     { id: 'whale',  name: '深海魔鯨',   emoji: '🐋', tier: 'red',    year: '十萬年', hp: 16000, atk: 210, reqLevel: 50, cdSec: 120 },
@@ -57,21 +57,23 @@
 
   /* ---------- 成長公式 ---------- */
   const MAX_LEVEL = 90;
-  const BASE_KILLS_PER_STAGE = 10;          // 每關殺 10 隻小怪出 BOSS
+  const BASE_KILLS_PER_STAGE = 8;           // 每關殺 8 隻小怪出 BOSS（放置遊戲不要拖）
+  const AUTO_BOSS_DELAY = 1800;            // 清完小怪後幾毫秒自動挑戰 BOSS
+  const AUTO_HUNT_DELAY = 2500;            // 卡等時幾毫秒自動去獵魂
   const PULL_COST_TICKET = 1;
   const PULL_COST_DIAMOND = 100;
   const PULL10_COST_TICKET = 10;
   const PULL10_COST_DIAMOND = 900;
 
-  function expNeed(level) { return Math.round(14 * Math.pow(level, 1.55) + 10 * level); }
+  function expNeed(level) { return Math.round(8 * Math.pow(level, 1.3) + 6 * level); }
   function levelCap(ringsEquipped) { return Math.min(MAX_LEVEL, 10 + 10 * ringsEquipped); }
 
   function enemyStats(stage, isBoss) {
     const mul = Math.pow(1.16, stage - 1);
     return {
-      hp: Math.round(58 * mul * (isBoss ? 7.5 : 1)),
-      atk: Math.round(7 * mul * (isBoss ? 1.9 : 1)),
-      def: Math.round(2 * mul * (isBoss ? 2 : 1)),
+      hp: Math.round(42 * mul * (isBoss ? 3.0 : 1)),
+      atk: Math.round(7 * mul * (isBoss ? 1.0 : 1)),
+      def: Math.round(2 * mul * (isBoss ? 1.5 : 1)),
       spd: 70 + Math.min(50, stage),
       name: isBoss ? `第 ${stage} 關守關魂獸` : '野生魂獸',
       emoji: isBoss ? '👹' : '🦟',
@@ -79,7 +81,7 @@
     };
   }
   function killReward(stage) {
-    return { coins: Math.round(4 * Math.pow(stage, 1.12)), exp: Math.round(6 * Math.pow(stage, 0.95)) };
+    return { coins: Math.round(5 * Math.pow(stage, 1.12)), exp: Math.round(12 * Math.pow(stage, 0.95)) };
   }
   function offlinePerMinute(stage) {
     const r = killReward(stage);
@@ -125,7 +127,7 @@
   global.CFG = {
     RING_TIERS, TIER_BY_KEY, SOULS, SOUL_BY_ID, ROLE_LABEL, ROLE_COLOR,
     BEASTS, BEAST_BY_ID, STAGE_AREAS, areaFor,
-    MAX_LEVEL, BASE_KILLS_PER_STAGE,
+    MAX_LEVEL, BASE_KILLS_PER_STAGE, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY,
     PULL_COST_TICKET, PULL_COST_DIAMOND, PULL10_COST_TICKET, PULL10_COST_DIAMOND,
     expNeed, levelCap, enemyStats, killReward, offlinePerMinute,
     PULL_POOL, BONES, BONE_BY_ID, BONE_AURA, bonePullWeight,

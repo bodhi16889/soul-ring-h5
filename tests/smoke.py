@@ -68,6 +68,9 @@ def main() -> int:
         page.evaluate("try { localStorage.clear(); } catch (e) {}")
         page.reload(wait_until="load")
         page.wait_for_function("window.__game && window.__game.ready", timeout=20000)
+        # 手動斷言期間關掉自動節奏，避免背景自己切 BOSS／獵魂
+        page.evaluate("__game.State.data.settings = {autoBoss:false, autoHunt:false};"
+                      " __game.State.save(true)")
         time.sleep(0.5)
 
         # ---------- 1. 基本結構 ----------
@@ -137,15 +140,23 @@ def main() -> int:
             got_ring = True
         except Exception:
             got_ring = False
-        ring = page.evaluate("({bag: __game.State.data.ringBag, mode: __game.Battle.state.mode, cd: __game.State.data.cd})")
-        check("擊敗魂獸會掉落魂環、並回到掛機", got_ring and ring["mode"] == "farm" and len(ring["bag"]) >= 1,
-              str(ring))
+        ring = page.evaluate("""({
+          bag: __game.State.freeRings().length,
+          all: __game.State.data.ringBag.length,
+          equipped: __game.State.data.souls.reduce((a, x) => a + x.rings.length, 0),
+          mode: __game.Battle.state.mode,
+        })""")
+        check("擊敗魂獸會掉落魂環（自動裝備或進背包）、並回到掛機",
+              got_ring and ring["mode"] == "farm" and ring["all"] >= 1
+              and (ring["bag"] + ring["equipped"]) >= 1, str(ring))
 
         # ---------- 5. 裝備魂環 → 上限提升 ----------
         equip = page.evaluate("""(() => {
           const s = __game.State.data;
-          const uid = s.ringBag[0].uid;
+          // 先全部卸下，確認「裝備後才 +10」
+          s.souls.forEach((x) => x.rings.slice().forEach((uid) => __game.State.unequipRing(x.id, uid)));
           const before = __game.State.levelCap();
+          const uid = __game.State.freeRings()[0].uid;
           const r = __game.State.equipRing(s.souls[0].id, uid);
           return {ok: r.ok, msg: r.msg || '', before, after: __game.State.levelCap(),
                   equipped: s.souls[0].rings.length};
@@ -429,6 +440,56 @@ def main() -> int:
         kept = page.evaluate("({coins: __game.State.data.coins, souls: __game.State.data.souls.length})")
         check("重新載入後進度保留", kept["coins"] == 777777 and kept["souls"] >= 1, str(kept))
 
+        # ---------- 11b. 放置自動化：自動 BOSS／卡等自動獵魂 ----------
+        auto_boss = page.evaluate("""(() => new Promise((resolve) => {
+          const St = __game.State, B = __game.Battle.state;
+          St.data.settings = {autoBoss: true, autoHunt: false};
+          St.data.stage = 3; St.data.kills = 0;
+          B.mode = 'farm';
+          __game.Battle.spawnWave('farm');
+          B.pendingBoss = true;
+          const t0 = Date.now();
+          const iv = setInterval(() => {
+            if (B.mode === 'boss') { clearInterval(iv); resolve({ok: true, ms: Date.now() - t0}); }
+            else if (Date.now() - t0 > 5000) { clearInterval(iv); resolve({ok: false, mode: B.mode}); }
+          }, 100);
+        }))()""")
+        check("自動挑戰 BOSS：清完小怪後會自己進 BOSS 戰",
+              auto_boss["ok"] is True and auto_boss.get("ms", 9999) < 3500, str(auto_boss))
+
+        auto_hunt = page.evaluate("""(() => new Promise((resolve) => {
+          const St = __game.State, B = __game.Battle.state;
+          St.data.settings = {autoBoss: false, autoHunt: true};
+          St.data.level = 10; St.data.exp = 0;
+          St.data.ringBag = []; St.data.souls.forEach((x) => { x.rings = []; });
+          St.data.cd = {};
+          B.mode = 'farm'; B.huntBeast = null;
+          __game.Battle.spawnWave('farm');
+          const t0 = Date.now();
+          const iv = setInterval(() => {
+            if (B.mode === 'hunt') { clearInterval(iv); resolve({ok: true, ms: Date.now() - t0}); }
+            else if (Date.now() - t0 > 6000) { clearInterval(iv); resolve({ok: false, mode: B.mode}); }
+          }, 100);
+        }))()""")
+        check("卡等自動獵魂：等級到上限會自己進魂獸戰",
+              auto_hunt["ok"] is True and auto_hunt.get("ms", 9999) < 9000, str(auto_hunt))
+
+        page.evaluate("__game.State.data.settings = {autoBoss:false, autoHunt:false};"
+                      " __game.State.save(true); __game.Battle.init()")
+
+        # ---------- 11c. 節奏參數護欄（避免之後調平衡又回到卡等）----------
+        pace = page.evaluate("""({
+          expTo10: [1,2,3,4,5,6,7,8,9].reduce((a, l) => a + __game.CFG.expNeed(l), 0),
+          perStage: __game.CFG.BASE_KILLS_PER_STAGE,
+          autoBossMs: __game.CFG.AUTO_BOSS_DELAY,
+          expPerKill1: __game.CFG.killReward(1).exp,
+          baboonHp: __game.CFG.BEAST_BY_ID.baboon.hp,
+        })""")
+        check("前期節奏：Lv10 需求 < 1200 經驗、每關 8 隻、首隻魂獸 ≤ 260 血",
+              pace["expTo10"] < 1200 and pace["perStage"] == 8
+              and pace["expPerKill1"] >= 10 and pace["baboonHp"] <= 260
+              and 1000 <= pace["autoBossMs"] <= 3000, str(pace))
+
         # ---------- 12. 版面 ----------
         page.wait_for_selector("#stage", state="visible", timeout=5000)
         layout = page.evaluate("""({
@@ -481,7 +542,7 @@ def main() -> int:
     if FAILS:
         print(f"RESULT: FAIL ({len(FAILS)}: {', '.join(FAILS)})")
         return 1
-    print("RESULT: PASS（自動戰鬥 / 多波群攻 / Boss 狂暴回血 / 升級 / 獵魂掉環 / 魂環上限 / 魂骨 / 簽到 / 抽卡 / 兌換碼 / 存檔碼 / 離線收益 / 版面）")
+    print("RESULT: PASS（自動戰鬥 / 多波群攻 / Boss 狂暴回血 / 自動 BOSS 與獵魂 / 升級節奏 / 魂環 / 魂骨 / 簽到 / 抽卡 / 兌換碼 / 存檔碼 / 離線收益 / 版面）")
     return 0
 
 

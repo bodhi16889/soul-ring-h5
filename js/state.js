@@ -33,6 +33,7 @@
       cd: {},                // 魂獸 id -> 下次可獵時間
       codes: [],
       checkin: { lastDay: '', streak: 0, total: 0 },   // 每日簽到
+      settings: { autoBoss: true, autoHunt: true, autoRing: true },   // 放置用開關
       stats: { kills: 0, hunts: 0, pulls: 0 },
       lastSave: Date.now(),
     };
@@ -66,6 +67,7 @@
     out.cd = (d && d.cd) || {};
     out.codes = Array.isArray(d && d.codes) ? d.codes : [];
     out.checkin = Object.assign({ lastDay: '', streak: 0, total: 0 }, (d && d.checkin) || {});
+    out.settings = Object.assign({ autoBoss: true, autoHunt: true, autoRing: true }, (d && d.settings) || {});
     out.slots = Math.max(1, Math.min(5, out.slots | 0 || 1));
     out.team = out.team.filter((id) => out.souls.some((s) => s.id === id)).slice(0, out.slots);
     out.souls.forEach((s) => {
@@ -73,6 +75,18 @@
       if (s.bone === undefined) s.bone = null;
     });
     // 舊版魂骨只存 id 字串 → 轉成 {uid, id}
+    // 舊版裝備魂環時會從背包移除物件 → 補回（年份已遺失，以白色處理）
+    const bagUids = new Set(out.ringBag.map((r) => r.uid));
+    out.souls.forEach((soul) => {
+      (soul.rings || []).forEach((uid) => {
+        if (!bagUids.has(uid)) {
+          out.ringBag.push({ uid, tier: 'white', name: '十年魂環', equipped: soul.id });
+          bagUids.add(uid);
+        }
+      });
+    });
+    out.ringBag.forEach((r) => { if (r.equipped && !out.souls.some((x) => x.id === r.equipped)) r.equipped = null; });
+
     out.bones = (Array.isArray(d && d.bones) ? d.bones : []).map((b, i) => {
       if (typeof b === 'string') return { uid: 'bo_mig' + i, id: b };
       if (b && b.id) return { uid: b.uid || ('bo_' + i), id: b.id };
@@ -235,22 +249,44 @@
     const star = soul.star || 3;
     return Math.min(3, 1 + (star >= 4 ? 1 : 0) + (star >= 5 ? 1 : 0));
   }
+  /* 自動裝備：找第一個還有空槽的上陣武魂 */
+  function autoEquipBestRing() {
+    if ((S.settings || {}).autoRing === false) return null;
+    if (!freeRings().length) return null;
+    for (const soul of teamSouls()) {
+      if (soul.rings.length >= ringSlotsOf(soul)) continue;
+      const best = freeRings().slice().sort((a, b) => {
+        const ta = (CFG.TIER_BY_KEY[a.tier] || {}).mult || 0;
+        const tb = (CFG.TIER_BY_KEY[b.tier] || {}).mult || 0;
+        return tb - ta;
+      })[0];
+      const r = equipRing(soul.id, best.uid);
+      if (r.ok) return { soul, ring: best };
+    }
+    return null;
+  }
+
   function equipRing(soulId, uid) {
     const soul = S.souls.find((s) => s.id === soulId);
-    const idx = S.ringBag.findIndex((r) => r.uid === uid);
-    if (!soul || idx < 0) return { ok: false, msg: '找不到魂環' };
+    const item = S.ringBag.find((r) => r.uid === uid);
+    if (!soul || !item) return { ok: false, msg: '找不到魂環' };
+    if (item.equipped) return { ok: false, msg: '這枚魂環已經裝在別人身上' };
     if (soul.rings.length >= ringSlotsOf(soul)) return { ok: false, msg: '魂環槽已滿（升星可增加槽位）' };
     soul.rings.push(uid);
-    S.ringBag.splice(idx, 1);
+    item.equipped = soulId;
     return { ok: true };
   }
+
+  /* 沒裝備的魂環（背包） */
+  function freeRings() { return S.ringBag.filter((r) => !r.equipped); }
   function unequipRing(soulId, uid) {
     const soul = S.souls.find((s) => s.id === soulId);
     if (!soul) return { ok: false };
     const i = soul.rings.indexOf(uid);
     if (i < 0) return { ok: false };
     soul.rings.splice(i, 1);
-    S.ringBag.push({ uid, tier: (S.ringBag.find((r) => r.uid === uid) || {}).tier || 'white', name: '魂環' });
+    const item = S.ringBag.find((r) => r.uid === uid);
+    if (item) item.equipped = null;
     return { ok: true };
   }
 
@@ -449,7 +485,7 @@
     addExp, addCoins, spendCoins, addDiamonds, spendDiamonds,
     soulStats, teamSouls, teamStats, power,
     totalRingsEquipped, levelCap, atCap,
-    newRing, ringSlotsOf, ringBonus, equipRing, unequipRing,
+    newRing, ringSlotsOf, ringBonus, equipRing, unequipRing, autoEquipBestRing, freeRings,
     boneOf, freeBones, equippedBones, teamAura, equipBone, unequipBone,
     starUpInfo, starUp,
     slotNextCost, slotNextLevel, canExpand, expandSlot, toggleTeam,

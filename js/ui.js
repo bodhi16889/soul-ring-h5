@@ -91,9 +91,12 @@
     const rate = CFG.offlinePerMinute(snap.stage);
     $('#rateText').textContent = `魂幣 ${fmt(rate.coins)}/分 · 經驗 ${fmt(rate.exp)}/分`;
 
+    const capped = State.atCap();
     const bossBtn = $('#bossBtn');
     bossBtn.disabled = !snap.pendingBoss;
-    bossBtn.textContent = snap.pendingBoss ? '挑戰 BOSS' : `清怪 ${snap.kills}/${snap.needed}`;
+    bossBtn.textContent = snap.pendingBoss
+      ? `挑戰 BOSS（${Math.round((CFG.AUTO_BOSS_DELAY || 1800) / 1000)} 秒後自動）`
+      : capped ? `卡等 ${snap.kills}/${snap.needed} · 去打魂環` : `清怪 ${snap.kills}/${snap.needed}`;
 
     renderTeam(snap.units);
     renderEnemies(snap.enemies || [], snap.mode);
@@ -256,9 +259,9 @@
   }
 
   function pickRingFor(soulId) {
-    const s = State.data;
-    if (!s.ringBag.length) return toast('背包沒有魂環，去獵魂取得');
-    const body = s.ringBag.map((r) => {
+    const free = State.freeRings();
+    if (!free.length) return toast('背包沒有魂環，去獵魂取得');
+    const body = free.map((r) => {
       const t = CFG.TIER_BY_KEY[r.tier];
       return `<div class="card compact">
         <div class="row1"><span class="ring-dot ${t.css}"></span><b>${t.name}</b>
@@ -363,14 +366,14 @@
   function renderRings() {
     const s = State.data;
     const equipped = s.souls.reduce((a, x) => a + x.rings.length, 0);
-    $('#ringCount').textContent = `背包 ${s.ringBag.length} · 已裝備 ${equipped} · 等級上限 ${State.levelCap()}`;
+    $('#ringCount').textContent = `背包 ${State.freeRings().length} · 已裝備 ${equipped} · 等級上限 ${State.levelCap()}`;
 
-    if (!s.ringBag.length && !equipped) {
+    if (!s.ringBag.length) {
       $('#ringList').innerHTML = `<div class="card"><div class="hint">還沒有魂環。到「獵魂」擊敗魂獸，就能吸收第一枚魂環。</div></div>`;
       return;
     }
 
-    const bagHtml = s.ringBag.map((r) => {
+    const bagHtml = State.freeRings().map((r) => {
       const t = CFG.TIER_BY_KEY[r.tier];
       return `<div class="card compact">
         <div class="row1"><span class="ring-dot ${t.css}"></span><b>${t.name}</b>
@@ -635,6 +638,14 @@
         banner('獵魂');
         addLog(`進入 ${ev.beast.name} 的領域（${ev.beast.year}）`, 'c-purple');
         break;
+      case 'autoRing': {
+        const t = CFG.TIER_BY_KEY[ev.ring.tier];
+        addLog(`已自動裝備 ${t ? t.name : '魂環'} → 等級上限 ${State.levelCap()}`, 'c-ok');
+        break;
+      }
+      case 'huntLose':
+        addLog(`獵魂失敗：${ev.beast ? ev.beast.name : '魂獸'} 太強，15 秒後可再試（先去升級或補魂骨）`, 'c-bad');
+        break;
       case 'huntWin': {
         const t = CFG.TIER_BY_KEY[ev.ring.tier];
         banner('吸收魂環');
@@ -769,6 +780,11 @@
       <div>最高關卡：<b>${s.bestStage}</b> · 等級 <b>${s.level}</b> / ${State.levelCap()}</div>
       <div style="margin-top:8px">存檔會自動保存在這台裝置的瀏覽器；換裝置請用存檔碼。</div>
       <div class="acts" style="display:flex;gap:8px;margin-top:10px">
+        <button class="mini-btn" id="btnAutoBoss">自動挑戰 BOSS：${s.settings.autoBoss === false ? '關' : '開'}</button>
+        <button class="mini-btn" id="btnAutoHunt">卡等自動獵魂：${s.settings.autoHunt === false ? '關' : '開'}</button>
+        <button class="mini-btn" id="btnAutoRing">自動裝備魂環：${s.settings.autoRing === false ? '關' : '開'}</button>
+      </div>
+      <div class="acts" style="display:flex;gap:8px;margin-top:8px">
         <button class="mini-btn" id="btnExport">匯出存檔碼</button>
         <button class="mini-btn" id="btnImport">匯入存檔碼</button>
       </div>
@@ -777,6 +793,29 @@
         <button class="mini-btn ghost" id="btnReset">重新開始</button>
       </div>`,
       [{ text: '關閉', kind: '' }]);
+
+    $('#btnAutoBoss').addEventListener('click', () => {
+      const st = State.data.settings;
+      st.autoBoss = st.autoBoss === false;
+      State.save(true);
+      $('#btnAutoBoss').textContent = `自動挑戰 BOSS：${st.autoBoss ? '開' : '關'}`;
+      toast(`自動挑戰 BOSS ${st.autoBoss ? '已開啟' : '已關閉'}`);
+    });
+    $('#btnAutoHunt').addEventListener('click', () => {
+      const st = State.data.settings;
+      st.autoHunt = st.autoHunt === false;
+      State.save(true);
+      $('#btnAutoHunt').textContent = `卡等自動獵魂：${st.autoHunt ? '開' : '關'}`;
+      toast(`卡等自動獵魂 ${st.autoHunt ? '已開啟' : '已關閉'}`);
+    });
+
+    $('#btnAutoRing').addEventListener('click', () => {
+      const st = State.data.settings;
+      st.autoRing = st.autoRing === false;
+      State.save(true);
+      $('#btnAutoRing').textContent = `自動裝備魂環：${st.autoRing ? '開' : '關'}`;
+      toast(`自動裝備魂環 ${st.autoRing ? '已開啟' : '已關閉'}`);
+    });
 
     $('#btnExport').addEventListener('click', () => {
       const code = State.exportCode();

@@ -7,7 +7,8 @@
   'use strict';
 
   const TICK_MS = 120;
-  const ATB_SPEED = 1.7;          // 行動條填充速度（越大越快）
+  const ATB_SPEED = 1.35;         // 行動條每秒填充量 = spd/100 * ATB_SPEED（約 0.8 秒出手一次）
+  const DT = TICK_MS / 1000;
   const SKILL_MP = 100;
   const MP_PER_ACTION = 26;
 
@@ -20,6 +21,7 @@
     huntBeast: null,
     pendingBoss: false,
     autoReviveAt: 0,
+    autoAt: 0,
     waveNo: 0,
   };
 
@@ -154,7 +156,7 @@
     B.huntBeast = beast;
     B.mode = 'hunt';
     spawnWave('hunt');
-    reviveTeam(false);
+    reviveTeam(true);            // 獵魂是獨立挑戰，進場回滿血
     emit('huntStart', { beast });
     return { ok: true };
   }
@@ -188,7 +190,14 @@
         B.autoReviveAt = 0;
         reviveTeam(true);
         if (B.mode === 'boss') { B.mode = 'farm'; spawnWave('farm'); }
-        if (B.mode === 'hunt') { B.mode = 'farm'; B.huntBeast = null; spawnWave('farm'); }
+        if (B.mode === 'hunt') {
+          const beast = B.huntBeast;
+          if (beast) State.data.cd[beast.id] = Date.now() + 15000;   // 失敗冷卻 15 秒
+          B.mode = 'farm';
+          B.huntBeast = null;
+          spawnWave('farm');
+          emit('huntLose', { beast });
+        }
         emit('revived', {});
       }
       return;
@@ -197,7 +206,7 @@
     // 我方行動
     for (const u of B.units) {
       if (!u.alive) continue;
-      u.gauge += (u.spd / 100) * ATB_SPEED;
+      u.gauge += (u.spd / 100) * ATB_SPEED * DT;
       if (u.gauge < 1) continue;
       u.gauge = 0;
       if (!aliveEnemies().length) break;
@@ -205,14 +214,41 @@
       if (!aliveEnemies().length) break;
     }
 
+    maybeAuto();
+
     // 敵方行動（每隻各自跑行動條）
     for (const e of B.enemies) {
       if (!e.alive) continue;
-      e.gauge += (e.spd / 100) * ATB_SPEED;
+      e.gauge += (e.spd / 100) * ATB_SPEED * DT;
       if (e.gauge < 1) continue;
       e.gauge = 0;
       if (e.stun > 0) { e.stun--; emit('stun', { who: 'enemy', enemyId: e.id }); continue; }
       if (e.boss) bossAct(e); else enemyAct(e);
+    }
+  }
+
+  /* ---------- 放置自動化：自動挑戰 BOSS、卡等自動獵魂 ---------- */
+  function maybeAuto() {
+    const now = Date.now();
+    if (now < B.autoAt) return;
+    const s = State.data;
+    const cfg = s.settings || {};
+
+    if (B.pendingBoss && cfg.autoBoss !== false && B.mode === 'farm') {
+      B.autoAt = now + CFG.AUTO_BOSS_DELAY;
+      setTimeout(() => { if (B.pendingBoss && B.mode === 'farm') challengeBoss(); }, CFG.AUTO_BOSS_DELAY);
+      return;
+    }
+
+    if (cfg.autoHunt !== false && B.mode === 'farm' && State.atCap()) {
+      const ready = CFG.BEASTS.filter((b) => s.level >= b.reqLevel && (s.cd[b.id] || 0) <= now);
+      const beast = ready[ready.length - 1];   // 打得到就挑最高階的
+      if (beast) {
+        B.autoAt = now + CFG.AUTO_HUNT_DELAY;
+        setTimeout(() => {
+          if (B.mode === 'farm' && State.atCap()) hunt(beast.id);
+        }, CFG.AUTO_HUNT_DELAY);
+      }
     }
   }
 
@@ -329,6 +365,8 @@
       s.cd[beast.id] = Date.now() + beast.cdSec * 1000;
       s.stats.hunts++;
       emit('huntWin', { beast, ring });
+      const auto = State.autoEquipBestRing();
+      if (auto) emit('autoRing', { soul: auto.soul, ring: auto.ring });
       backToFarm();
       return;
     }
