@@ -88,10 +88,21 @@
 
   /* ---------- 抽卡池 ---------- */
   const PULL_POOL = SOULS.map((s) => ({ id: s.id, star: s.star, weight: s.star === 5 ? 3 : s.star === 4 ? 12 : 35 }));
-  const PULL_BONES = [
-    { id: 'bone1', name: '外附魂骨 · 疾風', desc: '全隊速度 +5%' },
-    { id: 'bone2', name: '魂骨 · 巨力',     desc: '全隊攻擊 +6%' },
+  /* ---------- 魂骨（可裝備，裝備者 100%、同隊其他武魂 30% 光環）---------- */
+  const BONES = [
+    { id: 'wind',  name: '外附魂骨 · 疾風', slot: 'speed', atk: 0.00, hp: 0.00, def: 0.00, spd: 0.12, css: 'bone-cyan',  desc: '速度 +12%' },
+    { id: 'giant', name: '魂骨 · 巨力',     slot: 'atk',   atk: 0.14, hp: 0.00, def: 0.00, spd: 0.00, css: 'bone-red',   desc: '攻擊 +14%' },
+    { id: 'life',  name: '魂骨 · 生命',     slot: 'hp',    atk: 0.00, hp: 0.18, def: 0.00, spd: 0.00, css: 'bone-green', desc: '生命 +18%' },
+    { id: 'armor', name: '魂骨 · 堅甲',     slot: 'def',   atk: 0.00, hp: 0.00, def: 0.20, spd: 0.00, css: 'bone-blue',  desc: '防禦 +20%' },
+    { id: 'king',  name: '魂骨 · 王者',     slot: 'all',   atk: 0.08, hp: 0.08, def: 0.08, spd: 0.04, css: 'bone-gold',  desc: '全屬性 +8%（速度 +4%）' },
   ];
+  const BONE_BY_ID = Object.fromEntries(BONES.map((b) => [b.id, b]));
+  const BONE_AURA = 0.3;          // 光環：給同隊其他武魂的比例
+  const STAR_COIN = [0, 0, 0, 0, 0, 0];   // 佔位，實際成本用 starUpCoin()
+
+  function bonePullWeight() { return 3; }   // 每種魂骨的抽卡權重
+  function starUpBones(star) { return Math.max(1, star - 2); }            // 3→4:1、4→5:2
+  function starUpCoin(star) { return star <= 3 ? 1200 : 6000; }
 
   /* ---------- 兌換碼 ---------- */
   const CODES = {
@@ -106,6 +117,7 @@
     MAX_LEVEL, BASE_KILLS_PER_STAGE,
     PULL_COST_TICKET, PULL_COST_DIAMOND, PULL10_COST_TICKET, PULL10_COST_DIAMOND,
     expNeed, levelCap, enemyStats, killReward, offlinePerMinute,
-    PULL_POOL, PULL_BONES, CODES,
+    PULL_POOL, BONES, BONE_BY_ID, BONE_AURA, bonePullWeight,
+    starUpBones, starUpCoin, CODES,
   };
 })(window);

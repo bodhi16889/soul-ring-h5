@@ -12,7 +12,7 @@
   /* ---------- 建立新檔 ---------- */
   function newSave() {
     const starter = {
-      id: 'haotian', star: CFG.SOUL_BY_ID.haotian.star, level: 1, rings: [],
+      id: 'haotian', star: CFG.SOUL_BY_ID.haotian.star, level: 1, rings: [], bone: null,
     };
     return {
       v: 1,
@@ -29,7 +29,7 @@
       souls: [starter],
       team: ['haotian'],
       ringBag: [],           // 未裝備的魂環
-      bones: [],
+      bones: [],             // [{uid, id}] 未裝備的魂骨
       cd: {},                // 魂獸 id -> 下次可獵時間
       codes: [],
       stats: { kills: 0, hunts: 0, pulls: 0 },
@@ -66,7 +66,16 @@
     out.codes = Array.isArray(d && d.codes) ? d.codes : [];
     out.slots = Math.max(1, Math.min(5, out.slots | 0 || 1));
     out.team = out.team.filter((id) => out.souls.some((s) => s.id === id)).slice(0, out.slots);
-    out.souls.forEach((s) => { if (!Array.isArray(s.rings)) s.rings = []; });
+    out.souls.forEach((s) => {
+      if (!Array.isArray(s.rings)) s.rings = [];
+      if (s.bone === undefined) s.bone = null;
+    });
+    // 舊版魂骨只存 id 字串 → 轉成 {uid, id}
+    out.bones = (Array.isArray(d && d.bones) ? d.bones : []).map((b, i) => {
+      if (typeof b === 'string') return { uid: 'bo_mig' + i, id: b };
+      if (b && b.id) return { uid: b.uid || ('bo_' + i), id: b.id };
+      return null;
+    }).filter(Boolean);
     return out;
   }
 
@@ -115,16 +124,42 @@
     return { atk, hp };
   }
 
+  /* ---------- 魂骨 ---------- */
+  function boneOf(soul) {
+    if (!soul || !soul.bone) return null;
+    const item = S.bones.find((b) => b.uid === soul.bone);
+    return item ? CFG.BONE_BY_ID[item.id] : null;
+  }
+  function freeBones() { return S.bones.filter((b) => !S.souls.some((s) => s.bone === b.uid)); }
+  function equippedBones() { return S.souls.filter((s) => s.bone).length; }
+
+  /* 光環：同隊其他武魂的魂骨，按 BONE_AURA 比例加成（裝備者自己吃 100%） */
+  function teamAura(excludeSoulId) {
+    const acc = { atk: 0, hp: 0, def: 0, spd: 0 };
+    for (const soul of teamSouls()) {
+      if (soul.id === excludeSoulId) continue;
+      const b = boneOf(soul);
+      if (!b) continue;
+      acc.atk += b.atk * CFG.BONE_AURA;
+      acc.hp += b.hp * CFG.BONE_AURA;
+      acc.def += b.def * CFG.BONE_AURA;
+      acc.spd += b.spd * CFG.BONE_AURA;
+    }
+    return acc;
+  }
+
   function soulStats(soul) {
     const base = CFG.SOUL_BY_ID[soul.id] || CFG.SOULS[0];
     const starMul = 1 + 0.35 * (soul.star - 3);
     const lvMul = 1 + 0.10 * ((soul.level || 1) - 1);
     const rb = ringBonus(soul);
+    const own = boneOf(soul) || { atk: 0, hp: 0, def: 0, spd: 0 };
+    const aura = teamAura(soul.id);
     return {
-      atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk)),
-      hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp)),
-      def: Math.round(base.def * starMul * lvMul),
-      spd: base.spd,
+      atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk + own.atk + aura.atk)),
+      hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp + own.hp + aura.hp)),
+      def: Math.round(base.def * starMul * lvMul * (1 + own.def + aura.def)),
+      spd: Math.round(base.spd * (1 + own.spd + aura.spd)),
       role: base.role,
       name: base.name,
       emoji: base.emoji,
@@ -217,6 +252,48 @@
     return { ok: true };
   }
 
+  function equipBone(soulId, uid) {
+    const soul = S.souls.find((s) => s.id === soulId);
+    const item = S.bones.find((b) => b.uid === uid);
+    if (!soul || !item) return { ok: false, msg: '找不到魂骨' };
+    if (S.souls.some((s) => s.bone === uid)) return { ok: false, msg: '這塊魂骨已裝備' };
+    soul.bone = uid;
+    return { ok: true };
+  }
+  function unequipBone(soulId) {
+    const soul = S.souls.find((s) => s.id === soulId);
+    if (!soul || !soul.bone) return { ok: false };
+    soul.bone = null;
+    return { ok: true };
+  }
+
+  /* 升星：消耗未裝備魂骨（star-2 塊）＋魂幣，上限 5★ */
+  function starUpInfo(soul) {
+    const star = soul.star || 3;
+    return {
+      maxed: star >= 5,
+      star,
+      bones: CFG.starUpBones(star),
+      coins: CFG.starUpCoin(star),
+      available: freeBones().length,
+      canAfford: star < 5 && freeBones().length >= CFG.starUpBones(star) && S.coins >= CFG.starUpCoin(star),
+    };
+  }
+  function starUp(soulId) {
+    const soul = S.souls.find((s) => s.id === soulId);
+    if (!soul) return { ok: false, msg: '找不到武魂' };
+    const info = starUpInfo(soul);
+    if (info.maxed) return { ok: false, msg: '已是 5 星' };
+    if (freeBones().length < info.bones) return { ok: false, msg: `需要 ${info.bones} 塊未裝備魂骨（目前 ${info.available}）` };
+    if (S.coins < info.coins) return { ok: false, msg: `魂幣不足（需 ${info.coins}）` };
+    // 吃掉最舊的未裝備魂骨
+    const eat = freeBones().slice(0, info.bones).map((b) => b.uid);
+    S.bones = S.bones.filter((b) => !eat.includes(b.uid));
+    S.coins -= info.coins;
+    soul.star = Math.min(5, soul.star + 1);
+    return { ok: true, star: soul.star, eaten: eat.length };
+  }
+
   /* ---------- 陣容 ---------- */
   const SLOT_COST = [0, 800, 5000, 26000, 120000];   // 第 2~5 位
   const SLOT_LEVEL = [0, 5, 15, 30, 50];
@@ -257,9 +334,10 @@
   function rollOne() {
     // 15% 出魂骨，其餘出武魂
     if (Math.random() < 0.15 && CFG.PULL_BONES.length) {
-      const b = CFG.PULL_BONES[Math.floor(Math.random() * CFG.PULL_BONES.length)];
-      S.bones.push(b.id);
-      return { kind: 'bone', id: b.id, name: b.name, desc: b.desc };
+      const b = CFG.BONES[Math.floor(Math.random() * CFG.BONES.length)];
+      const uid = 'bo' + Date.now().toString(36) + Math.floor(Math.random() * 1000);
+      S.bones.push({ uid, id: b.id });
+      return { kind: 'bone', id: b.id, name: b.name, desc: b.desc, uid };
     }
     const pool = CFG.PULL_POOL;
     const total = pool.reduce((a, p) => a + p.weight, 0);
@@ -317,6 +395,8 @@
     soulStats, teamSouls, teamStats, power,
     totalRingsEquipped, levelCap, atCap,
     newRing, ringSlotsOf, ringBonus, equipRing, unequipRing,
+    boneOf, freeBones, equippedBones, teamAura, equipBone, unequipBone,
+    starUpInfo, starUp,
     slotNextCost, slotNextLevel, canExpand, expandSlot, toggleTeam,
     pullOnce, rollOne, redeem, exportCode, importCode,
     offlineGain, OFFLINE_CAP_H,

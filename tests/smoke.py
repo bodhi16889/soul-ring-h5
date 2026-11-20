@@ -183,6 +183,77 @@ def main() -> int:
               pull["ok"] is True and pull["after"]["tickets"] == pull["before"]["tickets"] - 1
               and pull["result"]["kind"] in ("new", "star", "dup", "bone"), str(pull))
 
+        # ---------- 7b. 魂骨：真實加成與升星 ----------
+        bone = page.evaluate("""(() => {
+          const s = __game.State.data;
+          s.bones = [{uid:'t1', id:'giant'}, {uid:'t2', id:'life'}, {uid:'t3', id:'wind'}];
+          s.souls.forEach(x => { x.bone = null; });
+          s.team = [s.souls[0].id];
+          s.souls[0].star = 3;
+          const before = __game.State.soulStats(s.souls[0]);
+          const eq = __game.State.equipBone(s.souls[0].id, 't1');
+          const after = __game.State.soulStats(s.souls[0]);
+          return {eq, before, after, free: __game.State.freeBones().length,
+                  equipped: __game.State.equippedBones()};
+        })()""")
+        check("魂骨可裝備，並真的提升武魂攻擊（巨力 +14%）",
+              bone["eq"]["ok"] is True and bone["after"]["atk"] > bone["before"]["atk"]
+              and abs(bone["after"]["atk"] / bone["before"]["atk"] - 1.14) < 0.05
+              and bone["free"] == 2 and bone["equipped"] == 1,
+              f"atk {bone['before']['atk']} -> {bone['after']['atk']}")
+
+        aura = page.evaluate("""(() => {
+          const s = __game.State.data;
+          if (s.souls.length < 2) s.souls.push({id:'turtle', star:3, level:1, rings:[], bone:null});
+          s.slots = 2; s.team = [s.souls[0].id, s.souls[1].id];
+          s.souls[1].bone = null;
+          s.souls[0].bone = null;                       // 先拔掉，量基準值
+          const before = __game.State.soulStats(s.souls[1]);
+          __game.State.equipBone(s.souls[0].id, 't2');  // 第一位裝「生命 +18%」
+          const after = __game.State.soulStats(s.souls[1]);
+          return {beforeHp: before.hp, afterHp: after.hp,
+                  hostHp: __game.State.soulStats(s.souls[0]).hp};
+        })()""")
+        check("魂骨光環：同隊其他武魂吃到 30% 加成",
+              aura["afterHp"] > aura["beforeHp"]
+              and abs(aura["afterHp"] / aura["beforeHp"] - 1.054) < 0.02
+              and aura["hostHp"] > aura["afterHp"], str(aura))
+
+        star = page.evaluate("""(() => {
+          const s = __game.State.data;
+          s.souls[0].star = 3; s.souls[0].bone = null;
+          s.bones = [{uid:'a', id:'giant'}, {uid:'b', id:'life'}];
+          s.coins = 100000;
+          const info = __game.State.starUpInfo(s.souls[0]);
+          const atk3 = __game.State.soulStats(s.souls[0]).atk;
+          const r = __game.State.starUp(s.souls[0].id);
+          const atk4 = __game.State.soulStats(s.souls[0]).atk;
+          const after = {star: s.souls[0].star, bones: s.bones.length, coins: s.coins};
+          // 再升一次（4→5 需 2 塊，現在只剩 1 塊）
+          const r2 = __game.State.starUp(s.souls[0].id);
+          return {info, r, after, atk3, atk4, r2};
+        })()""")
+        check("武魂升星：吃掉 1 塊魂骨＋1200 魂幣，星級與屬性提升",
+              star["r"]["ok"] is True and star["after"]["star"] == 4
+              and star["after"]["bones"] == 1 and star["after"]["coins"] == 100000 - 1200
+              and star["atk4"] > star["atk3"], f"{star['after']} atk {star['atk3']}->{star['atk4']}")
+        check("升星素材不足會被擋下", star["r2"]["ok"] is False, str(star["r2"]))
+
+        migrate = page.evaluate("""(() => {
+          const raw = JSON.parse(localStorage.getItem('soulring.save.v1'));
+          raw.bones = ['giant', 'wind'];        // 舊版：純 id 字串
+          localStorage.setItem('soulring.save.v1', JSON.stringify(raw));
+          __game.State.data.bones = ['giant', 'wind'];   // beforeunload 會用記憶體覆寫
+          return true;
+        })()""")
+        page.reload(wait_until="load")
+        page.wait_for_function("window.__game && window.__game.ready", timeout=20000)
+        mig = page.evaluate("""({
+          bones: __game.State.data.bones,
+          ok: __game.State.data.bones.every(b => b.uid && b.id),
+        })""")
+        check("舊存檔（魂骨存字串）會自動遷移成 {uid,id}", mig["ok"] and len(mig["bones"]) == 2, str(mig))
+
         # ---------- 8. 兌換碼 ----------
         code1 = page.evaluate("(() => { const r = __game.State.redeem('VIP666'); return {r, diamonds: __game.State.data.diamonds, tickets: __game.State.data.tickets}; })()")
         check("兌換碼 VIP666：發鑽石與覺醒券", code1["r"]["ok"] is True and code1["diamonds"] > 2000, str(code1))

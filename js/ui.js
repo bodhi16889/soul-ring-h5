@@ -167,6 +167,8 @@
       const st = State.soulStats(soul);
       const inTeam = s.team.includes(soul.id);
       const slots = State.ringSlotsOf(soul);
+      const bone = State.boneOf(soul);
+      const info = State.starUpInfo(soul);
       const rings = soul.rings.map((uid) => {
         const r = s.ringBag.find((x) => x.uid === uid);
         const t = r ? CFG.TIER_BY_KEY[r.tier] : null;
@@ -189,11 +191,19 @@
         <div class="row1" style="margin-top:6px;font-size:11px;color:var(--muted)">
           魂環槽 ${soul.rings.length}/${slots} ${rings}
         </div>
+        <div class="row1" style="margin-top:4px;font-size:11px;color:var(--muted)">
+          ${bone ? `魂骨 <span class="bone ${bone.css}"></span> ${bone.name}（${bone.desc}）` : '魂骨 無'}
+        </div>
         <div class="acts">
           <button class="mini-btn ${inTeam ? 'ghost' : 'primary'}" data-act="team" data-id="${soul.id}">
             ${inTeam ? '下陣' : '上陣'}
           </button>
           <button class="mini-btn" data-act="ring" data-id="${soul.id}">裝備魂環</button>
+          <button class="mini-btn ${info.canAfford ? 'primary' : ''}" data-act="star" data-id="${soul.id}"
+            ${info.maxed || !info.canAfford ? 'disabled' : ''}>
+            ${info.maxed ? '★5 滿星' : `升星（${info.bones} 魂骨・${fmt(info.coins)}）`}
+          </button>
+          <button class="mini-btn ghost" data-act="bone" data-id="${soul.id}">${bone ? '換魂骨' : '裝魂骨'}</button>
         </div>
       </div>`;
     }).join('');
@@ -209,6 +219,19 @@
     });
     $$('#soulList [data-act="ring"]').forEach((b) => {
       b.addEventListener('click', () => pickRingFor(b.dataset.id));
+    });
+    $$('#soulList [data-act="star"]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = State.starUp(b.dataset.id);
+        if (!r.ok) return toast(r.msg);
+        State.save(true);
+        Battle.refreshTeam();
+        renderAll();
+        toast(`升星成功 → ★${r.star}（消耗 ${r.eaten} 塊魂骨）`);
+      });
+    });
+    $$('#soulList [data-act="bone"]').forEach((b) => {
+      b.addEventListener('click', () => pickBoneFor(b.dataset.id));
     });
 
     const btn = $('#btnExpandSlot');
@@ -241,6 +264,84 @@
         State.save(true);
         renderAll();
         toast('魂環已裝備');
+      });
+    });
+  }
+
+  function pickBoneFor(soulId) {
+    const soul = State.data.souls.find((x) => x.id === soulId);
+    const has = soul && soul.bone;
+    const free = State.freeBones();
+    if (!has && !free.length) return toast('沒有可裝備的魂骨，去武魂殿抽卡');
+    const rows = free.map((item) => {
+      const b = CFG.BONE_BY_ID[item.id];
+      return `<div class="card compact">
+        <div class="row1"><span class="bone ${b.css}"></span><b>${b.name}</b>
+        <span class="hint">${b.desc}</span></div>
+        <div class="acts"><button class="mini-btn primary" data-bone="${item.uid}">裝備</button></div>
+      </div>`;
+    }).join('');
+    const offBtn = has ? `<div class="acts" style="margin-top:6px">
+        <button class="mini-btn ghost" id="btnUnequipBone">卸下目前魂骨</button></div>` : '';
+    openModal('魂骨', rows + offBtn || '<div class="hint">沒有魂骨</div>', [{ text: '關閉', kind: '' }]);
+    $$('#modalBody [data-bone]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = State.equipBone(soulId, b.dataset.bone);
+        closeModal();
+        if (!r.ok) return toast(r.msg);
+        State.save(true); Battle.refreshTeam(); renderAll();
+        toast('魂骨已裝備（裝備者全額、同隊 30% 光環）');
+      });
+    });
+    const off = $('#btnUnequipBone');
+    if (off) off.addEventListener('click', () => {
+      State.unequipBone(soulId); closeModal();
+      State.save(true); Battle.refreshTeam(); renderAll();
+    });
+  }
+
+  function renderBones() {
+    const s = State.data;
+    const free = State.freeBones();
+    $('#boneCount').textContent = `未裝備 ${free.length} · 已裝備 ${State.equippedBones()}`;
+    if (!s.bones.length) {
+      $('#boneList').innerHTML = `<div class="card"><div class="hint">還沒有魂骨。到「覺醒」抽卡有機會抽到魂骨。</div></div>`;
+      return;
+    }
+    const equippedHtml = s.souls.filter((x) => x.bone).map((soul) => {
+      const b = State.boneOf(soul);
+      const base = CFG.SOUL_BY_ID[soul.id];
+      if (!b) return '';
+      return `<div class="card compact">
+        <div class="row1"><span class="bone ${b.css}"></span><b>${b.name}</b>
+        <span class="hint">→ ${base.name}（${b.desc}）</span></div>
+        <div class="acts"><button class="mini-btn ghost" data-unbone="${soul.id}">卸下</button></div>
+      </div>`;
+    }).join('');
+    const freeHtml = free.map((item) => {
+      const b = CFG.BONE_BY_ID[item.id];
+      return `<div class="card compact">
+        <div class="row1"><span class="bone ${b.css}"></span><b>${b.name}</b>
+        <span class="hint">${b.desc}</span></div>
+        <div class="acts">
+          ${s.souls.map((soul) => `<button class="mini-btn" data-eqbone="${item.uid}" data-soul="${soul.id}">
+            裝到 ${(CFG.SOUL_BY_ID[soul.id] || {}).name}</button>`).join('')}
+        </div>
+      </div>`;
+    }).join('');
+    $('#boneList').innerHTML = equippedHtml + freeHtml;
+    $$('#boneList [data-eqbone]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const r = State.equipBone(btn.dataset.soul, btn.dataset.eqbone);
+        if (!r.ok) return toast(r.msg);
+        State.save(true); Battle.refreshTeam(); renderAll();
+        toast('魂骨已裝備');
+      });
+    });
+    $$('#boneList [data-unbone]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        State.unequipBone(btn.dataset.unbone);
+        State.save(true); Battle.refreshTeam(); renderAll();
       });
     });
   }
@@ -382,7 +483,7 @@
     renderAll();
     $('#pullResult').innerHTML = results.map((r) => {
       const cls = r.star >= 5 ? 's5' : r.star >= 4 ? 's4' : '';
-      const label = r.kind === 'bone' ? `${r.name}（魂骨）`
+      const label = r.kind === 'bone' ? `${r.name}（${r.desc || '魂骨'}）`
         : r.kind === 'star' ? `${r.name} ★${r.star}（升星）`
         : r.kind === 'dup' ? `${r.name}（重複 → +${r.diamonds}💎）`
         : `${r.name} ★${r.star}`;
@@ -418,6 +519,7 @@
     renderTop();
     renderBattle();
     renderSouls();
+    renderBones();
     renderRings();
     renderHunt();
     renderGacha();

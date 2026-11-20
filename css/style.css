@@ -303,6 +303,14 @@ body {
 .t-black { color: #b9b9c8; background: #3a3a46; box-shadow: 0 0 8px rgba(160,160,200,.6); }
 .t-red { color: var(--red); background: var(--red); }
 
+/* 魂骨顏色 */
+.bone { display: inline-block; width: 10px; height: 14px; border-radius: 3px; background: currentColor; box-shadow: 0 0 8px currentColor; }
+.bone-cyan { color: #5ad8ff; background: #5ad8ff; }
+.bone-red { color: #ff6b6b; background: #ff6b6b; }
+.bone-green { color: #57d98b; background: #57d98b; }
+.bone-blue { color: #6ea8ff; background: #6ea8ff; }
+.bone-gold { color: #ffd166; background: #ffd166; }
+
 /* 抽卡 */
 .gacha-box { text-align: center; border: 1px solid var(--line); border-radius: 14px; padding: 14px 12px 12px; background: radial-gradient(circle at 50% 0%, rgba(160, 107, 255, .22), transparent 65%); }
 .gacha-art { font-size: 48px; color: var(--gold); text-shadow: 0 0 28px rgba(255, 209, 102, .8); margin-bottom: 6px; animation: spinSlow 6s linear infinite; }
