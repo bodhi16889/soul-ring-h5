@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#120b1f" />
+<title>魂環覺醒：武魂放置錄</title>
+<meta name="description" content="武魂覺醒，獵魂取環，五人小隊自動戰鬥的放置型 RPG。純前端、離線可玩。" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='26' fill='none' stroke='%23ffd166' stroke-width='6'/%3E%3Ccircle cx='32' cy='32' r='10' fill='%23ffd166'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div id="app">
+
+  <!-- ===== 頂部狀態列 ===== -->
+  <header id="topbar">
+    <div class="tb-left">
+      <div id="avatar" title="魂師">魂</div>
+      <div class="tb-id">
+        <div id="playerName">無名魂師</div>
+        <div id="powerWrap">戰力 <b id="power">0</b></div>
+      </div>
+    </div>
+    <div class="tb-right">
+      <div class="res" id="coinBox"><span class="ico">🪙</span><b id="coins">0</b></div>
+      <div class="res" id="diamondBox"><span class="ico">💎</span><b id="diamonds">0</b></div>
+      <button id="btnMenu" class="icon-btn" aria-label="設定">⚙</button>
+    </div>
+  </header>
+
+  <!-- ===== 分頁內容 ===== -->
+  <main id="views">
+
+    <!-- 戰鬥 -->
+    <section class="view active" data-view="battle">
+      <div id="stage" class="stage">
+        <div class="stage-bg"></div>
+        <div id="stageName" class="stage-name">諾丁學院 · 後山</div>
+        <div id="enemyRow" class="side enemy"></div>
+        <div id="teamRow" class="side team"></div>
+        <div id="ringFx" class="ring-fx"></div>
+        <div id="floaters" class="floaters"></div>
+        <div id="battleBanner" class="banner"></div>
+        <button id="bossBtn" class="boss-btn">挑戰 BOSS</button>
+      </div>
+      <div class="stage-info">
+        <div class="prog-row">
+          <span>第 <b id="stageNum">1</b> 關</span>
+          <span id="progText">0 / 10</span>
+        </div>
+        <div class="prog-bar"><i id="progBar"></i></div>
+        <div class="rate-row">
+          <span>掛機效率</span>
+          <span id="rateText">魂幣 0/分 · 經驗 0/分</span>
+        </div>
+      </div>
+      <div class="log-box"><div id="log" class="log"></div></div>
+    </section>
+
+    <!-- 武魂 -->
+    <section class="view" data-view="souls">
+      <div class="panel-head">
+        <h2>武魂</h2><span id="slotInfo" class="hint">上陣 1 / 1</span>
+      </div>
+      <div id="soulList" class="card-list"></div>
+      <button id="btnExpandSlot" class="wide-btn">擴充陣容（5 人小隊）</button>
+      <p class="hint">上陣人數越多，掛機收益越高。解鎖需魂幣與等級。</p>
+    </section>
+
+    <!-- 魂環 -->
+    <section class="view" data-view="rings">
+      <div class="panel-head"><h2>魂環</h2><span id="ringCount" class="hint">0</span></div>
+      <div id="ringList" class="card-list"></div>
+      <p class="hint">魂環只能裝在對應武魂身上；每 10 級需吸收魂環才能突破上限。</p>
+    </section>
+
+    <!-- 獵魂 -->
+    <section class="view" data-view="hunt">
+      <div class="panel-head"><h2>星斗大森林</h2><span id="huntHint" class="hint"></span></div>
+      <div id="beastList" class="card-list"></div>
+      <p class="hint">擊敗魂獸可獲得魂環；年份越高，屬性加成越強。</p>
+    </section>
+
+    <!-- 覺醒 -->
+    <section class="view" data-view="gacha">
+      <div class="panel-head"><h2>武魂殿</h2><span id="ticketInfo" class="hint"></span></div>
+      <div class="gacha-box">
+        <div class="gacha-art">✦</div>
+        <button id="btnPull1" class="wide-btn">覺醒一次（1 券 / 100 💎）</button>
+        <button id="btnPull10" class="wide-btn alt">十連覺醒（10 券 / 900 💎）</button>
+      </div>
+      <div class="code-box">
+        <input id="codeInput" placeholder="輸入兌換碼" maxlength="20" />
+        <button id="btnCode" class="wide-btn small">兌換</button>
+      </div>
+      <p class="hint">測試兌換碼：VIP666、DOULUO888、TANG3</p>
+      <div id="pullResult" class="pull-result"></div>
+    </section>
+  </main>
+
+  <!-- ===== 底部導覽 ===== -->
+  <nav id="nav">
+    <button class="nav-btn active" data-tab="battle"><span>🗡️</span>戰鬥</button>
+    <button class="nav-btn" data-tab="souls"><span>🌀</span>武魂</button>
+    <button class="nav-btn" data-tab="rings"><span>💠</span>魂環</button>
+    <button class="nav-btn" data-tab="hunt"><span>🐾</span>獵魂</button>
+    <button class="nav-btn" data-tab="gacha"><span>✨</span>覺醒</button>
+  </nav>
+
+  <!-- ===== 彈窗 ===== -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <h3 id="modalTitle">標題</h3>
+      <div id="modalBody" class="modal-body"></div>
+      <div id="modalBtns" class="modal-btns"></div>
+    </div>
+  </div>
+  <div id="toast" class="toast hidden"></div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/state.js"></script>
+<script src="js/battle.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>

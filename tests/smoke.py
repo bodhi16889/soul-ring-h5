@@ -1,0 +1,289 @@
+#!/usr/bin/env python3
+"""魂環覺醒 H5 — 端到端驗證（Playwright）。
+
+驗的是「真的能玩」：自動戰鬥會掉血、升級、獵魂掉魂環、魂環提高等級上限、
+BOSS 推進關卡、抽卡與兌換碼、存檔碼往返、離線收益、直式版面。
+
+    /usr/bin/python3 tests/smoke.py [--headed]
+"""
+from __future__ import annotations
+
+import argparse
+import functools
+import http.server
+import json
+import socketserver
+import sys
+import threading
+import time
+from pathlib import Path
+
+from playwright.sync_api import sync_playwright
+
+ROOT = Path(__file__).resolve().parent.parent
+ART = ROOT / "artifacts"
+FAILS: list[str] = []
+
+
+def check(label: str, ok: bool, detail: str = "") -> bool:
+    print(f"[{'PASS' if ok else 'FAIL'}] {label}" + (f" — {detail}" if detail else ""))
+    if not ok:
+        FAILS.append(label)
+    return ok
+
+
+def serve(directory: Path, port: int) -> socketserver.TCPServer:
+    handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(directory))
+    handler.log_message = lambda *a, **k: None
+
+    class Q(socketserver.TCPServer):
+        allow_reuse_address = True
+
+    srv = Q(("127.0.0.1", port), handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--headed", action="store_true")
+    args = ap.parse_args()
+
+    ART.mkdir(exist_ok=True)
+    srv = serve(ROOT, 8771)
+    url = "http://127.0.0.1:8771/index.html"
+
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=not args.headed,
+                                     args=["--use-gl=swiftshader", "--enable-unsafe-swiftshader"])
+        ctx = browser.new_context(viewport={"width": 420, "height": 860}, device_scale_factor=2,
+                                  is_mobile=True, has_touch=True)
+        page = ctx.new_page()
+        errors: list[str] = []
+        page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+        page.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
+
+        page.goto(url, wait_until="load")
+        page.wait_for_function("window.__game && window.__game.ready", timeout=20000)
+        page.evaluate("try { localStorage.clear(); } catch (e) {}")
+        page.reload(wait_until="load")
+        page.wait_for_function("window.__game && window.__game.ready", timeout=20000)
+        time.sleep(0.5)
+
+        # ---------- 1. 基本結構 ----------
+        base = page.evaluate("""({
+          tabs: document.querySelectorAll('.nav-btn').length,
+          views: document.querySelectorAll('.view').length,
+          title: document.title,
+          souls: __game.State.data.souls.length,
+          team: __game.State.data.team.length,
+          level: __game.State.data.level,
+          cap: __game.State.levelCap(),
+          power: __game.State.power(),
+          stage: __game.State.data.stage,
+        })""")
+        check("五個頁籤與五個視圖都在", base["tabs"] == 5 and base["views"] == 5, str(base))
+        check("標題正確、初始 1 武魂上陣、1 級、上限 10", 
+              base["title"] == "魂環覺醒：武魂放置錄" and base["souls"] == 1
+              and base["team"] == 1 and base["level"] == 1 and base["cap"] == 10, str(base))
+        check("開局有戰力", base["power"] > 0, f"power={base['power']}")
+        check("沒有 console / page error", not errors, str(errors[:3]))
+
+        # ---------- 2. 自動戰鬥 ----------
+        before = page.evaluate("""({
+          hp: __game.Battle.state.enemy ? __game.Battle.state.enemy.hp : -1,
+          coins: __game.State.data.coins,
+          kills: __game.State.data.stats.kills,
+          exp: __game.State.data.exp,
+        })""")
+        time.sleep(3.0)
+        after = page.evaluate("""({
+          hp: __game.Battle.state.enemy ? __game.Battle.state.enemy.hp : -1,
+          maxHp: __game.Battle.state.enemy ? __game.Battle.state.enemy.maxHp : 0,
+          coins: __game.State.data.coins,
+          kills: __game.State.data.stats.kills,
+          exp: __game.State.data.exp,
+          level: __game.State.data.level,
+        })""")
+        progressed = (after["kills"] > before["kills"]) or (after["hp"] < before["hp"]) or (after["hp"] == after["maxHp"] and after["kills"] > 0)
+        check("自動戰鬥：不打也會掉血／擊殺", progressed,
+              f"hp {before['hp']} -> {after['hp']}, kills {before['kills']} -> {after['kills']}")
+        check("擊殺會給魂幣與經驗", after["coins"] > before["coins"] and (after["exp"] > 0 or after["level"] > 1),
+              f"coins {before['coins']}->{after['coins']}, exp={after['exp']}, lv={after['level']}")
+
+        # ---------- 3. 升級 ----------
+        lv = page.evaluate("""(() => {
+          const s = __game.State.data;
+          const r = __game.State.addExp(s, 4000);
+          return {level: s.level, ups: r.levelUps, capped: r.capped};
+        })()""")
+        check("經驗足夠會升級，並在 10 級停下（需魂環突破）", lv["level"] == 10 and lv["capped"] is True,
+              str(lv))
+
+        # ---------- 4. 獵魂 → 魂環 ----------
+        page.evaluate("__game.switchTab('hunt')")
+        time.sleep(0.2)
+        hunt_ok = page.evaluate("""(() => {
+          const r = __game.Battle.hunt('baboon');
+          return {ok: r.ok, msg: r.msg || '', mode: __game.Battle.state.mode};
+        })()""")
+        check("獵魂：可以進入十年魂獸（風狒狒）", hunt_ok["ok"] is True and hunt_ok["mode"] == "hunt", str(hunt_ok))
+
+        # 打快一點：把武魂攻擊拉高，避免測試等太久
+        page.evaluate("__game.Battle.state.units.forEach(u => { u.atk = 400; u.spd = 200; })")
+        got_ring = False
+        try:
+            page.wait_for_function("__game.State.data.ringBag.length > 0", timeout=25_000)
+            got_ring = True
+        except Exception:
+            got_ring = False
+        ring = page.evaluate("({bag: __game.State.data.ringBag, mode: __game.Battle.state.mode, cd: __game.State.data.cd})")
+        check("擊敗魂獸會掉落魂環、並回到掛機", got_ring and ring["mode"] == "farm" and len(ring["bag"]) >= 1,
+              str(ring))
+
+        # ---------- 5. 裝備魂環 → 上限提升 ----------
+        equip = page.evaluate("""(() => {
+          const s = __game.State.data;
+          const uid = s.ringBag[0].uid;
+          const before = __game.State.levelCap();
+          const r = __game.State.equipRing(s.souls[0].id, uid);
+          return {ok: r.ok, msg: r.msg || '', before, after: __game.State.levelCap(),
+                  equipped: s.souls[0].rings.length};
+        })()""")
+        check("裝備魂環後等級上限 +10", equip["ok"] is True and equip["after"] == equip["before"] + 10
+              and equip["equipped"] == 1, str(equip))
+
+        # ---------- 6. BOSS 推進關卡 ----------
+        page.evaluate("__game.switchTab('battle')")
+        page.evaluate("__game.State.data.kills = 10; __game.Battle.state.pendingBoss = false;")
+        page.evaluate("__game.State.data.kills = 10")
+        # 觸發 bossReady（正常是擊殺第 10 隻時設定）
+        page.evaluate("__game.Battle.state.pendingBoss = true")
+        started = page.evaluate("(() => { const r = __game.Battle.challengeBoss(); return {ok: r.ok, mode: __game.Battle.state.mode}; })()")
+        check("BOSS 按鈕：清完小怪後可以挑戰", started["ok"] is True and started["mode"] == "boss", str(started))
+        page.evaluate("__game.Battle.state.enemy.hp = 1")
+        try:
+            page.wait_for_function("__game.State.data.stage >= 2", timeout=20_000)
+        except Exception:
+            pass
+        stage = page.evaluate("({stage: __game.State.data.stage, best: __game.State.data.bestStage, mode: __game.Battle.state.mode})")
+        check("擊敗 BOSS 進到下一關、回到掛機", stage["stage"] >= 2 and stage["best"] >= 2 and stage["mode"] == "farm",
+              str(stage))
+
+        # ---------- 7. 抽卡 ----------
+        page.evaluate("__game.switchTab('gacha')")
+        pull = page.evaluate("""(() => {
+          const s = __game.State.data;
+          s.tickets = 12; s.diamonds = 2000;
+          const before = {tickets: s.tickets, souls: s.souls.length};
+          const r = __game.State.pullOnce(true);
+          return {ok: r.ok, result: r.result, before, after: {tickets: s.tickets, souls: s.souls.length}};
+        })()""")
+        check("覺醒抽卡：扣券並產出武魂或魂骨",
+              pull["ok"] is True and pull["after"]["tickets"] == pull["before"]["tickets"] - 1
+              and pull["result"]["kind"] in ("new", "star", "dup", "bone"), str(pull))
+
+        # ---------- 8. 兌換碼 ----------
+        code1 = page.evaluate("(() => { const r = __game.State.redeem('VIP666'); return {r, diamonds: __game.State.data.diamonds, tickets: __game.State.data.tickets}; })()")
+        check("兌換碼 VIP666：發鑽石與覺醒券", code1["r"]["ok"] is True and code1["diamonds"] > 2000, str(code1))
+        code2 = page.evaluate("(() => { const r = __game.State.redeem('vip666'); return r; })()")
+        check("同一組兌換碼不能重複領", code2["ok"] is False, str(code2))
+        code3 = page.evaluate("(() => __game.State.redeem('NOPE'))()")
+        check("無效兌換碼會被拒絕", code3["ok"] is False, str(code3))
+
+        # ---------- 9. 存檔碼往返 ----------
+        roundtrip = page.evaluate("""(() => {
+          const s = __game.State.data;
+          s.coins = 123456; s.diamonds = 999;
+          const code = __game.State.exportCode();
+          s.coins = 0;
+          const r = __game.State.importCode(code);
+          return {ok: r.ok, coins: __game.State.data.coins, diamonds: __game.State.data.diamonds, len: code.length};
+        })()""")
+        check("存檔碼匯出／匯入可還原進度", roundtrip["ok"] is True and roundtrip["coins"] == 123456
+              and roundtrip["diamonds"] == 999 and roundtrip["len"] > 50, str(roundtrip))
+
+        # ---------- 10. 離線收益 ----------
+        off = page.evaluate("""(() => {
+          const s = __game.State.data;
+          s.stage = 5; s.coins = 0; s.exp = 0; s.level = 1;
+          s.lastSave = Date.now() - 2 * 3600 * 1000;      // 2 小時前
+          const g = __game.State.offlineGain(s);
+          return {g, coins: s.coins, exp: s.exp};
+        })()""")
+        check("離線 2 小時會結算魂幣與經驗", bool(off["g"]) and off["g"]["minutes"] >= 110
+              and off["coins"] > 0 and off["g"]["coins"] > 0, json.dumps(off, ensure_ascii=False)[:200])
+
+        cap_off = page.evaluate("""(() => {
+          const s = __game.State.data;
+          s.lastSave = Date.now() - 30 * 3600 * 1000;     // 30 小時前
+          const g = __game.State.offlineGain(s);
+          return {minutes: g.minutes, capped: g.capped};
+        })()""")
+        check("離線收益上限 12 小時", cap_off["capped"] is True and cap_off["minutes"] <= 720, str(cap_off))
+
+        # ---------- 11. 自動存檔 / 重載保留 ----------
+        page.evaluate("__game.State.data.coins = 777777; __game.State.save(true)")
+        page.reload(wait_until="load")
+        page.wait_for_function("window.__game && window.__game.ready", timeout=20000)
+        kept = page.evaluate("({coins: __game.State.data.coins, souls: __game.State.data.souls.length})")
+        check("重新載入後進度保留", kept["coins"] == 777777 and kept["souls"] >= 1, str(kept))
+
+        # ---------- 12. 版面 ----------
+        page.wait_for_selector("#stage", state="visible", timeout=5000)
+        layout = page.evaluate("""({
+          appW: document.getElementById('app').getBoundingClientRect().width,
+          innerW: innerWidth,
+          scrollW: document.documentElement.scrollWidth,
+          stageH: document.getElementById('stage').getBoundingClientRect().height,
+          navH: document.getElementById('nav').getBoundingClientRect().height,
+          tabVisible: !!document.querySelector('.view.active'),
+        })""")
+        check("直式版面：內容不超出視窗、舞台與導覽都在",
+              layout["appW"] <= layout["innerW"] + 1 and layout["scrollW"] <= layout["innerW"] + 1
+              and layout["stageH"] > 150 and layout["navH"] > 40 and layout["tabVisible"], str(layout))
+
+        # 頁籤切換
+        for t in ("souls", "rings", "hunt", "gacha", "battle"):
+            page.click(f'.nav-btn[data-tab="{t}"]')
+            time.sleep(0.15)
+        cur = page.evaluate("__game.tab")
+        check("五個頁籤都能切換", cur == "battle", f"tab={cur}")
+
+        # ---------- 13. 截圖 ----------
+        time.sleep(1.2)
+        page.screenshot(path=str(ART / "soulring-battle.png"))
+        page.click('.nav-btn[data-tab="hunt"]')
+        time.sleep(0.4)
+        page.screenshot(path=str(ART / "soulring-hunt.png"))
+        page.click('.nav-btn[data-tab="gacha"]')
+        time.sleep(0.4)
+        page.screenshot(path=str(ART / "soulring-gacha.png"))
+        page.click('.nav-btn[data-tab="souls"]')
+        time.sleep(0.4)
+        page.screenshot(path=str(ART / "soulring-souls.png"))
+
+        desktop = browser.new_context(viewport={"width": 1280, "height": 900})
+        dp = desktop.new_page()
+        dp.goto(url, wait_until="load")
+        dp.wait_for_function("window.__game && window.__game.ready", timeout=20000)
+        time.sleep(0.6)
+        dw = dp.evaluate("document.getElementById('app').getBoundingClientRect().width")
+        check("桌機：介面鎖在 480px 內並置中", 470 <= dw <= 481, f"app width={dw}")
+        dp.screenshot(path=str(ART / "soulring-desktop.png"))
+        desktop.close()
+
+        check("整場沒有 console / page error", not errors, str(errors[:5]))
+        browser.close()
+    srv.shutdown()
+
+    print()
+    if FAILS:
+        print(f"RESULT: FAIL ({len(FAILS)}: {', '.join(FAILS)})")
+        return 1
+    print("RESULT: PASS（自動戰鬥 / 升級 / 獵魂掉環 / 魂環上限 / BOSS 推進 / 抽卡 / 兌換碼 / 存檔碼 / 離線收益 / 版面）")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
