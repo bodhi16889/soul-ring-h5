@@ -40,12 +40,14 @@
    * tier 決定掉落的魂環年份；reqLevel 是建議等級（低於會被勸退）
    */
   const BEASTS = [
-    { id: 'baboon', name: '風狒狒',     emoji: '🐒', tier: 'white',  year: '十年',   hp: 220,  atk: 12,  reqLevel: 10, cdSec: 18 },
-    { id: 'mandala', name: '曼陀羅蛇',  emoji: '🐍', tier: 'yellow', year: '百年',   hp: 640,  atk: 26,  reqLevel: 20, cdSec: 30 },
-    { id: 'spider', name: '人面魔蛛',   emoji: '🕷', tier: 'violet', year: '千年',   hp: 2400, atk: 62,  reqLevel: 30, cdSec: 60 },
-    { id: 'darkbear', name: '暗金恐爪熊', emoji: '🐾', tier: 'black', year: '萬年',   hp: 6200, atk: 118, reqLevel: 40, cdSec: 90 },
-    { id: 'whale',  name: '深海魔鯨',   emoji: '🐋', tier: 'red',    year: '十萬年', hp: 16000, atk: 210, reqLevel: 50, cdSec: 120 },
+    { id: 'baboon', name: '風狒狒',     emoji: '🐒', tier: 'white',  year: '十年',   element: 'wind',   hp: 220,  atk: 12,  reqLevel: 10, cdSec: 18 },
+    { id: 'mandala', name: '曼陀羅蛇',  emoji: '🐍', tier: 'yellow', year: '百年',   element: 'wood',   hp: 640,  atk: 26,  reqLevel: 20, cdSec: 30 },
+    { id: 'spider', name: '人面魔蛛',   emoji: '🕷', tier: 'violet', year: '千年',   element: 'poison', hp: 2400, atk: 62,  reqLevel: 30, cdSec: 60 },
+    { id: 'darkbear', name: '暗金恐爪熊', emoji: '🐾', tier: 'black', year: '萬年',   element: 'earth',  hp: 6200, atk: 118, reqLevel: 40, cdSec: 90 },
+    { id: 'whale',  name: '深海魔鯨',   emoji: '🐋', tier: 'red',    year: '十萬年', element: 'water',  hp: 16000, atk: 210, reqLevel: 50, cdSec: 120 },
   ];
+  const ELEMENT_LABEL = { wind: '風', wood: '木', poison: '毒', earth: '土', water: '水' };
+  const ELEMENT_COLOR = { wind: '#5ad8ff', wood: '#57d98b', poison: '#b06bff', earth: '#e0a458', water: '#6ea8ff' };
   const BEAST_BY_ID = Object.fromEntries(BEASTS.map((b) => [b.id, b]));
 
   /* ---------- 關卡場景 ---------- */
@@ -56,7 +58,9 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const MAX_LEVEL = 90;
+  const MAX_LEVEL = 100;          // GDD：百級神祇
+  const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個魂環槽
+  const MAX_RING_SLOTS = 9;         // 單一武魂最多 9 槽（GDD）
   const BASE_KILLS_PER_STAGE = 8;           // 每關殺 8 隻小怪出 BOSS（放置遊戲不要拖）
   const AUTO_BOSS_DELAY = 1800;            // 清完小怪後幾毫秒自動挑戰 BOSS
   const AUTO_HUNT_DELAY = 2500;            // 卡等時幾毫秒自動去獵魂
@@ -66,7 +70,31 @@
   const PULL10_COST_DIAMOND = 900;
 
   function expNeed(level) { return Math.round(8 * Math.pow(level, 1.3) + 6 * level); }
-  function levelCap(ringsEquipped) { return Math.min(MAX_LEVEL, 10 + 10 * ringsEquipped); }
+  /* 等級上限改成固定 100（GDD 模型）；魂環不再解鎖等級，而是每 10 級開一格 */
+  function levelCap() { return MAX_LEVEL; }
+  function ringSlots(level) { return Math.min(MAX_RING_SLOTS, Math.floor((level || 1) / RING_SLOTS_PER_LEVEL)); }
+
+  /* ---------- 魂環技能（依年份）----------
+   * 十年/百年：純屬性（被動）
+   * 千年：群體 120% / 萬年：震懾 150%（50% 暈眩）/ 十萬年：群體 200%
+   */
+  const RING_SKILL = {
+    white: null,
+    yellow: null,
+    violet: { type: 'aoe', mult: 1.2, label: '魂技 · 千軍' },
+    black: { type: 'stun', mult: 1.5, chance: 0.5, label: '魂技 · 震懾' },
+    red: { type: 'aoe', mult: 2.0, label: '魂技 · 神滅' },
+  };
+
+  /* 屬性共鳴：同一武魂 3 個同系魂環 → 該系魂技傷害 +25% */
+  const RESONANCE = { need: 3, mult: 1.25 };
+
+  /* 武魂真身：同一武魂 3/6/9 個萬年以上魂環 → 全屬性 +15%/35%/60% */
+  const TRUE_BODY = [
+    { need: 3, mult: 0.15 },
+    { need: 6, mult: 0.35 },
+    { need: 9, mult: 0.60 },
+  ];
 
   /* 無限關卡的難度曲線：前 60 關指數（1.16），之後轉慢速（1.06）
      → 深關不會變成 1e27 這種天文數字，轉生才有意義 */
@@ -150,10 +178,12 @@
   global.CFG = {
     RING_TIERS, TIER_BY_KEY, SOULS, SOUL_BY_ID, ROLE_LABEL, ROLE_COLOR,
     BEASTS, BEAST_BY_ID, STAGE_AREAS, areaFor,
-    MAX_LEVEL, BASE_KILLS_PER_STAGE, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY,
+    MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
+    RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR,
+    BASE_KILLS_PER_STAGE, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY,
     REBIRTH, rebirthGain, stageMul,
     PULL_COST_TICKET, PULL_COST_DIAMOND, PULL10_COST_TICKET, PULL10_COST_DIAMOND,
-    expNeed, levelCap, enemyStats, killReward, offlinePerMinute,
+    expNeed, levelCap, ringSlots, enemyStats, killReward, offlinePerMinute,
     PULL_POOL, BONES, BONE_BY_ID, BONE_AURA, bonePullWeight,
     starUpBones, starUpCoin, CHECKIN, CODES,
   };

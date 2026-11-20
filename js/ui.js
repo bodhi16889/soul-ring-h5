@@ -183,6 +183,8 @@
       const slots = State.ringSlotsOf(soul);
       const bone = State.boneOf(soul);
       const info = State.starUpInfo(soul);
+      const tb = State.trueBodyOf(soul);
+      const reso = State.resonanceOf(soul);
       const rings = soul.rings.map((uid) => {
         const r = s.ringBag.find((x) => x.uid === uid);
         const t = r ? CFG.TIER_BY_KEY[r.tier] : null;
@@ -204,6 +206,8 @@
         </div>
         <div class="row1" style="margin-top:6px;font-size:11px;color:var(--muted)">
           魂環槽 ${soul.rings.length}/${slots} ${rings}
+          ${tb.bonus ? `<span class="tag on">真身 +${Math.round(tb.bonus * 100)}%</span>` : ''}
+          ${reso ? `<span class="tag on">共鳴 ${CFG.ELEMENT_LABEL[reso.element]}×${reso.count}</span>` : ''}
         </div>
         <div class="row1" style="margin-top:4px;font-size:11px;color:var(--muted)">
           ${bone ? `<span class="bone ${bone.css}"></span> ${bone.name}（${bone.desc}）` : '魂骨：無'}
@@ -413,9 +417,13 @@
 
     const bagHtml = State.freeRings().map((r) => {
       const t = CFG.TIER_BY_KEY[r.tier];
+      const sk = CFG.RING_SKILL[r.tier];
+      const el = CFG.ELEMENT_LABEL[r.element] || '';
       return `<div class="card compact">
         <div class="row1"><span class="ring-dot ${t.css}"></span><b>${t.name}</b>
+        <span class="tag" style="color:${CFG.ELEMENT_COLOR[r.element] || '#fff'}">${el}系</span>
         <span class="hint">攻擊 +${Math.round(t.atk * 100)}% · 生命 +${Math.round(t.hp * 100)}%</span></div>
+        ${sk ? `<div class="hint" style="margin-top:4px">魂技：${sk.label}（${sk.type === 'aoe' ? '群體' : '震懾'} ×${sk.mult}）</div>` : '<div class="hint" style="margin-top:4px">被動：純屬性增幅</div>'}
         <div class="acts">
           ${s.souls.map((soul) => {
             const base = CFG.SOUL_BY_ID[soul.id];
@@ -466,7 +474,8 @@
 
   function renderHunt() {
     const s = State.data;
-    $('#huntHint').textContent = `目前等級 ${s.level} / 上限 ${State.levelCap()}`;
+    const slotLine = State.teamSouls().map((x) => `${(CFG.SOUL_BY_ID[x.id] || {}).name} ${x.rings.length}/${State.ringSlotsOf(x)}`).join(' · ');
+    $('#huntHint').textContent = `Lv.${s.level}（每 10 級開 1 槽）｜${slotLine}`;
     const html = CFG.BEASTS.map((b) => {
       const t = CFG.TIER_BY_KEY[b.tier];
       const cdLeft = Math.max(0, Math.ceil(((s.cd[b.id] || 0) - Date.now()) / 1000));
@@ -653,8 +662,9 @@
         floatNum($(`#teamRow .unit:nth-child(${unitIndex(ev.unit) + 1})`), '護盾', 'skill');
         break;
       case 'skill': {
-        ringFx(ev.unit);
-        banner(ev.name);
+        ringFx(ev.unit, ev.element);
+        banner(ev.resonance ? `${ev.name} · 共鳴` : ev.name);
+        if (ev.ring) addLog(`魂環魂技：${ev.name}${ev.resonance ? '（屬性共鳴 +25%）' : ''}`, 'c-purple');
         break;
       }
       case 'kill': {
@@ -733,11 +743,12 @@
     setTimeout(() => span.remove(), 900);
   }
 
-  function ringFx(unit) {
+  function ringFx(unit, element) {
     const fx = $('#ringFx');
     if (!fx) return;
     const role = (unit && unit.role) || 'atk';
-    const color = role === 'ctrl' ? '#b06bff' : role === 'def' ? '#6ea8ff' : role === 'sup' ? '#57d98b' : '#ffd93d';
+    const color = (element && CFG.ELEMENT_COLOR[element])
+      || (role === 'ctrl' ? '#b06bff' : role === 'def' ? '#6ea8ff' : role === 'sup' ? '#57d98b' : '#ffd93d');
     fx.style.setProperty('--ring', color);
     fx.classList.remove('on');
     void fx.offsetWidth;

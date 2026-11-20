@@ -86,9 +86,9 @@ def main() -> int:
           stage: __game.State.data.stage,
         })""")
         check("五個頁籤與五個視圖都在", base["tabs"] == 5 and base["views"] == 5, str(base))
-        check("標題正確、初始 1 武魂上陣、1 級、上限 10", 
+        check("標題正確、初始 1 武魂上陣、1 級、等級上限 100",
               base["title"] == "魂環覺醒：武魂放置錄" and base["souls"] == 1
-              and base["team"] == 1 and base["level"] == 1 and base["cap"] == 10, str(base))
+              and base["team"] == 1 and base["level"] == 1 and base["cap"] == 100, str(base))
         check("開局有戰力", base["power"] > 0, f"power={base['power']}")
         check("沒有 console / page error", not errors, str(errors[:3]))
 
@@ -118,9 +118,10 @@ def main() -> int:
         lv = page.evaluate("""(() => {
           const s = __game.State.data;
           const r = __game.State.addExp(s, 4000);
-          return {level: s.level, ups: r.levelUps, capped: r.capped};
+          return {level: s.level, ups: r.levelUps, capped: r.capped, cap: __game.State.levelCap()};
         })()""")
-        check("經驗足夠會升級，並在 10 級停下（需魂環突破）", lv["level"] == 10 and lv["capped"] is True,
+        check("經驗足夠會連續升級，上限固定 100（魂環不再卡等）",
+              lv["level"] >= 15 and lv["ups"] >= 14 and lv["capped"] is False and lv["cap"] == 100,
               str(lv))
 
         # ---------- 4. 獵魂 → 魂環 ----------
@@ -161,7 +162,8 @@ def main() -> int:
           return {ok: r.ok, msg: r.msg || '', before, after: __game.State.levelCap(),
                   equipped: s.souls[0].rings.length};
         })()""")
-        check("裝備魂環後等級上限 +10", equip["ok"] is True and equip["after"] == equip["before"] + 10
+        check("裝備魂環：等級上限維持 100，改由環槽（每 10 級 1 格）限制",
+              equip["ok"] is True and equip["after"] == 100
               and equip["equipped"] == 1, str(equip))
 
         # ---------- 6. BOSS 推進關卡 ----------
@@ -574,6 +576,98 @@ def main() -> int:
         })""")
         check("轉生 UI：武魂頁有轉生卡、頂部顯示魂印", rb_ui["box"] and "魂印" in rb_ui["text"]
               and rb_ui["marks"] not in (None, "", "0"), str(rb_ui)[:160])
+
+        # ---------- 11e. Stage 2：9 環槽 / 魂環技能 / 共鳴 / 武魂真身 ----------
+        slots = page.evaluate("""(() => {
+          const St = __game.State, s = St.data;
+          const out = {};
+          [1, 9, 10, 25, 50, 100].forEach((lv) => {
+            s.level = lv;
+            out['lv' + lv] = St.ringSlotsOf(s.souls[0]);
+          });
+          return out;
+        })()""")
+        check("環槽：每 10 級開 1 格、上限 9（Lv9=0、Lv10=1、Lv100=9）",
+              slots["lv1"] == 0 and slots["lv9"] == 0 and slots["lv10"] == 1
+              and slots["lv25"] == 2 and slots["lv50"] == 5 and slots["lv100"] == 9, str(slots))
+
+        ring_skill = page.evaluate("""(() => {
+          const St = __game.State, B = __game.Battle.state, s = St.data;
+          s.level = 60;
+          s.ringBag = []; s.souls.forEach((x) => { x.rings = []; });
+          const soul = s.souls[0];
+          const r = St.newRing('violet', 'poison');
+          s.ringBag.push(r);
+          St.equipRing(soul.id, r.uid);
+          B.mode = 'farm';
+          B.enemies = [0,1,2].map((i) => ({ id: 'sk' + i, name: '怪' + i, emoji: '🦟',
+            maxHp: 9000, hp: 9000, atk: 1, def: 0, spd: 1, gauge: 0, stun: 0,
+            alive: true, boss: false, acts: 0, enraged: false }));
+          __game.Battle.init();
+          const u = B.units[0];
+          u.atk = 100; u.mp = 100;
+          const before = B.enemies.map((e) => e.hp);
+          const events = [];
+          const off = __game.Battle.on((ev) => { if (ev.type === 'skill') events.push(ev); });
+          __game.Battle.castSkill(u);
+          off();
+          const after = B.enemies.map((e) => e.hp);
+          return {before, after, hits: after.filter((hp, i) => hp < before[i]).length,
+                  ev: events[0] || null, skill: St.ringSkillOf(soul)};
+        })()""")
+        check("魂環技能：千年環給群體魂技，一擊打到全部敵人",
+              ring_skill["hits"] == 3 and ring_skill["ev"]["ring"] is True
+              and ring_skill["skill"]["type"] == "aoe", str(ring_skill)[:200])
+
+        reso = page.evaluate("""(() => {
+          const St = __game.State, B = __game.Battle.state, s = St.data;
+          const run = (rings) => {
+            s.level = 60;
+            s.ringBag = []; s.souls.forEach((x) => { x.rings = []; });
+            const soul = s.souls[0];
+            rings.forEach((el) => {
+              const r = St.newRing('violet', el);
+              s.ringBag.push(r); St.equipRing(soul.id, r.uid);
+            });
+            B.enemies = [{ id: 'r1', name: 'x', emoji: '🦟', maxHp: 1e9, hp: 1e9,
+              atk: 1, def: 0, spd: 1, gauge: 0, stun: 0, alive: true, boss: false, acts: 0, enraged: false }];
+            __game.Battle.init();
+            const u = B.units[0]; u.atk = 100; u.mp = 100;
+            const hp0 = B.enemies[0].hp;
+            __game.Battle.castSkill(u);
+            return hp0 - B.enemies[0].hp;
+          };
+          // 對照組：同樣 3 個千年環，但元素不同 → 沒有共鳴
+          const mixed = run(['poison', 'wood', 'wind']);
+          const same = run(['poison', 'poison', 'poison']);
+          return {mixed, same, ratio: +(same / mixed).toFixed(3),
+                  reso: St.resonanceOf(s.souls[0])};
+        })()""")
+        check("屬性共鳴：3 個同系魂環 → 魂技傷害 ×1.25（同年份對照）",
+              reso["reso"] and reso["reso"]["count"] == 3
+              and 1.18 <= reso["ratio"] <= 1.32, str(reso))
+
+        body = page.evaluate("""(() => {
+          const St = __game.State, s = St.data;
+          s.level = 90;
+          s.ringBag = []; s.souls.forEach((x) => { x.rings = []; });
+          const soul = s.souls[0];
+          ['black','black','black'].forEach((tier, i) => {
+            const r = St.newRing(tier, i % 2 ? 'earth' : 'water');
+            s.ringBag.push(r); St.equipRing(soul.id, r.uid);
+          });
+          const tb = St.trueBodyOf(soul);
+          // 用「暫時關掉真身加成」當對照組，才不會把魂環本身的 +150% 算進去
+          const saved = CFG.TRUE_BODY[0].mult;
+          CFG.TRUE_BODY[0].mult = 0;
+          const atk0 = St.soulStats(soul).atk;
+          CFG.TRUE_BODY[0].mult = saved;
+          const atk1 = St.soulStats(soul).atk;
+          return {atk0, atk1, tb, bonus: saved, ratio: +(atk1 / atk0).toFixed(3)};
+        })()""")
+        check("武魂真身：3 個萬年魂環 → 全屬性 +15%（已驗加成確實生效）",
+              body["tb"]["high"] == 3 and body["tb"]["bonus"] == 0.15
+              and body["bonus"] == 0.15 and 1.12 <= body["ratio"] <= 1.20, str(body))
 
         # ---------- 12. 版面 ----------
         page.wait_for_selector("#stage", state="visible", timeout=5000)

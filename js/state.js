@@ -89,7 +89,10 @@
         }
       });
     });
-    out.ringBag.forEach((r) => { if (r.equipped && !out.souls.some((x) => x.id === r.equipped)) r.equipped = null; });
+    out.ringBag.forEach((r) => {
+      if (!r.element) r.element = 'wind';
+      if (r.equipped && !out.souls.some((x) => x.id === r.equipped)) r.equipped = null;
+    });
 
     out.bones = (Array.isArray(d && d.bones) ? d.bones : []).map((b, i) => {
       if (typeof b === 'string') return { uid: 'bo_mig' + i, id: b };
@@ -177,11 +180,12 @@
     const own = boneOf(soul) || { atk: 0, hp: 0, def: 0, spd: 0 };
     const aura = teamAura(soul.id);
     const pm = CFG.REBIRTH.perMark;
+    const tbMul = 1 + trueBodyOf(soul).bonus;   // 武魂真身：乘算
     return {
-      atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk + own.atk + aura.atk + pm.atk * S.marks)),
-      hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp + own.hp + aura.hp + pm.hp * S.marks)),
-      def: Math.round(base.def * starMul * lvMul * (1 + own.def + aura.def + pm.def * S.marks)),
-      spd: Math.round(base.spd * (1 + own.spd + aura.spd + pm.spd * S.marks)),
+      atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk + own.atk + aura.atk + pm.atk * S.marks) * tbMul),
+      hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp + own.hp + aura.hp + pm.hp * S.marks) * tbMul),
+      def: Math.round(base.def * starMul * lvMul * (1 + own.def + aura.def + pm.def * S.marks) * tbMul),
+      spd: Math.round(base.spd * (1 + own.spd + aura.spd + pm.spd * S.marks) * tbMul),
       role: base.role,
       name: base.name,
       emoji: base.emoji,
@@ -204,6 +208,49 @@
   function power() {
     const t = teamStats();
     return Math.round(t.atk * 2.2 + t.hp * 0.35 + t.def * 2.5 + t.spd * 0.6);
+  }
+
+  /* ---------- 武魂真身（3/6/9 個萬年以上魂環）---------- */
+  function trueBodyOf(soul) {
+    const high = (soul.rings || []).filter((uid) => {
+      const r = S.ringBag.find((x) => x.uid === uid);
+      return r && (r.tier === 'black' || r.tier === 'red');
+    }).length;
+    let bonus = 0;
+    for (const step of CFG.TRUE_BODY) if (high >= step.need) bonus = step.mult;
+    return { high, bonus };
+  }
+
+  /* ---------- 屬性共鳴（3 個同系魂環）---------- */
+  function resonanceOf(soul) {
+    const counts = {};
+    (soul.rings || []).forEach((uid) => {
+      const r = S.ringBag.find((x) => x.uid === uid);
+      if (!r) return;
+      counts[r.element || 'wind'] = (counts[r.element || 'wind'] || 0) + 1;
+    });
+    let best = null;
+    for (const [el, n] of Object.entries(counts)) {
+      if (n >= CFG.RESONANCE.need && (!best || n > best.count)) best = { element: el, count: n };
+    }
+    return best;
+  }
+
+  /* 該武魂最強的魂環技能（千年以上才有） */
+  function ringSkillOf(soul) {
+    let best = null;
+    (soul.rings || []).forEach((uid) => {
+      const r = S.ringBag.find((x) => x.uid === uid);
+      if (!r) return;
+      const sk = CFG.RING_SKILL[r.tier];
+      if (!sk) return;
+      if (!best || sk.mult > best.mult) best = { ...sk, tier: r.tier, element: r.element || 'wind' };
+    });
+    return best;
+  }
+
+  function hasFreeRingSlot() {
+    return teamSouls().some((soul) => ringSlotsOf(soul) > 0 && soul.rings.length < ringSlotsOf(soul));
   }
 
   /* 魂印帶來的收益倍率（魂幣/經驗） */
@@ -249,20 +296,25 @@
 
   /* ---------- 魂環 ---------- */
   let uidSeq = 0;
-  function newRing(tierKey) {
+  function newRing(tierKey, element) {
     const t = CFG.TIER_BY_KEY[tierKey];
     uidSeq++;
-    return { uid: 'r' + Date.now().toString(36) + '_' + uidSeq, tier: tierKey, name: t ? t.name : '魂環' };
+    return {
+      uid: 'r' + Date.now().toString(36) + '_' + uidSeq,
+      tier: tierKey, name: t ? t.name : '魂環',
+      element: element || 'wind',
+      equipped: null,
+    };
   }
   function ringSlotsOf(soul) {
-    const star = soul.star || 3;
-    return Math.min(3, 1 + (star >= 4 ? 1 : 0) + (star >= 5 ? 1 : 0));
+    return CFG.ringSlots(S.level);   // 每 10 級 1 槽，最多 9
   }
   /* 自動裝備：找第一個還有空槽的上陣武魂 */
   function autoEquipBestRing() {
     if ((S.settings || {}).autoRing === false) return null;
     if (!freeRings().length) return null;
     for (const soul of teamSouls()) {
+      if (ringSlotsOf(soul) === 0) continue;
       if (soul.rings.length >= ringSlotsOf(soul)) continue;
       const best = freeRings().slice().sort((a, b) => {
         const ta = (CFG.TIER_BY_KEY[a.tier] || {}).mult || 0;
@@ -280,7 +332,7 @@
     const item = S.ringBag.find((r) => r.uid === uid);
     if (!soul || !item) return { ok: false, msg: '找不到魂環' };
     if (item.equipped) return { ok: false, msg: '這枚魂環已經裝在別人身上' };
-    if (soul.rings.length >= ringSlotsOf(soul)) return { ok: false, msg: '魂環槽已滿（升星可增加槽位）' };
+    if (soul.rings.length >= ringSlotsOf(soul)) return { ok: false, msg: `魂環槽已滿（每 10 級才開一格，目前 ${ringSlotsOf(soul)} 格）` };
     soul.rings.push(uid);
     item.equipped = soulId;
     return { ok: true };
@@ -527,6 +579,7 @@
     addExp, addCoins, spendCoins, addDiamonds, spendDiamonds,
     soulStats, teamSouls, teamStats, power,
     totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth,
+    trueBodyOf, resonanceOf, ringSkillOf, hasFreeRingSlot,
     newRing, ringSlotsOf, ringBonus, equipRing, unequipRing, autoEquipBestRing, freeRings,
     boneOf, freeBones, equippedBones, teamAura, equipBone, unequipBone,
     starUpInfo, starUp,

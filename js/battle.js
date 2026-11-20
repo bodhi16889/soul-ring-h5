@@ -235,13 +235,13 @@
     const cfg = s.settings || {};
 
     // 卡等時「獵魂」優先於「打 BOSS」：卡等打王沒有任何經驗，先拿環才有成長
-    if (cfg.autoHunt !== false && B.mode === 'farm' && State.atCap()) {
+    if (cfg.autoHunt !== false && B.mode === 'farm' && State.hasFreeRingSlot()) {
       const ready = CFG.BEASTS.filter((b) => s.level >= b.reqLevel && (s.cd[b.id] || 0) <= now);
       const beast = ready[ready.length - 1];   // 打得到就挑最高階的
       if (beast) {
         B.autoAt = now + CFG.AUTO_HUNT_DELAY;
         setTimeout(() => {
-          if (B.mode === 'farm' && State.atCap()) hunt(beast.id);
+          if (B.mode === 'farm' && State.hasFreeRingSlot()) hunt(beast.id);
         }, CFG.AUTO_HUNT_DELAY);
         return;
       }
@@ -265,6 +265,35 @@
   }
 
   function castSkill(u) {
+    const soul = State.data.souls.find((s) => s.id === u.id);
+    const ringSkill = soul ? State.ringSkillOf(soul) : null;
+    if (ringSkill) {
+      const reso = soul ? State.resonanceOf(soul) : null;
+      const resoMul = reso && reso.element === ringSkill.element ? CFG.RESONANCE.mult : 1;
+      emit('skill', {
+        unit: u, role: u.role, ring: true,
+        name: ringSkill.label,
+        element: ringSkill.element,
+        resonance: resoMul > 1,
+      });
+      const targets = aliveEnemies();
+      if (ringSkill.type === 'aoe') {
+        for (const e of targets) {
+          hitEnemy(e, calcDamage(u.atk * (1 + u.buffAtk) * ringSkill.mult * resoMul, e.def, 0.95, 1.05), u, true);
+        }
+        if (targets.length > 1) emit('aoe', { count: targets.length });
+      } else {
+        const t = targetEnemy();
+        if (t) {
+          hitEnemy(t, calcDamage(u.atk * (1 + u.buffAtk) * ringSkill.mult * resoMul, t.def, 0.95, 1.05), u, true);
+          if (Math.random() < (ringSkill.chance || 0) && t.alive) {
+            t.stun = Math.max(t.stun, 1);
+            emit('stun', { who: 'enemy', enemyId: t.id });
+          }
+        }
+      }
+      return;
+    }
     emit('skill', { unit: u, role: u.role, name: (CFG.SOUL_BY_ID[u.id] || {}).skillName || '魂技' });
 
     if (u.role === 'atk') {
@@ -361,7 +390,7 @@
 
     if (B.mode === 'hunt') {
       const beast = B.huntBeast;
-      const ring = State.newRing(beast.tier);
+      const ring = State.newRing(beast.tier, beast.element);
       s.ringBag.push(ring);
       s.cd[beast.id] = Date.now() + beast.cdSec * 1000;
       s.stats.hunts++;
