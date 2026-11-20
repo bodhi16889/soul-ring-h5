@@ -833,6 +833,8 @@
     openModal('設定', `
       <div>魂師：<b>${s.name}</b></div>
       <div>最高關卡：<b>${s.bestStage}</b> · 等級 <b>${s.level}</b> / ${State.levelCap()}</div>
+      <div>版本：<b>v${CFG.VERSION}</b> · 環槽 ${State.ringSlotsOf(s.souls[0])} 格 / 武魂</div>
+      <div class="hint" style="margin-top:4px">若武魂頁的魂環槽顯示 /3 或等級上限是 90，代表瀏覽器還在使用舊檔：請開 <b>?v=2</b> 或清快取。</div>
       <div style="margin-top:8px">存檔會自動保存在這台裝置的瀏覽器；換裝置請用存檔碼。</div>
       <div class="acts" style="display:flex;gap:8px;margin-top:10px">
         <button class="mini-btn" id="btnAutoBoss">自動挑戰 BOSS：${s.settings.autoBoss === false ? '關' : '開'}</button>

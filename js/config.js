@@ -58,6 +58,7 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
+  const VERSION = '1.3.0';        // 1.3.0 = 9 環槽 / 魂環技能 / 共鳴 / 真身
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個魂環槽
   const MAX_RING_SLOTS = 9;         // 單一武魂最多 9 槽（GDD）
@@ -178,7 +179,7 @@
   global.CFG = {
     RING_TIERS, TIER_BY_KEY, SOULS, SOUL_BY_ID, ROLE_LABEL, ROLE_COLOR,
     BEASTS, BEAST_BY_ID, STAGE_AREAS, areaFor,
-    MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
+    VERSION, MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
     RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR,
     BASE_KILLS_PER_STAGE, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY,
     REBIRTH, rebirthGain, stageMul,
