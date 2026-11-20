@@ -192,7 +192,7 @@
           魂環槽 ${soul.rings.length}/${slots} ${rings}
         </div>
         <div class="row1" style="margin-top:4px;font-size:11px;color:var(--muted)">
-          ${bone ? `魂骨 <span class="bone ${bone.css}"></span> ${bone.name}（${bone.desc}）` : '魂骨 無'}
+          ${bone ? `<span class="bone ${bone.css}"></span> ${bone.name}（${bone.desc}）` : '魂骨：無'}
         </div>
         <div class="acts">
           <button class="mini-btn ${inTeam ? 'ghost' : 'primary'}" data-act="team" data-id="${soul.id}">
