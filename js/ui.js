@@ -423,7 +423,7 @@
         <div class="row1"><span class="ring-dot ${t.css}"></span><b>${t.name}</b>
         <span class="tag" style="color:${CFG.ELEMENT_COLOR[r.element] || '#fff'}">${el}系</span>
         <span class="hint">攻擊 +${Math.round(t.atk * 100)}% · 生命 +${Math.round(t.hp * 100)}%</span></div>
-        ${sk ? `<div class="hint" style="margin-top:4px">魂技：${sk.label}（${sk.type === 'aoe' ? '群體' : '震懾'} ×${sk.mult}）</div>` : '<div class="hint" style="margin-top:4px">被動：純屬性增幅</div>'}
+        ${sk ? `<div class="hint" style="margin-top:4px">${sk.label}（${sk.type === 'aoe' ? '群體' : '震懾'} ×${sk.mult}${sk.chance ? `，${Math.round(sk.chance * 100)}% 暈眩` : ''}）</div>` : '<div class="hint" style="margin-top:4px">被動：純屬性增幅（無魂技）</div>'}
         <div class="acts">
           ${s.souls.map((soul) => {
             const base = CFG.SOUL_BY_ID[soul.id];

@@ -58,7 +58,7 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.3.1';        // 1.3.0 = 9 環槽 / 魂環技能 / 共鳴 / 真身
+  const VERSION = '1.3.2';        // 1.3.0 = 9 環槽 / 魂環技能 / 共鳴 / 真身
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個魂環槽
   const MAX_RING_SLOTS = 9;         // 單一武魂最多 9 槽（GDD）
