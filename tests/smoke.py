@@ -25,6 +25,22 @@ ART = ROOT / "artifacts"
 FAILS: list[str] = []
 
 
+def ap_i18n_dupes():
+    """找出 EN 字典裡「重複且值不同」的 key——值相同的重複不影響行為，值不同的會靜默蓋掉。"""
+    import re as _re
+    src = (ROOT / "js" / "i18n.js").read_text(encoding="utf-8")
+    block = src[src.index("var EN = {") + len("var EN = {"):]
+    block = block[:block.index("\n  };")]
+    seen = {}
+    bad = []
+    for m in _re.finditer(r"'([^']{1,40})'\s*:\s*'([^']*)'", block):
+        k, v = m.group(1), m.group(2)
+        if k in seen and seen[k] != v:
+            bad.append(f"{k}: '{seen[k]}' vs '{v}'")
+        seen[k] = v
+    return bad
+
+
 def check(label: str, ok: bool, detail: str = "") -> bool:
     print(f"[{'PASS' if ok else 'FAIL'}] {label}" + (f" — {detail}" if detail else ""))
     if not ok:
@@ -1247,10 +1263,11 @@ def main() -> int:
         both = cp2.evaluate("""(() => {
           const keys = Object.keys(localStorage).filter(k => k.indexOf('.corrupt.') > -1);
           return {stage: __game.State.data.bestStage, corruptKeys: keys.length,
-                  sample: keys[0] ? localStorage.getItem(keys[0]) : null};
+                  samples: keys.map(k => localStorage.getItem(k))};
         })()""")
         check("主檔與備份都毀損時開新檔，並把壞檔保留在 .corrupt.*",
-              both["stage"] == 1 and both["corruptKeys"] >= 1 and both["sample"] == "BROKEN",
+              both["stage"] == 1 and both["corruptKeys"] >= 2
+              and set(both["samples"]) == {"BROKEN", "ALSOBROKEN"},
               f"{both}")
         cctx2.close()
 
@@ -1267,6 +1284,43 @@ def main() -> int:
         check("還原備份：restoreBackup() 回到 .bak 的進度",
               rb["ok"] is True and rb["bestStage"] == 120, f"{rb}")
         sctx.close()
+
+        # ---------- 11q. 可及性：觸控目標 44px、字級下限、對話框語意與 Esc ----------
+        actx = browser.new_context(viewport={"width": 390, "height": 844},
+                                   is_mobile=True, has_touch=True)
+        ap = actx.new_page()
+        ap.goto(f"http://127.0.0.1:8771/index.html?v=a11y{int(time.time())}", wait_until="load")
+        ap.wait_for_function("window.__game && window.__game.ready", timeout=30000)
+        time.sleep(0.6)
+        ap.click("#btnMenu")
+        time.sleep(0.5)
+        a11y = ap.evaluate("""(() => {
+          const card = document.querySelector('.modal-card');
+          const btns = [...card.querySelectorAll('button')].map(el => Math.round(el.getBoundingClientRect().height));
+          const fonts = [...card.querySelectorAll('div,span,b,button')]
+            .map(el => parseFloat(getComputedStyle(el).fontSize)).filter(n => n > 0);
+          const m = document.getElementById('modal');
+          return {minBtn: Math.min(...btns), minFont: Math.min(...fonts),
+                  role: m.getAttribute('role'), ariaModal: m.getAttribute('aria-modal'),
+                  focusInside: !!m.contains(document.activeElement),
+                  overflowX: card.scrollWidth > card.clientWidth + 1};
+        })()""")
+        check("設定頁每個按鈕高度 ≥ 44px（觸控目標），且沒有橫向溢出",
+              a11y["minBtn"] >= 44 and a11y["overflowX"] is False, f"{a11y}")
+        check("設定頁沒有小於 12px 的文字", a11y["minFont"] >= 12, f"minFont={a11y['minFont']}")
+        check("彈窗有 role=dialog / aria-modal，開窗時焦點在窗內",
+              a11y["role"] == "dialog" and a11y["ariaModal"] == "true" and a11y["focusInside"] is True,
+              f"{a11y}")
+        ap.keyboard.press("Escape")
+        time.sleep(0.4)
+        check("按 Esc 可以關閉彈窗（鍵盤使用者不會被困住）",
+              ap.evaluate("document.getElementById('modal').classList.contains('hidden')") is True, "")
+        actx.close()
+
+        # ---------- 11r. i18n 不得有重複 key（'防禦' 曾同時是 DEF 與 Defender）----------
+        dup = ap_i18n_dupes()
+        check("i18n 字典沒有「重複且值不同」的 key（會靜默蓋掉正確翻譯，如 防禦=Defender）",
+              dup == [], f"{dup[:5]}")
 
         # ---------- 12. 版面 ----------
         page.wait_for_selector("#stage", state="visible", timeout=5000)

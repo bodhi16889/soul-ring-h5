@@ -33,7 +33,8 @@
   ];
   const SOUL_BY_ID = Object.fromEntries(SOULS.map((s) => [s.id, s]));
 
-  const ROLE_LABEL = { atk: '強攻', ctrl: '控制', def: '防禦', sup: '輔助' };
+  // 加「型」是為了跟屬性「防禦（DEF）」區分：i18n 字典用同一個中文字會被覆蓋
+  const ROLE_LABEL = { atk: '強攻型', ctrl: '控制型', def: '防禦型', sup: '輔助型' };
   const ROLE_COLOR = { atk: '#ff8a5b', ctrl: '#b06bff', def: '#6ea8ff', sup: '#57d98b' };
 
   /* ---------- 靈獸（獵靈場）----------
@@ -58,7 +59,7 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.9.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.9.1';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）

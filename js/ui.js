@@ -49,6 +49,7 @@
       checkAch();
     }, 5000);
     setInterval(() => { if (tab === 'hunt') renderHunt(); }, 1000);
+    document.addEventListener('keydown', modalKeydown);
     window.addEventListener('beforeunload', () => State.save(true));
     document.addEventListener('visibilitychange', () => { if (document.hidden) State.save(true); });
 
@@ -1051,8 +1052,31 @@
       btns.appendChild(el);
     });
     $('#modal').classList.remove('hidden');
+    // 無障礙：開窗先把焦點放進窗內，關窗還原（鍵盤／輔助技術才走得完流程）
+    lastFocus = document.activeElement;
+    const first = $('#modalBody').querySelector('button, textarea, input') || btns.querySelector('button');
+    if (first) { try { first.focus(); } catch (e) {} }
   }
-  function closeModal() { $('#modal').classList.add('hidden'); }
+
+  /* Tab 鎖在彈窗內、Esc 關窗 */
+  function modalKeydown(e) {
+    const modal = $('#modal');
+    if (!modal || modal.classList.contains('hidden')) return;
+    if (e.key === 'Escape') { e.preventDefault(); closeModal(); return; }
+    if (e.key !== 'Tab') return;
+    const f = Array.from(modal.querySelectorAll('button, textarea, input, [tabindex]:not([tabindex="-1"])'))
+      .filter((el) => !el.disabled && el.offsetParent !== null);
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+  let lastFocus = null;
+  function closeModal() {
+    $('#modal').classList.add('hidden');
+    if (lastFocus && lastFocus.focus) { try { lastFocus.focus(); } catch (e) {} }
+    lastFocus = null;
+  }
 
   function showOffline(g) {
     const h = Math.floor(g.minutes / 60), m = g.minutes % 60;

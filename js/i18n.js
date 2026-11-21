@@ -34,7 +34,7 @@
     '戰力': 'Power', '攻擊': 'ATK', '生命': 'HP', '防禦': 'DEF', '速度': 'SPD',
     '等級': 'Lv', '經驗': 'EXP', '靈幣': 'Coins', '鑽石': 'Gems', '覺醒券': 'Tickets',
     '上陣': 'Deploy', '下陣': 'Remove', '上陣中': 'In team', '上陣人數': 'Team size',
-    '強攻': 'Attacker', '控制': 'Controller', '防禦': 'Defender', '輔助': 'Support',
+    '強攻型': 'Attacker', '控制型': 'Controller', '防禦型': 'Defender', '輔助型': 'Support',
     '無名靈師': 'Nameless Master', '靈師': 'Spirit Master',
     '已達五人小隊上限': 'Team is full (5)',
     '上陣人數越多，掛機收益越高。解鎖需靈幣與等級。':
