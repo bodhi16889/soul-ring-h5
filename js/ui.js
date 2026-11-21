@@ -38,7 +38,9 @@
     if (res.offline) showOffline(res.offline);
     const ci = State.checkinInfo();
     if (ci.canCheck) setTimeout(() => toast(T('今日簽到可領取 🎁')), 1400);
-    if (res.corrupted) toast(T('存檔損毀，已建立新檔'));
+    if (res.restored) toast(T('主存檔損毀，已從備份還原'));
+    if (res.newer) toast(T('存檔來自較新版本，已停止自動存檔以免覆蓋'));
+    if (res.corrupted) toast(T('存檔損毀，已建立新檔（舊檔已保留）'));
 
     setInterval(() => {
       State.save();
@@ -1062,6 +1064,21 @@
       [{ text: T('領取'), kind: 'primary', onClick: () => { closeModal(); State.save(true); renderAll(); } }]);
   }
 
+  /* 存檔狀態一行字：主檔 / 備份 / 備份時間 / 寫入錯誤 */
+  function saveStatusLine() {
+    const st = State.saveStatus();
+    const map = { ok: T('正常'), corrupt: T('損毀'), missing: T('無') };
+    let txt = `${T('主檔')} ${map[st.main]} · ${T('備份')} ${map[st.bak]}`;
+    if (st.bak === 'ok' && st.bakTime) {
+      const d = new Date(st.bakTime);
+      const p2 = (n) => ('0' + n).slice(-2);
+      txt += `（${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}）`;
+    }
+    if (st.lastError) txt += ` · ${T('寫入失敗')}`;
+    if (st.blocked) txt += ` · ${T('已停止自動存檔')}`;
+    return txt;
+  }
+
   function showMenu() {
     const s = State.data;
     openModal(T('設定'), T(`
@@ -1076,6 +1093,8 @@
       <div class="hint" style="margin-top:4px">${T('加成各自乘算：靈環（加法）→ 靈骨 → 命印 → 真身；戰力停住通常代表該轉生了')}</div>
       <div class="hint" style="margin-top:4px">${T('若靈印頁的靈環槽顯示 /3 或等級上限是 90，代表瀏覽器還在使用舊檔：請開 ?v=2 或清快取。')}</div>
       <div style="margin-top:8px">${T('存檔會自動保存在這台裝置的瀏覽器；換裝置請用存檔碼。')}</div>
+      <div class="hint" style="margin-top:6px">${T('存檔狀態')}：${saveStatusLine()}</div>
+      ${State.saveStatus().bak === 'ok' ? `<button class="btn btn-ghost" id="btnRestoreBak" style="margin-top:6px">${T('還原備份')}</button>` : ''}
       <div style="margin-top:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px">
         <b style="font-size:12px;color:#c9a4ff">${T('紀錄')}</b>
         <div class="hint" style="margin-top:4px">
@@ -1122,6 +1141,12 @@
     });
     $('#btnLangEn').addEventListener('click', () => I18N.setLang('en'));
     $('#btnLangZh').addEventListener('click', () => I18N.setLang('zh'));
+    const rb = $('#btnRestoreBak');
+    if (rb) rb.addEventListener('click', () => {
+      const r = State.restoreBackup();
+      if (r.ok) { closeModal(); toast(T(`已還原備份：第 ${r.stage} 關`)); renderAll(); }
+      else toast(T('備份無法還原'));
+    });
 
     $('#btnAutoMerge').addEventListener('click', () => {
       const st = State.data.settings;

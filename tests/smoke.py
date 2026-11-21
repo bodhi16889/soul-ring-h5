@@ -1196,6 +1196,78 @@ def main() -> int:
               f"{exp} clipboard_len={len(clip)}")
         cctx.close()
 
+        # ---------- 11p. 存檔備援：主檔壞掉要從 .bak 救回 ----------
+        # (a) 正常寫入會產生 .bak
+        sctx = browser.new_context(viewport={"width": 390, "height": 844},
+                                   is_mobile=True, has_touch=True)
+        sp = sctx.new_page()
+        sp.goto(f"http://127.0.0.1:8771/index.html?v=bak{int(time.time())}", wait_until="load")
+        sp.wait_for_function("window.__game && window.__game.ready", timeout=30000)
+        sp.evaluate("__game.State.data.bestStage = 77")
+        sp.evaluate("__game.State.save(true)")
+        sp.evaluate("__game.State.data.bestStage = 88")
+        sp.evaluate("__game.State.save(true)")          # 第二次存檔 → 第一次的內容進 .bak
+        st1 = sp.evaluate("__game.State.saveStatus()")
+        bakStage = sp.evaluate("JSON.parse(localStorage.getItem('soulring.save.v1.bak')).bestStage")
+        check("存檔會保留 .bak 備份（內容是上一份、不是空的）",
+              st1["main"] == "ok" and st1["bak"] == "ok" and bakStage == 77, f"{st1} bakStage={bakStage}")
+
+        # (b) 主檔被截斷 → 重載要從 .bak 還原，進度不能消失
+        # 注意：頁面有 beforeunload → State.save(true)，直接在舊頁面改 localStorage 會被存回去，
+        # 所以用全新 context + add_init_script，在遊戲程式執行前就把壞檔塞進去。
+        bak_json = sp.evaluate("localStorage.getItem('soulring.save.v1.bak')")
+        import json as _json
+        bak_obj = _json.loads(bak_json)
+        bak_obj["bestStage"] = 77
+        bak_seed = _json.dumps(bak_obj, ensure_ascii=False)
+        bctx = browser.new_context(viewport={"width": 390, "height": 844},
+                                   is_mobile=True, has_touch=True)
+        bctx.add_init_script(
+            "localStorage.setItem('soulring.save.v1', '{\"v\":1,\"souls\":[');"
+            "localStorage.setItem('soulring.save.v1.bak', %s);" % _json.dumps(bak_seed)
+        )
+        bp = bctx.new_page()
+        bp.goto(f"http://127.0.0.1:8771/index.html?v=bak2{int(time.time())}", wait_until="load")
+        bp.wait_for_function("window.__game && window.__game.ready", timeout=30000)
+        restored = bp.evaluate("({stage: __game.State.data.bestStage, status: __game.State.saveStatus()})")
+        check("主檔損毀時自動從 .bak 還原（bestStage 回到 77，主檔也補回來）",
+              restored["stage"] == 77 and restored["status"]["main"] == "ok", f"{restored}")
+        bctx.close()
+
+        # (c) 主檔與備份都壞 → 建新檔，但舊內容要留成 .corrupt.*
+        cctx2 = browser.new_context(viewport={"width": 390, "height": 844},
+                                    is_mobile=True, has_touch=True)
+        cctx2.add_init_script(
+            "localStorage.setItem('soulring.save.v1', 'BROKEN');"
+            "localStorage.setItem('soulring.save.v1.bak', 'ALSOBROKEN');"
+        )
+        cp2 = cctx2.new_page()
+        cp2.goto(f"http://127.0.0.1:8771/index.html?v=corrupt{int(time.time())}", wait_until="load")
+        cp2.wait_for_function("window.__game && window.__game.ready", timeout=30000)
+        both = cp2.evaluate("""(() => {
+          const keys = Object.keys(localStorage).filter(k => k.indexOf('.corrupt.') > -1);
+          return {stage: __game.State.data.bestStage, corruptKeys: keys.length,
+                  sample: keys[0] ? localStorage.getItem(keys[0]) : null};
+        })()""")
+        check("主檔與備份都毀損時開新檔，並把壞檔保留在 .corrupt.*",
+              both["stage"] == 1 and both["corruptKeys"] >= 1 and both["sample"] == "BROKEN",
+              f"{both}")
+        cctx2.close()
+
+        # (d) 還原備份：手動按鈕要能回到備份的進度
+        sp.evaluate("""(() => {
+          localStorage.clear();
+          localStorage.setItem('soulring.save.v1', JSON.stringify(
+            Object.assign(__game.State.data, {bestStage: 120})));
+          __game.State.save(true);
+          __game.State.data.bestStage = 5;
+          __game.State.save(true);
+        })()""")
+        rb = sp.evaluate("__game.State.restoreBackup()")
+        check("還原備份：restoreBackup() 回到 .bak 的進度",
+              rb["ok"] is True and rb["bestStage"] == 120, f"{rb}")
+        sctx.close()
+
         # ---------- 12. 版面 ----------
         page.wait_for_selector("#stage", state="visible", timeout=5000)
         layout = page.evaluate("""({

@@ -6,6 +6,9 @@
   'use strict';
 
   const KEY = 'soulring.save.v1';
+  const BAK = KEY + '.bak';       // 上一份可用的存檔（主檔壞掉時的唯一退路）
+  const TMP = KEY + '.tmp';       // 寫入暫存：先寫這裡、驗證過才換上去
+  const SAVE_VERSION = 1;         // 存檔格式版本，每次改 schema 加 1 並補遷移
   const SAVE_EVERY_MS = 10000;
   const OFFLINE_CAP_H = 12;
 
@@ -46,21 +49,74 @@
   }
 
   let S = newSave();
+  let lastError = null;          // 'quota' | 'verify' | 'write' | null
+  let blocked = false;           // 讀到「比本版新」的存檔時停止寫入，避免蓋掉玩家進度
+
+  /* ---------- 存檔：原子寫入 + 回讀驗證 + .bak 備援 ---------- */
+  function readKey(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function writeKey(k, val) {
+    try { localStorage.setItem(k, val); return true; }
+    catch (e) { try { localStorage.removeItem(k); } catch (_) {} return false; }   // 配額爆掉別留半截
+  }
+
+  /* 存檔要能被自己讀回來才算數：欄位不對一律當壞檔 */
+  function validateSave(d) {
+    if (!d || typeof d !== 'object') return false;
+    if (typeof d.v !== 'number') return false;
+    if (typeof d.stage !== 'number' || d.stage < 1) return false;
+    if (!Array.isArray(d.souls) || !d.souls.length) return false;
+    if (!d.souls.every((x) => x && typeof x.id === 'string')) return false;
+    return true;
+  }
+  function parseSave(raw) {
+    if (!raw) return null;
+    try { const d = JSON.parse(raw); return validateSave(d) ? d : null; } catch (e) { return null; }
+  }
+
+  function saveNow() {
+    if (blocked) return false;
+    const json = JSON.stringify(S);
+    if (!writeKey(TMP, json)) { lastError = 'quota'; return false; }
+    // 回讀驗證：TMP 必須解析得回來、版本相符
+    let ok = false;
+    try { ok = validateSave(JSON.parse(readKey(TMP))); } catch (e) { ok = false; }
+    if (!ok) { try { localStorage.removeItem(TMP); } catch (e) {} lastError = 'verify'; return false; }
+    // 舊主檔降級成 .bak（備份失敗不阻擋本次寫入）
+    const cur = readKey(KEY);
+    if (cur) writeKey(BAK, cur);
+    if (!writeKey(KEY, json)) { lastError = 'write'; return false; }
+    try { localStorage.removeItem(TMP); } catch (e) {}
+    lastError = null;
+    return true;
+  }
 
   /* ---------- 存取 ---------- */
   function load() {
-    let raw = null;
-    try { raw = localStorage.getItem(KEY); } catch (e) { /* 私密模式 */ }
-    if (!raw) { S = newSave(); return { fresh: true }; }
-    try {
-      const parsed = JSON.parse(raw);
-      S = migrate(parsed);
-      const gap = offlineGain(S);
-      return { fresh: false, offline: gap };
-    } catch (e) {
+    const main = readKey(KEY);
+    const bak = readKey(BAK);
+    let d = parseSave(main);
+    let from = 'main';
+    if (!d) { d = parseSave(bak); from = d ? 'bak' : 'none'; }
+
+    if (!d) {
+      // 兩份都不能用：把現場留下來（不覆蓋），再開新檔
+      const stamp = Date.now();
+      if (main) writeKey(KEY + '.corrupt.' + stamp, main);
+      if (bak) writeKey(KEY + '.corrupt.' + stamp + '.bak', bak);
       S = newSave();
-      return { fresh: true, corrupted: true };
+      return { fresh: true, corrupted: !!(main || bak), from };
     }
+    if (d.v > SAVE_VERSION) {
+      // 未來版本的存檔：不覆蓋、不強制遷移
+      blocked = true;
+      S = newSave();
+      return { newer: true, from };
+    }
+
+    S = migrate(d);
+    if (from === 'bak') { writeKey(KEY, JSON.stringify(S)); }   // 備份救回來就立刻補回主檔
+    const gap = offlineGain(S);
+    return { fresh: false, offline: gap, restored: from === 'bak' };
   }
 
   function migrate(d) {
@@ -119,15 +175,41 @@
     } catch (e) { /* 存檔不能因戰力計算失敗而中斷 */ }
     S.lastSave = Date.now();
     if (!force && saveTimer) return;
-    try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* 私密模式 */ }
+    saveNow();
     if (!force) {
       saveTimer = setTimeout(() => { saveTimer = 0; }, SAVE_EVERY_MS);
     }
   }
   function reset() {
+    blocked = false;
     S = newSave();
     save(true);
     return S;
+  }
+
+  /* ---------- 存檔狀態 / 還原備份（設定頁用）---------- */
+  function saveStatus() {
+    const main = readKey(KEY);
+    const bak = readKey(BAK);
+    const okMain = !!parseSave(main);
+    const okBak = !!parseSave(bak);
+    let bakTime = 0;
+    try { bakTime = okBak ? (JSON.parse(bak).lastSave || 0) : 0; } catch (e) {}
+    return {
+      main: okMain ? 'ok' : (main ? 'corrupt' : 'missing'),
+      bak: okBak ? 'ok' : (bak ? 'corrupt' : 'missing'),
+      bakTime, lastError, blocked,
+    };
+  }
+  function restoreBackup() {
+    const bak = readKey(BAK);
+    const d = parseSave(bak);
+    if (!d) return { ok: false, reason: 'no-bak' };
+    if (!writeKey(KEY, bak)) return { ok: false, reason: 'write' };
+    blocked = false;
+    S = migrate(d);
+    save(true);
+    return { ok: true, stage: S.stage, bestStage: S.bestStage, level: S.level };
   }
 
   /* ---------- 離線收益（上限 12 小時）---------- */
@@ -810,5 +892,6 @@
     dayKey, checkinInfo, checkIn,
     pullOnce, rollOne, redeem, exportCode, importCode,
     offlineGain, OFFLINE_CAP_H,
+    saveStatus, restoreBackup,
   };
 })(window);

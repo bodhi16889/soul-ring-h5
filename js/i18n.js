@@ -157,7 +157,14 @@
     '兌換成功：': 'Redeemed: ', '靈師': 'Spirit Master', '屬性共鳴': 'element resonance', '靈技': 'Skill', '靈技：': 'Skill: ', '無靈環': 'No rings',
     '還沒有靈骨。到「覺醒」抽卡有機會抽到靈骨。': 'No soul bones yet. Pull on the Awaken tab for a chance.',
     '還沒有靈環。到「獵靈」擊敗靈獸，就能吸收第一枚靈環。': 'No rings yet. Beat a spirit beast in Hunt to absorb your first ring.',
-    '需': 'Needs ', 'BOSS 戰': 'BOSS fight',
+    '需': 'Needs ',
+    '存檔狀態': 'Save status', '還原備份': 'Restore backup', '主檔': 'Main', '備份': 'Backup',
+    '正常': 'OK', '損毀': 'corrupt', '無': 'none', '寫入失敗': 'write failed',
+    '已停止自動存檔': 'autosave paused', '備份無法還原': 'Backup could not be restored',
+    '主存檔損毀，已從備份還原': 'Main save was corrupt — restored from backup',
+    '存檔來自較新版本，已停止自動存檔以免覆蓋':
+      'Save is from a newer version; autosave paused so it is not overwritten',
+    '存檔損毀，已建立新檔（舊檔已保留）': 'Save was corrupt — started fresh (old file kept)', 'BOSS 戰': 'BOSS fight',
     '若靈印頁的靈環槽顯示 /3 或等級上限是 90，代表瀏覽器還在使用舊檔：請開 ?v=2 或清快取。':
       'If the Spirits page still shows /3 ring slots or cap 90, your browser cached an old build: open ?v=2 or clear cache.',
     '存檔會自動保存在這台裝置的瀏覽器；換裝置請用存檔碼。':
@@ -211,6 +218,7 @@
   /* ---------- 動態字串規則（順序敏感，長的先） ---------- */
   var AR = [
     [/^環槽 (\d+) 格 \/ 靈印$/, '$1 slots / spirit'],
+    [/^已還原備份：第 (\d+) 關$/, 'Backup restored: stage $1'],
     [/^全屬性 \+(\d+(?:\.\d+)?)%$/, 'All stats +$1%'],
     [/^里程碑：第 (\d+) 關 → 獲得 (.+)$/, 'Milestone: stage $1 → $2'],
     [/^里程碑獎勵：(.+)$/, 'Milestone reward: $1'],
