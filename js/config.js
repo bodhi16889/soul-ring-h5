@@ -58,7 +58,7 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.4.4';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.5.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -160,6 +160,18 @@
   const STAR_COIN = [0, 0, 0, 0, 0, 0];   // 佔位，實際成本用 starUpCoin()
 
   function bonePullWeight() { return 3; }   // 每種靈骨的抽卡權重
+
+  /* ---------- 靈幣抽靈骨（靈幣的唯一出口）----------
+   * 成本隨「已用靈幣抽過幾次」成長，越抽越貴 → 天然上限，不會變成無限印鈔。
+   * 每次必得 1 塊（不是機率），但王者比較稀有。 */
+  const COIN_PULL = {
+    base: 2000,
+    growth: 1.35,
+    weights: { wind: 26, giant: 26, life: 22, armor: 20, king: 6 },
+  };
+  function coinPullCost(pulls) {
+    return Math.round(COIN_PULL.base * Math.pow(COIN_PULL.growth, Math.max(0, pulls | 0)));
+  }
   function starUpBones(star) { return Math.max(1, star - 2); }            // 3→4:1、4→5:2
   function starUpCoin(star) { return star <= 3 ? 1200 : 6000; }
 
@@ -214,6 +226,6 @@
     PULL_COST_TICKET, PULL_COST_DIAMOND, PULL10_COST_TICKET, PULL10_COST_DIAMOND,
     expNeed, levelCap, ringSlots, enemyStats, killReward, offlinePerMinute,
     PULL_POOL, PULL_BONES, BONES, BONE_BY_ID, BONE_AURA, bonePullWeight,
-    starUpBones, starUpCoin, CHECKIN, CODES,
+    starUpBones, starUpCoin, CHECKIN, CODES, COIN_PULL, coinPullCost,
   };
 })(window);

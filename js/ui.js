@@ -332,8 +332,42 @@
     const s = State.data;
     const free = State.freeBones();
     $('#boneCount').textContent = T(`未裝備 ${free.length} · 已裝備 ${State.equippedBones()}`);
+
+    const cost = CFG.coinPullCost(s.bonePulls || 0);
+    const cost5 = Array.from({ length: 5 }, (_, i) => CFG.coinPullCost((s.bonePulls || 0) + i))
+      .reduce((a, b) => a + b, 0);
+    const shop = `<div class="merge-box">
+      <div class="merge-head"><b>${T('靈幣抽靈骨')}</b>
+        <span class="hint">${T(`已抽 ${s.bonePulls || 0} 次 · 每次必得 1 塊`)}</span></div>
+      <div class="merge-row">
+        <span class="mr-name">${T('抽 1 次')}</span>
+        <span class="mr-count">${fmt(cost)} ${T('靈幣')}</span>
+        <button class="mini-btn" id="btnBonePull1" ${s.coins >= cost ? '' : 'disabled'}>${T('抽')}</button>
+      </div>
+      <div class="merge-row">
+        <span class="mr-name">${T('連抽 5 次（逐次計價）')}</span>
+        <span class="mr-count">${fmt(cost5)} ${T('靈幣')}</span>
+        <button class="mini-btn" id="btnBonePull5" ${s.coins >= cost5 ? '' : 'disabled'}>${T('抽')}</button>
+      </div>
+      <div class="hint" style="margin-top:6px">${T('王者靈骨（全屬性）較稀有；抽越多次單價越高。')}</div>
+    </div>`;
+
+    const bindPull = () => {
+      const run = (n) => {
+        const r = State.coinBonePull(n);
+        if (!r.ok) return toast(r.msg || T('靈幣不足'));
+        State.save(true);
+        renderAll();
+        const names = r.got.map((g) => T(g.name)).join('、');
+        toast(T(`抽到 ${r.got.length} 塊：${names}`));
+      };
+      const b1 = $('#btnBonePull1'); if (b1) b1.addEventListener('click', () => run(1));
+      const b5 = $('#btnBonePull5'); if (b5) b5.addEventListener('click', () => run(5));
+    };
+
     if (!s.bones.length) {
-      $('#boneList').innerHTML = `<div class="card"><div class="hint">${T('還沒有靈骨。到「覺醒」抽卡有機會抽到靈骨。')}</div></div>`;
+      $('#boneList').innerHTML = shop + `<div class="card"><div class="hint">${T('還沒有靈骨。用上面的靈幣抽，或到「覺醒」抽卡。')}</div></div>`;
+      bindPull();
       return;
     }
     const equippedHtml = s.souls.filter((x) => x.bone).map((soul) => {
@@ -357,7 +391,8 @@
         </div>
       </div>`);
     }).join('');
-    $('#boneList').innerHTML = equippedHtml + freeHtml;
+    $('#boneList').innerHTML = shop + equippedHtml + freeHtml;
+    bindPull();
     $$('#boneList [data-eqbone]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const r = State.equipBone(btn.dataset.soul, btn.dataset.eqbone);

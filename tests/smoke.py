@@ -935,6 +935,45 @@ def main() -> int:
         check("深度放寬：第 400 關 BOSS 血量上限明顯高於第 104 關（深度＝難度）",
               widen["ratio"] >= 1.25, str(widen))
 
+        # ---------- 11j. 靈幣抽靈骨（靈幣出口）----------
+        bonepull = page.evaluate("""(() => {
+          const St=__game.State, s=St.data;
+          s.coins = 100000; s.bonePulls = 0; s.bones = [];
+          const c0 = CFG.coinPullCost(0), c1 = CFG.coinPullCost(1), c20 = CFG.coinPullCost(20);
+          const r1 = St.coinBonePull(1);
+          const ids = ['wind','giant','life','armor','king'];
+          return {c0, c1, c20, ok: r1.ok, paid: r1.paid, n: r1.got.length,
+                  inSet: ids.indexOf(r1.got[0].id) >= 0, pulls: s.bonePulls,
+                  bones: s.bones.length, coins: s.coins};
+        })()""")
+        check("靈幣抽靈骨：每次必得 1 塊、成本隨次數遞增（2000 → 2700 → 80 萬）",
+              bonepull["c0"] == 2000 and bonepull["c1"] == 2700 and bonepull["c20"] > 700000
+              and bonepull["ok"] is True and bonepull["n"] == 1 and bonepull["inSet"] is True
+              and bonepull["pulls"] == 1 and bonepull["bones"] == 1
+              and bonepull["coins"] == 100000 - bonepull["paid"], str(bonepull))
+
+        broke = page.evaluate("""(() => {
+          const St=__game.State, s=St.data;
+          s.coins = 100; s.bonePulls = 5; s.bones = [];
+          const r = St.coinBonePull(1);
+          const multi = St.coinBonePull(5);
+          return {single: {ok: r.ok, msg: r.msg}, multi: {ok: multi.ok},
+                  bones: s.bones.length, coins: s.coins, pulls: s.bonePulls};
+        })()""")
+        check("靈幣不足時擋下、不扣幣也不給靈骨",
+              broke["single"]["ok"] is False and broke["multi"]["ok"] is False
+              and broke["bones"] == 0 and broke["coins"] == 100 and broke["pulls"] == 5, str(broke))
+
+        partial = page.evaluate("""(() => {
+          const St=__game.State, s=St.data;
+          s.coins = CFG.coinPullCost(0) + CFG.coinPullCost(1) + 10; s.bonePulls = 0; s.bones = [];
+          const r = St.coinBonePull(5);
+          return {ok: r.ok, got: r.got.length, pulls: s.bonePulls, coins: s.coins};
+        })()""")
+        check("連抽錢不夠時只完成付得起的次數（不會扣到負數）",
+              partial["ok"] is True and partial["got"] == 2 and partial["pulls"] == 2
+              and partial["coins"] >= 0, str(partial))
+
         # ---------- 12. 版面 ----------
         page.wait_for_selector("#stage", state="visible", timeout=5000)
         layout = page.evaluate("""({

@@ -116,6 +116,20 @@
     '惑心領域': 'Heart Domain', '甲冑真身': 'Ironclad Body', '震山咆哮': 'Mountain Roar',
     '琉璃灌頂': 'Glaze Blessing', '甘露回春': 'Dew Mend', '影襲爪': 'Shadow Claw',
     '怒潮席捲': 'Tide Surge',
+    '巨靈九式': 'Ninefold Smash', '焰羽燎原': 'Ember Wings', '藤蔓纏繞': 'Vine Bind',
+    '惑心領域': 'Heart Domain', '甲冑真身': 'Ironclad Body', '震山咆哮': 'Mountain Roar',
+    '琉璃灌頂': 'Glaze Blessing', '甘露回春': 'Dew Mend', '影襲爪': 'Shadow Claw',
+    '怒潮席捲': 'Tide Surge',
+    '對全體敵人造成 200% 攻擊傷害': 'Hits every enemy for 200% ATK',
+    '對單體造成 200% 傷害並灼燒': '200% damage to one target and burns it',
+    '單體 60% 傷害，40% 機率暈眩 1 回合': '60% damage, 40% chance to stun for a turn',
+    '全體 45% 傷害，命中者減速 30%': '45% to all, slowing what it hits by 30%',
+    '嘲諷 1 回合，全隊獲得護盾': 'Taunts for a turn and shields the team',
+    '嘲諷並降低敵方攻擊 20%': 'Taunts and cuts enemy ATK by 20%',
+    '全隊攻擊 +40%、回復 25% 生命': 'Team ATK +40% and heals 25% HP',
+    '回復生命最低的隊友 40% 生命': 'Heals the weakest ally for 40% HP',
+    '對單體造成 230% 傷害': '230% damage to one target',
+    '全體 110% 傷害，無視 30% 防禦': '110% to all, ignoring 30% DEF',
     '靈技 · 神滅': 'Skill · Annihilation', '靈技 · 震懾': 'Skill · Dread',
     '靈技 · 千軍': 'Skill · Myriad',
     '外附靈骨': 'Soul Bone', '疾風': 'Gale', '王者': 'King',
@@ -143,7 +157,13 @@
     '兌換成功：': 'Redeemed: ', '靈師': 'Spirit Master', '屬性共鳴': 'element resonance', '靈技': 'Skill', '靈技：': 'Skill: ', '無靈環': 'No rings',
     '還沒有靈骨。到「覺醒」抽卡有機會抽到靈骨。': 'No soul bones yet. Pull on the Awaken tab for a chance.',
     '還沒有靈環。到「獵靈」擊敗靈獸，就能吸收第一枚靈環。': 'No rings yet. Beat a spirit beast in Hunt to absorb your first ring.',
-    '需': 'Needs ', '前往': 'Go', '戰力明細': 'Power breakdown',
+    '需': 'Needs ', '靈幣抽靈骨': 'Spend coins on bones', '抽 1 次': 'Pull ×1',
+    '連抽 5 次（逐次計價）': 'Pull ×5 (each priced)', '抽': 'Pull',
+    '王者靈骨（全屬性）較稀有；抽越多次單價越高。':
+      'King bones (all stats) are rare; the price rises with every pull.',
+    '還沒有靈骨。用上面的靈幣抽，或到「覺醒」抽卡。':
+      'No bones yet. Buy some with coins above, or pull on the Awaken tab.',
+    '靈幣不足': 'Not enough coins', '前往': 'Go', '戰力明細': 'Power breakdown',
     '會重置等級／關卡／靈幣；靈印、星級、靈骨、靈環保留':
       'Resets level, stages and coins. Spirits, stars, bones and rings are kept.',
     '加成各自乘算：靈環（加法）→ 靈骨 → 命印 → 真身；戰力停住通常代表該轉生了':
@@ -157,6 +177,8 @@
 
   /* ---------- 動態字串規則（順序敏感，長的先） ---------- */
   var AR = [
+    [/^已抽 (\d+) 次 · 每次必得 1 塊$/, 'Pulled $1 times · 1 bone each'],
+    [/^抽到 (\d+) 塊：(.+)$/, 'Got $1 bone(s): $2'],
     [/^本輪推進：\+(\d+) 關（上次轉生在 第 (\d+) 關）$/, 'This run: +$1 stages (last rebirth at stage $2)'],
     [/^要推進到 第 (\d+) 關才能轉生$/, 'Push to stage $1 to rebirth'],
     [/^要推進到 第 (\d+) 關才能轉生（本輪 \+(\d+) 關）$/, 'Push to stage $1 to rebirth (this run: +$2)'],

@@ -31,6 +31,7 @@
       team: ['haotian'],
       ringBag: [],           // 未裝備的靈環
       bones: [],             // [{uid, id}] 未裝備的靈骨
+      bonePulls: 0,          // 靈幣抽靈骨次數（成本會遞增）
       cd: {},                // 靈獸 id -> 下次可獵時間
       codes: [],
       checkin: { lastDay: '', streak: 0, total: 0 },   // 每日簽到
@@ -505,6 +506,32 @@
     return { ok: true, in: true };
   }
 
+  /* ---------- 靈幣抽靈骨 ---------- */
+  function coinBonePull(times) {
+    const n = Math.max(1, times | 0 || 1);
+    let paid = 0;
+    const got = [];
+    for (let i = 0; i < n; i++) {
+      const cost = CFG.coinPullCost(S.bonePulls || 0);
+      if (S.coins < cost) {
+        if (!got.length) return { ok: false, msg: T('靈幣不足'), cost, need: cost };
+        break;
+      }
+      S.coins -= cost;
+      paid += cost;
+      S.bonePulls = (S.bonePulls || 0) + 1;
+      const w = CFG.COIN_PULL.weights;
+      const total = Object.keys(w).reduce((a, k) => a + w[k], 0);
+      let roll = Math.random() * total, picked = 'wind';
+      for (const k of Object.keys(w)) { roll -= w[k]; if (roll <= 0) { picked = k; break; } }
+      const b = CFG.BONE_BY_ID[picked];
+      const uid = 'bo' + Date.now().toString(36) + Math.floor(Math.random() * 1000);
+      S.bones.push({ uid, id: b.id });
+      got.push({ id: b.id, name: b.name, desc: b.desc, uid });
+    }
+    return { ok: got.length > 0, got, paid, nextCost: CFG.coinPullCost(S.bonePulls || 0) };
+  }
+
   /* ---------- 抽卡 ---------- */
   function pullOnce(useTickets) {
     const cost = useTickets ? CFG.PULL_COST_TICKET : CFG.PULL_COST_DIAMOND;
@@ -669,7 +696,7 @@
     load, save, reset,
     addExp, addCoins, spendCoins, addDiamonds, spendDiamonds,
     soulStats, teamSouls, teamStats, power,
-    totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth, migrate,
+    totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth, migrate, coinBonePull,
     trueBodyOf, resonanceOf, ringSkillOf, hasFreeRingSlot,
     mergeInfo, mergeRings, mergeAll, mergeLowTiers,
     newRing, ringSlotsOf, ringBonus, equipRing, unequipRing, autoEquipBestRing, freeRings,
