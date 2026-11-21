@@ -1126,6 +1126,41 @@ def main() -> int:
         })()""")
         check("紀錄牆：存檔會更新歷史最高戰力", rec["ok"] is True and rec["best"] > 0, str(rec))
 
+        # ---------- 11n. 彈窗可捲動（設定頁變長後不會卡住）----------
+        mctx2 = browser.new_context(viewport={"width": 390, "height": 640},
+                                    is_mobile=True, has_touch=True)
+        mp2 = mctx2.new_page()
+        mp2.goto(f"http://127.0.0.1:8771/index.html?v=modal{int(time.time())}", wait_until="load")
+        mp2.wait_for_function("window.__game && window.__game.ready", timeout=30000)
+        try:
+            mp2.wait_for_function("typeof window.GamePix !== 'undefined'", timeout=12000)
+        except Exception:
+            pass
+        time.sleep(0.8)
+        mp2.click("#btnMenu")
+        time.sleep(0.5)
+        card = mp2.evaluate("""(() => {
+          const c = document.querySelector('.modal-card');
+          return {ta: getComputedStyle(c).touchAction,
+                  scrollable: c.scrollHeight > c.clientHeight + 4, top: c.scrollTop};
+        })()""")
+        cdp2 = mctx2.new_cdp_session(mp2)
+
+        def _drag2(y0, y1):
+            cdp2.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": 195, "y": y0}]})
+            for i in range(1, 11):
+                cdp2.send("Input.dispatchTouchEvent",
+                          {"type": "touchMove", "touchPoints": [{"x": 195, "y": y0 + (y1 - y0) * i / 10}]})
+            cdp2.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+
+        _drag2(560, 220)
+        time.sleep(0.5)
+        card_after = mp2.evaluate("document.querySelector('.modal-card').scrollTop")
+        check("設定彈窗可以用手指上下滑（modal-card 也是 pan-y、scrollTop 會增加）",
+              card["ta"] == "pan-y" and card["scrollable"] is True and card_after > card["top"] + 40,
+              f"{card} → {card_after}")
+        mctx2.close()
+
         # ---------- 12. 版面 ----------
         page.wait_for_selector("#stage", state="visible", timeout=5000)
         layout = page.evaluate("""({

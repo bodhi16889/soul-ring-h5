@@ -89,6 +89,8 @@ body {
    specificity 無關，!important 一定贏。 */
 .view, .view *,
 .log, .log *,
+.modal, .modal *,
+.modal-card, .modal-card *,
 .modal-body, .modal-body *,
 #checkinGrid, #checkinGrid * { touch-action: pan-y !important; }
 
