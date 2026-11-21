@@ -974,6 +974,29 @@ def main() -> int:
               partial["ok"] is True and partial["got"] == 2 and partial["pulls"] == 2
               and partial["coins"] >= 0, str(partial))
 
+        # ---------- 11k. P0 屬性重做：速度飽和 / 命印爆擊 / 防禦百分比減傷 ----------
+        p0 = page.evaluate("""(() => {
+          const St=__game.State, B=__game.Battle;
+          const slow = B.actsPerSec(151), at617 = B.actsPerSec(CFG.COMBAT.spdK), huge = B.actsPerSec(34633);
+          const crit=(m)=>{ St.data.marks=m; return +St.critChance().toFixed(3); };
+          const mit0 = B.mitigation(0, 100), mitHuge = B.mitigation(1e9, 100), mitMid = B.mitigation(30000, 100);
+          // 平均傷害：def 0 vs def 5,000,000
+          const avg=(def)=>{ let a=0; for(let i=0;i<2000;i++) a+=B.calcDamage(1000000, def, 1, 1, 0, 100); return a/2000; };
+          const d0=avg(0), dHigh=avg(5000000);
+          St.data.marks=0;
+          return {slow:+slow.toFixed(2), at617:+at617.toFixed(2), huge:+huge.toFixed(2), maxActs:+(1/(120/1000)).toFixed(2),
+                  crit0:crit(0), crit100:crit(100), crit5000:crit(5000),
+                  mit0, mitMid:+mitMid.toFixed(3), mitHuge:mitHuge, d0:Math.round(d0), dHigh:Math.round(dHigh),
+                  ratio:+(d0/dHigh).toFixed(2)};
+        })()""")
+        check("速度改成飽和曲線：617 約 5.3 次/秒、34633 可再長到 8.33（不再有白加的速度）",
+              abs(p0["at617"] - 5.27) < 0.15 and p0["huge"] > p0["at617"] + 1
+              and p0["huge"] <= p0["maxActs"] + 0.01, str(p0))
+        check("命印改給爆擊：0 → 10%、100 → 25%、5000 → 上限 50%",
+              p0["crit0"] == 0.1 and abs(p0["crit100"] - 0.25) < 0.005 and p0["crit5000"] == 0.5, str(p0))
+        check("防禦改成百分比減傷（上限 35%）：def 5,000,000 讓傷害至少降 30%",
+              p0["mit0"] == 0 and p0["mitHuge"] == 0.35 and p0["ratio"] >= 1.4, str(p0))
+
         # ---------- 12. 版面 ----------
         page.wait_for_selector("#stage", state="visible", timeout=5000)
         layout = page.evaluate("""({

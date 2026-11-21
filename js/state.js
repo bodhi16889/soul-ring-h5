@@ -198,7 +198,7 @@
     const markAtk = 1 + pm.atk * S.marks;
     const markHp = 1 + pm.hp * S.marks;
     const markDef = 1 + pm.def * S.marks;
-    const markSpd = 1 + pm.spd * S.marks;
+    const markSpd = 1;   // 命印不再加速度（速度有物理上限），改在 critChance() 給爆擊
     return {
       atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk) * boneAtk * markAtk * tbMul),
       hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp) * boneHp * markHp * tbMul),
@@ -223,6 +223,13 @@
       list,
     };
   }
+  /* 爆擊率：基礎 10% + 命印每點 0.15%（上限 +40%） */
+  function critChance() {
+    const c = CFG.COMBAT.critBase + Math.min(CFG.REBIRTH.critMax,
+      (S.marks || 0) * CFG.REBIRTH.critPerMark);
+    return Math.min(0.5, c);
+  }
+
   function power() {
     const t = teamStats();
     return Math.round(t.atk * 2.2 + t.hp * 0.35 + t.def * 2.5 + t.spd * 0.6);
@@ -696,7 +703,7 @@
     load, save, reset,
     addExp, addCoins, spendCoins, addDiamonds, spendDiamonds,
     soulStats, teamSouls, teamStats, power,
-    totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth, migrate, coinBonePull,
+    totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth, migrate, coinBonePull, critChance,
     trueBodyOf, resonanceOf, ringSkillOf, hasFreeRingSlot,
     mergeInfo, mergeRings, mergeAll, mergeLowTiers,
     newRing, ringSlotsOf, ringBonus, equipRing, unequipRing, autoEquipBestRing, freeRings,

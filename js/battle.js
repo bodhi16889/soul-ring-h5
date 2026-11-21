@@ -85,12 +85,12 @@
     const band = CFG.BAND;
     const units = B.units.filter((u) => u.maxHp > 0);
     const weakestHp = Math.min.apply(null, units.map((u) => u.maxHp));
-    /* 每人最高「一次 tick 出手一次」＝1/DT 次/秒（命印把 spd 堆到幾千時，
-       若不設上限，DPS 會被高估 10 倍以上，怪物血量上限就跟著爆掉） */
-    const maxActs = 1 / DT;
-    const dps = units.reduce((a, u) => a + u.atk * Math.min(maxActs, (u.spd / 100) * ATB_SPEED) * 0.85, 0);
+    /* DPS 估算要跟實際戰鬥用同一套公式：
+       出手次數用 actsPerSec（飽和曲線）、傷害要扣掉敵人防禦的百分比減傷 */
     let defCap = Math.round(State.teamStats().atk * band.defOfTeamAtk);
-    const effDps = Math.max(1, dps - defCap * 0.4 * 3);    // 扣掉防禦吃掉的傷害
+    const defMit = 1 - mitigation(defCap, State.data.stage);
+    const dps = units.reduce((a, u) => a + u.atk * actsPerSec(u.spd) * 0.85 * defMit, 0);
+    const effDps = Math.max(1, dps);
     let hpCap = effDps * (isBoss ? band.bossSec : band.waveSec);
     if (isBoss) {
       const fails = Math.min(band.bossFailMax, (State.data.bossFails || {})[State.data.stage] || 0);
@@ -243,7 +243,7 @@
     // 我方行動
     for (const u of B.units) {
       if (!u.alive) continue;
-      u.gauge += (u.spd / 100) * ATB_SPEED * DT;
+      u.gauge += actsPerSec(u.spd) * DT;
       if (u.gauge < 1) continue;
       u.gauge = 0;
       if (!aliveEnemies().length) break;
@@ -256,7 +256,7 @@
     // 敵方行動（每隻各自跑行動條）
     for (const e of B.enemies) {
       if (!e.alive) continue;
-      e.gauge += (e.spd / 100) * ATB_SPEED * DT;
+      e.gauge += actsPerSec(e.spd) * DT;
       if (e.gauge < 1) continue;
       e.gauge = 0;
       if (e.stun > 0) { e.stun--; emit('stun', { who: 'enemy', enemyId: e.id }); continue; }
@@ -296,7 +296,7 @@
     if (u.mp >= SKILL_MP) { u.mp = 0; castSkill(u); return; }
     const t = targetEnemy();
     if (!t) return;
-    const dmg = calcDamage(u.atk * (1 + u.buffAtk), t.def, 0.9, 1.1);
+    const dmg = calcDamage(u.atk * (1 + u.buffAtk), t.def, 0.9, 1.1, State.critChance(), State.data.stage);
     hitEnemy(t, dmg, u, false);
     u.mp = Math.min(SKILL_MP, u.mp + MP_PER_ACTION);
   }
@@ -316,13 +316,13 @@
       const targets = aliveEnemies();
       if (ringSkill.type === 'aoe') {
         for (const e of targets) {
-          hitEnemy(e, calcDamage(u.atk * (1 + u.buffAtk) * ringSkill.mult * resoMul, e.def, 0.95, 1.05), u, true);
+          hitEnemy(e, calcDamage(u.atk * (1 + u.buffAtk) * ringSkill.mult * resoMul, e.def, 0.95, 1.05, State.critChance(), State.data.stage), u, true);
         }
         if (targets.length > 1) emit('aoe', { count: targets.length });
       } else {
         const t = targetEnemy();
         if (t) {
-          hitEnemy(t, calcDamage(u.atk * (1 + u.buffAtk) * ringSkill.mult * resoMul, t.def, 0.95, 1.05), u, true);
+          hitEnemy(t, calcDamage(u.atk * (1 + u.buffAtk) * ringSkill.mult * resoMul, t.def, 0.95, 1.05, State.critChance(), State.data.stage), u, true);
           if (Math.random() < (ringSkill.chance || 0) && t.alive) {
             t.stun = Math.max(t.stun, 1);
             emit('stun', { who: 'enemy', enemyId: t.id });
@@ -337,14 +337,14 @@
       // 強攻系：全體 200%（多波時才看得出價值）
       const targets = aliveEnemies();
       for (const e of targets) {
-        const dmg = calcDamage(u.atk * (1 + u.buffAtk) * 2.0, e.def, 0.95, 1.05);
+        const dmg = calcDamage(u.atk * (1 + u.buffAtk) * 2.0, e.def, 0.95, 1.05, State.critChance(), State.data.stage);
         hitEnemy(e, dmg, u, true);
       }
       if (targets.length > 1) emit('aoe', { count: targets.length });
     } else if (u.role === 'ctrl') {
       const t = targetEnemy();
       if (t) {
-        hitEnemy(t, calcDamage(u.atk * (1 + u.buffAtk) * 1.2, t.def, 0.95, 1.05), u, true);
+        hitEnemy(t, calcDamage(u.atk * (1 + u.buffAtk) * 1.2, t.def, 0.95, 1.05, State.critChance(), State.data.stage), u, true);
         if (Math.random() < 0.45 && t.alive) {
           t.stun = Math.max(t.stun, 1);
           emit('stun', { who: 'enemy', enemyId: t.id });
@@ -356,7 +356,7 @@
       u.taunt = 2;
       emit('shield', { unit: u, shield });
       const t = targetEnemy();
-      if (t) hitEnemy(t, calcDamage(u.atk * 0.8, t.def, 0.9, 1.1), u, false);
+      if (t) hitEnemy(t, calcDamage(u.atk * 0.8, t.def, 0.9, 1.1, State.critChance(), State.data.stage), u, false);
     } else {
       // 輔助：全隊回復 + 攻擊加成
       B.units.forEach((x) => {
@@ -406,7 +406,7 @@
     const taunters = alive.filter((u) => u.taunt > 0);
     const target = taunters.length ? taunters[0] : alive[Math.floor(Math.random() * alive.length)];
     if (target.taunt > 0) target.taunt--;
-    const dmg = calcDamage(e.atk, target.def, 0.9, 1.1);
+    const dmg = calcDamage(e.atk, target.def, 0.9, 1.1, CFG.COMBAT.critBase, State.data.level);
     let left = dmg;
     if (target.shield > 0) {
       const absorbed = Math.min(target.shield, left);
@@ -490,10 +490,24 @@
   }
 
   /* ---------- 傷害公式 ---------- */
-  function calcDamage(atk, def, lo, hi) {
-    const base = atk * (lo + Math.random() * (hi - lo)) - def * 0.4;
-    const crit = Math.random() < 0.1;
-    return Math.max(1, Math.round(base * (crit ? 1.8 : 1)));
+  /* 速度 → 每秒出手次數：飽和曲線（原本速度 617 之後就完全沒用）
+     acts/s = (1/DT) × (1 − e^(−spd/617))，永遠 < 8.33 但不會浪費 */
+  function actsPerSec(spd) {
+    const maxActs = 1 / DT;
+    return maxActs * (1 - Math.exp(-(spd || 0) / CFG.COMBAT.spdK));
+  }
+
+  /* 防禦 → 百分比減傷：def / (def + 300 × 等級)，單邊上限 35% */
+  function mitigation(def, level) {
+    const k = CFG.COMBAT.defK * Math.max(1, level || 1);
+    return Math.min(CFG.COMBAT.defCap, (def || 0) / ((def || 0) + k));
+  }
+
+  function calcDamage(atk, def, lo, hi, critChance, defLevel) {
+    const raw = atk * (lo + Math.random() * (hi - lo));
+    const dmg = raw * (1 - mitigation(def, defLevel));
+    const crit = Math.random() < (critChance == null ? CFG.COMBAT.critBase : critChance);
+    return Math.max(1, Math.round(dmg * (crit ? CFG.COMBAT.critMult : 1)));
   }
 
   function snapshot() {
@@ -515,6 +529,7 @@
     on, snapshot, spawnWave, targetEnemy,
     /* 測試用內部鉤子（不影響遊戲流程） */
     unitAct, castSkill, hitEnemy, bossAct, enemyAct,
+    actsPerSec, mitigation, calcDamage,
     get state() { return B; },
   };
 })(window);

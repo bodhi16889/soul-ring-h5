@@ -58,7 +58,7 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.5.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.6.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -164,6 +164,15 @@
   /* ---------- 靈幣抽靈骨（靈幣的唯一出口）----------
    * 成本隨「已用靈幣抽過幾次」成長，越抽越貴 → 天然上限，不會變成無限印鈔。
    * 每次必得 1 塊（不是機率），但王者比較稀有。 */
+  /* ---------- 戰鬥常數（速度曲線 / 防禦減傷）---------- */
+  const COMBAT = {
+    spdK: 617,        // 速度半飽和點：原本速度 617 就撞到 tick 上限
+    defK: 300,        // 減傷常數：def / (def + 300 × 等級)
+    defCap: 0.35,     // 單邊最多減傷 35%
+    critBase: 0.10,   // 基礎爆擊 10%（命印再加）
+    critMult: 1.8,
+  };
+
   const COIN_PULL = {
     base: 2000,
     growth: 1.35,
@@ -196,6 +205,9 @@
     perMark: { atk: 0.06, hp: 0.06, def: 0.06, spd: 0.02, income: 0.04 },
     startLevelPerRebirth: 5,   // 每次轉生後起始等級 +5（重跑會越來越快）
     startLevelMax: 60,
+    /* 命印不再加速度（速度有硬上限，加了也是白加），改成爆擊率 */
+    critPerMark: 0.0015,       // 每點 +0.15% 爆擊
+    critMax: 0.40,             // 上限 +40%
   };
 
   /* 轉生收益只看「本輪推進深度」，不看歷史最高：
@@ -226,6 +238,6 @@
     PULL_COST_TICKET, PULL_COST_DIAMOND, PULL10_COST_TICKET, PULL10_COST_DIAMOND,
     expNeed, levelCap, ringSlots, enemyStats, killReward, offlinePerMinute,
     PULL_POOL, PULL_BONES, BONES, BONE_BY_ID, BONE_AURA, bonePullWeight,
-    starUpBones, starUpCoin, CHECKIN, CODES, COIN_PULL, coinPullCost,
+    starUpBones, starUpCoin, CHECKIN, CODES, COIN_PULL, coinPullCost, COMBAT,
   };
 })(window);

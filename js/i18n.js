@@ -157,7 +157,9 @@
     '兌換成功：': 'Redeemed: ', '靈師': 'Spirit Master', '屬性共鳴': 'element resonance', '靈技': 'Skill', '靈技：': 'Skill: ', '無靈環': 'No rings',
     '還沒有靈骨。到「覺醒」抽卡有機會抽到靈骨。': 'No soul bones yet. Pull on the Awaken tab for a chance.',
     '還沒有靈環。到「獵靈」擊敗靈獸，就能吸收第一枚靈環。': 'No rings yet. Beat a spirit beast in Hunt to absorb your first ring.',
-    '需': 'Needs ', '靈幣抽靈骨': 'Spend coins on bones', '抽 1 次': 'Pull ×1',
+    '需': 'Needs ', '爆擊': 'Crit',
+    '加成各自乘算：靈環（加法）→ 靈骨 → 命印 → 真身；戰力停住通常代表該轉生了':
+      'Bonuses multiply separately: rings (additive) → bones → marks → true body. Marks give crit chance; speed saturates around 617.', '靈幣抽靈骨': 'Spend coins on bones', '抽 1 次': 'Pull ×1',
     '連抽 5 次（逐次計價）': 'Pull ×5 (each priced)', '抽': 'Pull',
     '王者靈骨（全屬性）較稀有；抽越多次單價越高。':
       'King bones (all stats) are rare; the price rises with every pull.',
@@ -167,7 +169,7 @@
     '會重置等級／關卡／靈幣；靈印、星級、靈骨、靈環保留':
       'Resets level, stages and coins. Spirits, stars, bones and rings are kept.',
     '加成各自乘算：靈環（加法）→ 靈骨 → 命印 → 真身；戰力停住通常代表該轉生了':
-      'Bonuses multiply separately: rings (additive) → bones → marks → true body. A stalled power score usually means it is time to rebirth.', '關卡清完 · 去打靈環': 'Stage cleared · go hunt rings',
+      'Bonuses multiply separately: rings (additive) → bones → marks → true body. Marks give crit chance; speed saturates around 617.', '關卡清完 · 去打靈環': 'Stage cleared · go hunt rings',
     '卡等': 'Level capped', '卡等自動獵靈': 'Auto-hunt when capped',
     '自動挑戰 BOSS': 'Auto-challenge boss', '自動裝備靈環': 'Auto-equip rings',
     '自動合成低階環': 'Auto-fuse low rings', '關': 'OFF', '開': 'ON',

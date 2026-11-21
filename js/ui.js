@@ -963,7 +963,8 @@
       <div style="margin-top:8px">${T('戰力明細')}：${T('攻擊')} <b>${fmt(State.teamStats().atk)}</b> ·
         ${T('生命')} <b>${fmt(State.teamStats().hp)}</b> ·
         ${T('防禦')} <b>${fmt(State.teamStats().def)}</b> ·
-        ${T('速度')} <b>${State.teamStats().spd}</b></div>
+        ${T('速度')} <b>${State.teamStats().spd}</b> ·
+        ${T('爆擊')} <b>${Math.round(State.critChance() * 100)}%</b></div>
       <div class="hint" style="margin-top:4px">${T('加成各自乘算：靈環（加法）→ 靈骨 → 命印 → 真身；戰力停住通常代表該轉生了')}</div>
       <div class="hint" style="margin-top:4px">若靈印頁的靈環槽顯示 /3 或等級上限是 90，代表瀏覽器還在使用舊檔：請開 <b>?v=2</b> 或清快取。</div>
       <div style="margin-top:8px">存檔會自動保存在這台裝置的瀏覽器；換裝置請用存檔碼。</div>
