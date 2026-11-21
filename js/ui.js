@@ -723,6 +723,28 @@
     return info;
   }
 
+  /* 複製存檔碼：clipboard API → execCommand → 手動長按 */
+  function copySaveCode() {
+    const ta = $('#expArea');
+    if (!ta) return;
+    const text = ta.value;
+    const done = () => toast(T('已複製存檔碼'));
+    const fallback = () => {
+      try {
+        ta.focus();
+        ta.select();
+        ta.setSelectionRange(0, text.length);
+        if (document.execCommand && document.execCommand('copy')) return done();
+      } catch (e) { /* 繼續往下 */ }
+      toast(T('已全選，請長按文字選「拷貝」'));
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, fallback);
+      return;
+    }
+    fallback();
+  }
+
   function renderDaily() {
     const box = $('#dailyBox');
     if (!box) return;
@@ -1045,15 +1067,15 @@
     openModal(T('設定'), T(`
       <div>靈師：<b>${s.name}</b></div>
       <div>最高關卡：<b>${s.bestStage}</b> · 等級 <b>${s.level}</b> / ${State.levelCap()}</div>
-      <div>版本：<b>v${CFG.VERSION}</b> · 環槽 ${State.ringSlotsOf(s.souls[0])} 格 / 靈印</div>
+      <div>${T('版本')}：<b>v${CFG.VERSION}</b> · ${T(`環槽 ${State.ringSlotsOf(s.souls[0])} 格 / 靈印`)}</div>
       <div style="margin-top:8px">${T('戰力明細')}：${T('攻擊')} <b>${fmt(State.teamStats().atk)}</b> ·
         ${T('生命')} <b>${fmt(State.teamStats().hp)}</b> ·
         ${T('防禦')} <b>${fmt(State.teamStats().def)}</b> ·
         ${T('速度')} <b>${State.teamStats().spd}</b> ·
         ${T('爆擊')} <b>${Math.round(State.critChance() * 100)}%</b></div>
       <div class="hint" style="margin-top:4px">${T('加成各自乘算：靈環（加法）→ 靈骨 → 命印 → 真身；戰力停住通常代表該轉生了')}</div>
-      <div class="hint" style="margin-top:4px">若靈印頁的靈環槽顯示 /3 或等級上限是 90，代表瀏覽器還在使用舊檔：請開 <b>?v=2</b> 或清快取。</div>
-      <div style="margin-top:8px">存檔會自動保存在這台裝置的瀏覽器；換裝置請用存檔碼。</div>
+      <div class="hint" style="margin-top:4px">${T('若靈印頁的靈環槽顯示 /3 或等級上限是 90，代表瀏覽器還在使用舊檔：請開 ?v=2 或清快取。')}</div>
+      <div style="margin-top:8px">${T('存檔會自動保存在這台裝置的瀏覽器；換裝置請用存檔碼。')}</div>
       <div style="margin-top:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px">
         <b style="font-size:12px;color:#c9a4ff">${T('紀錄')}</b>
         <div class="hint" style="margin-top:4px">
@@ -1135,12 +1157,11 @@
     $('#btnExport').addEventListener('click', () => {
       const code = State.exportCode();
       openModal(T('匯出存檔碼'), T(`
-        <div class="hint">複製整段文字，貼到新裝置的「匯入存檔碼」。</div>
-        <textarea id="expArea" readonly>${code}</textarea>`),
-        [{ text: T('關閉'), kind: '' }, { text: T('複製'), kind: 'primary', onClick: () => {
-          const ta = $('#expArea'); ta.select();
-          try { document.execCommand('copy'); toast(T('已複製')); } catch (e) { toast(T('請長按選取複製')); }
-        } }]);
+        <div class="hint">${T('按「複製」後貼到新裝置的「匯入存檔碼」；若沒反應，長按框內文字全選再複製。')}</div>
+        <textarea id="expArea" readonly rows="6">${code}</textarea>`),
+        [{ text: T('關閉'), kind: '' }, { text: T('複製'), kind: 'primary', onClick: () => copySaveCode() }]);
+      const ta = $('#expArea');
+      if (ta) { ta.focus(); try { ta.select(); } catch (e) {} }
     });
 
     $('#btnImport').addEventListener('click', () => {

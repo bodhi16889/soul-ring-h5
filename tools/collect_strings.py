@@ -42,7 +42,7 @@ DUMP = """((lang) => {
     let n;
     while ((n = w.nextNode())) {
       const s = n.nodeValue.replace(/\\s+/g, ' ').trim();
-      if (s && CJK.test(s)) out.push(s);
+      if (s && CJK.test(s) && s !== '中文') out.push(s);   // '中文' 是語言切換的原生名稱，允許
     }
     root.querySelectorAll('[placeholder],[title],[aria-label]').forEach((el) => {
       ['placeholder', 'title', 'aria-label'].forEach((a) => {
@@ -116,7 +116,20 @@ def main():
             time.sleep(1.0)
             tabs("fresh")
 
-            # 彈窗：設定、存檔碼、兌換碼
+            # 彈窗：實際點按鈕開（openModal 不是公開 API）
+            p.evaluate("__game.switchTab('battle')")
+            p.click('#btnMenu'); time.sleep(0.4)
+            grab('modal:settings')
+            for btn in ('#btnExport', '#btnImport', '#btnRename', '#btnReset'):
+                try:
+                    p.click(btn); time.sleep(0.4)
+                    grab('modal:' + btn)
+                    p.click('.modal-btns button'); time.sleep(0.3)   # 取消/關閉
+                    p.click('#btnMenu'); time.sleep(0.3)             # 回設定
+                except Exception as e:
+                    print('  skip', btn, str(e)[:60])
+            p.click('.modal-btns button'); time.sleep(0.3)
+
             for js in ("__game.openModal('settings')", "__game.openModal('save')",
                        "__game.openModal('codes')", "__game.openModal('help')"):
                 try:

@@ -1161,6 +1161,41 @@ def main() -> int:
               f"{card} → {card_after}")
         mctx2.close()
 
+        # ---------- 11o. 存檔碼可以複製（SDK 的 user-select:none 會擋）----------
+        cctx = browser.new_context(viewport={"width": 390, "height": 844},
+                                   is_mobile=True, has_touch=True,
+                                   permissions=["clipboard-read", "clipboard-write"])
+        cp = cctx.new_page()
+        cp.goto(f"http://127.0.0.1:8771/index.html?v=copy{int(time.time())}", wait_until="load")
+        cp.wait_for_function("window.__game && window.__game.ready", timeout=30000)
+        try:
+            cp.wait_for_function("typeof window.GamePix !== 'undefined'", timeout=12000)
+        except Exception:
+            pass
+        time.sleep(0.8)
+        cp.click("#btnMenu")
+        time.sleep(0.4)
+        cp.click("#btnExport")
+        time.sleep(0.5)
+        exp = cp.evaluate("""(() => {
+          const ta = document.getElementById('expArea');
+          if (!ta) return null;
+          const cs = getComputedStyle(ta);
+          return {len: ta.value.length, userSelect: cs.userSelect,
+                  focused: document.activeElement === ta,
+                  selLen: ta.selectionEnd - ta.selectionStart};
+        })()""")
+        btns = cp.query_selector_all(".modal-btns button")
+        btns[-1].click()
+        time.sleep(0.4)
+        clip = cp.evaluate("navigator.clipboard.readText()")
+        code = cp.evaluate("document.getElementById('expArea').value")
+        check("存檔碼可複製：文字框可選取、自動全選、剪貼簿內容與存檔碼一致",
+              exp is not None and exp["userSelect"] == "text" and exp["focused"] is True
+              and exp["selLen"] == exp["len"] and len(clip) > 50 and clip == code,
+              f"{exp} clipboard_len={len(clip)}")
+        cctx.close()
+
         # ---------- 12. 版面 ----------
         page.wait_for_selector("#stage", state="visible", timeout=5000)
         layout = page.evaluate("""({

@@ -157,7 +157,22 @@
     '兌換成功：': 'Redeemed: ', '靈師': 'Spirit Master', '屬性共鳴': 'element resonance', '靈技': 'Skill', '靈技：': 'Skill: ', '無靈環': 'No rings',
     '還沒有靈骨。到「覺醒」抽卡有機會抽到靈骨。': 'No soul bones yet. Pull on the Awaken tab for a chance.',
     '還沒有靈環。到「獵靈」擊敗靈獸，就能吸收第一枚靈環。': 'No rings yet. Beat a spirit beast in Hunt to absorb your first ring.',
-    '需': 'Needs ', '成就': 'Achievements', '音效': 'Sound', '紀錄': 'Records',
+    '需': 'Needs ', 'BOSS 戰': 'BOSS fight',
+    '若靈印頁的靈環槽顯示 /3 或等級上限是 90，代表瀏覽器還在使用舊檔：請開 ?v=2 或清快取。':
+      'If the Spirits page still shows /3 ring slots or cap 90, your browser cached an old build: open ?v=2 or clear cache.',
+    '存檔會自動保存在這台裝置的瀏覽器；換裝置請用存檔碼。':
+      'Progress is saved in this browser. Use a save code to move to another device.', '複製': 'Copy', '匯入': 'Import', '取消': 'Cancel', '儲存': 'Save',
+    '確定清除': 'Clear everything', '貼上存檔碼': 'Paste save code', '改暱稱': 'Change name',
+    '匯出存檔碼': 'Export save code', '匯入存檔碼': 'Import save code',
+    '存檔已匯入': 'Save imported', '已重新開始': 'Started over', '已複製': 'Copied',
+    '複製整段文字，貼到新裝置的「匯入存檔碼」。':
+      'Copy the whole text and paste it into Import save code on the new device.',
+    '貼上存檔碼，會覆蓋目前進度。': 'Paste a save code. It overwrites your current progress.',
+    '確定要清空進度嗎？此動作無法復原。': 'Clear all progress? This cannot be undone.', '已複製存檔碼': 'Save code copied',
+    '已全選，請長按文字選「拷貝」': 'Selected — long-press and choose Copy',
+    '按「複製」後貼到新裝置的「匯入存檔碼」；若沒反應，長按框內文字全選再複製。':
+      'Tap Copy, then paste it into Import save code on the new device. If nothing happens, long-press the text and copy it manually.',
+    '請長按選取複製': 'Long-press to select and copy', '成就': 'Achievements', '音效': 'Sound', '紀錄': 'Records',
     '最高戰力': 'Best power', '累計擊殺': 'Total kills', '連續簽到': 'Login streak',
     '初入魂道': 'First steps', '站穩腳跟': 'Holding ground',
     '百關之志': 'Hundred stages', '深淵行者': 'Abyss walker', '無盡之路': 'Endless road',
@@ -195,6 +210,7 @@
 
   /* ---------- 動態字串規則（順序敏感，長的先） ---------- */
   var AR = [
+    [/^環槽 (\d+) 格 \/ 靈印$/, '$1 slots / spirit'],
     [/^全屬性 \+(\d+(?:\.\d+)?)%$/, 'All stats +$1%'],
     [/^里程碑：第 (\d+) 關 → 獲得 (.+)$/, 'Milestone: stage $1 → $2'],
     [/^里程碑獎勵：(.+)$/, 'Milestone reward: $1'],

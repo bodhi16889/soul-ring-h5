@@ -501,3 +501,14 @@ body {
   background: #ffd166; color: #2b1a05; font-weight: 700; font-size: 11px;
 }
 .rb-hint.hidden { display: none; }
+
+
+/* 存檔碼 / 輸入框要能選取（GamePix SDK 會注入 * { user-select: none }） */
+textarea, input,
+.modal-card textarea, .modal-card input {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+  -webkit-touch-callout: default !important;
+  touch-action: pan-y !important;
+}
+.modal-card textarea { line-height: 1.45; word-break: break-all; }
