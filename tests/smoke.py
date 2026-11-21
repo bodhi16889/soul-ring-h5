@@ -840,6 +840,49 @@ def main() -> int:
           __game.Battle.init(); __game.renderAll();
         })()""")
 
+        # ---------- 11i. 觸控捲動（GamePix SDK 會注入 touch-action:none）----------
+        mctx = browser.new_context(viewport={"width": 390, "height": 844},
+                                   is_mobile=True, has_touch=True)
+        mp = mctx.new_page()
+        mp.goto(f"http://127.0.0.1:8771/index.html?v=touch{int(time.time())}", wait_until="load")
+        mp.wait_for_function("window.__game && window.__game.ready", timeout=30000)
+        try:
+            mp.wait_for_function("typeof window.GamePix !== 'undefined'", timeout=15000)
+        except Exception:
+            pass
+        time.sleep(1.0)
+        mp.evaluate("""(() => {
+          const St=__game.State, s=St.data;
+          s.level=100; s.slots=5;
+          const ids=['haotian','fox','bear','turtle','tower'];
+          s.souls=ids.map(id=>({id, star:5, level:90, rings:[], bone:null}));
+          s.team=ids.slice(); s.ringBag=[]; s.bones=[];
+          ids.forEach(id=>{ for(let k=0;k<9;k++){ const r=St.newRing('red','water'); s.ringBag.push(r); St.equipRing(id,r.uid);} });
+          __game.renderAll(); __game.switchTab('souls');
+        })()""")
+        time.sleep(0.5)
+        touch = mp.evaluate("""(() => {
+          const v = document.querySelector('.view.active');
+          return {ta: getComputedStyle(v).touchAction, scrollable: v.scrollHeight > v.clientHeight};
+        })()""")
+        cdp = mctx.new_cdp_session(mp)
+
+        def _drag(y0, y1):
+            cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": 195, "y": y0}]})
+            for i in range(1, 11):
+                cdp.send("Input.dispatchTouchEvent",
+                         {"type": "touchMove", "touchPoints": [{"x": 195, "y": y0 + (y1 - y0) * i / 10}]})
+            cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+
+        t0 = mp.evaluate("document.querySelector('.view.active').scrollTop")
+        _drag(700, 300)
+        time.sleep(0.5)
+        t1 = mp.evaluate("document.querySelector('.view.active').scrollTop")
+        check("手機可以上下滑動（SDK 注入 touch-action:none 已被覆蓋）",
+              touch["ta"] == "pan-y" and touch["scrollable"] is True and t1 > t0 + 100,
+              f"{touch} scrollTop {t0} → {t1}")
+        mctx.close()
+
         # ---------- 12. 版面 ----------
         page.wait_for_selector("#stage", state="visible", timeout=5000)
         layout = page.evaluate("""({

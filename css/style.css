@@ -83,6 +83,15 @@ body {
 }
 .icon-btn:active { transform: scale(.94); }
 
+/* ---------- 觸控捲動修正 ----------
+   GamePix SDK 載入後會注入 `* { touch-action: none }`（為了防止長按選字/放大），
+   連帶讓 #views 裡的 .view 無法用手指上下滑。這裡用 !important 把可捲動區域還原，
+   specificity 無關，!important 一定贏。 */
+.view, .view *,
+.log, .log *,
+.modal-body, .modal-body *,
+#checkinGrid, #checkinGrid * { touch-action: pan-y !important; }
+
 /* ---------- 分頁容器 ---------- */
 #views { flex: 1 1 auto; position: relative; overflow: hidden; }
 .view {
