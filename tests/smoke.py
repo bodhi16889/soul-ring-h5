@@ -1061,6 +1061,71 @@ def main() -> int:
               and daily["again"] is False and daily["gain"] == 60 and daily["resetCount"] == 3,
               str(daily))
 
+        # ---------- 11m. 成就 / 里程碑 / 音效 / 紀錄 ----------
+        ach = page.evaluate("""(() => {
+          const St=__game.State, s=St.data;
+          s.ach = { unlocked: {} };
+          s.bestStage = 1; s.rebirths = 0; s.marks = 0; s.team = ['haotian'];
+          s.souls.forEach((x) => { x.star = 3; }); s.bones = [];
+          s.souls.forEach((x) => { x.rings = []; });
+          __game.renderAll();
+          const before = St.power();
+          const nothing = St.checkAchievements();
+          s.bestStage = 30;
+          const first = St.checkAchievements();
+          const again = St.checkAchievements();
+          const after = St.power();
+          return {nothing: nothing.length, first: first.length, firstId: first[0] && first[0].id,
+                  again: again.length, count: St.achCount(), mul: +St.achMul().toFixed(4),
+                  ratio: +(after / before).toFixed(4)};
+        })()""")
+        check("成就：達標才解鎖、不重複解鎖、每項給乘算加成",
+              ach["nothing"] == 0 and ach["first"] == 1 and ach["again"] == 0
+              and ach["count"] == 1 and abs(ach["mul"] - 1.005) < 0.0005
+              and ach["ratio"] > 1.0, str(ach))
+
+        mile = page.evaluate("""(() => {
+          const St=__game.State, B=__game.Battle.state, s=St.data;
+          s.stage = 49; s.bestStage = 49; s.kills = CFG.BASE_KILLS_PER_STAGE;
+          s.ringBag = [];
+          __game.Battle.init();
+          B.mode = 'boss'; B.pendingBoss = false;
+          __game.Battle.spawnWave('boss');
+          const boss = B.enemies[0];
+          const evs = [];
+          const off = __game.Battle.on((e) => { if (e.type === 'milestone') evs.push(e); });
+          boss.hp = 1; boss.alive = true;
+          __game.Battle.hitEnemy(boss, 999999, B.units[0], false);
+          off();
+          return {stage: s.stage, rings: s.ringBag.length,
+                  got: evs.length, tier: evs[0] && evs[0].ring && evs[0].ring.tier};
+        })()""")
+        check("里程碑：推進到第 50 關會送一個十萬年靈環",
+              mile["stage"] == 50 and mile["got"] == 1 and mile["tier"] == "red"
+              and mile["rings"] == 1, str(mile))
+
+        sfx = page.evaluate("""(() => {
+          const on0 = SFX.enabled;
+          SFX.setEnabled(false);
+          const off = SFX.enabled, key1 = localStorage.getItem('soulring.sfx');
+          SFX.setEnabled(true);
+          const on = SFX.enabled, key2 = localStorage.getItem('soulring.sfx');
+          SFX.setEnabled(on0);
+          return {on0, off, on, key1, key2, api: typeof SFX.hit === 'function'};
+        })()""")
+        check("音效：可開關、偏好寫入 localStorage、模組存在",
+              sfx["off"] is False and sfx["on"] is True and sfx["key1"] == "off"
+              and sfx["key2"] == "on" and sfx["api"] is True, str(sfx))
+
+        rec = page.evaluate("""(() => {
+          const St=__game.State, s=St.data;
+          s.marks = 500; s.level = 100;
+          const p = St.power();
+          St.save(true);
+          return {best: s.stats.bestPower, power: p, ok: s.stats.bestPower >= p * 0.999};
+        })()""")
+        check("紀錄牆：存檔會更新歷史最高戰力", rec["ok"] is True and rec["best"] > 0, str(rec))
+
         # ---------- 12. 版面 ----------
         page.wait_for_selector("#stage", state="visible", timeout=5000)
         layout = page.evaluate("""({

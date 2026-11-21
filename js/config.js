@@ -58,7 +58,7 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.7.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.8.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -193,6 +193,26 @@
     return Math.round(SOUL_LV.base * Math.pow(Math.max(1, level), SOUL_LV.pow));
   }
 
+  /* ---------- 成就（永久加成，每項 +0.5% 全屬性）---------- */
+  const ACH_BONUS = 0.005;
+  const ACHIEVEMENTS = [
+    { id: 'stage20',  name: '初入魂道',   desc: '推進到第 20 關',      test: (s) => s.bestStage >= 20 },
+    { id: 'stage50',  name: '站穩腳跟',   desc: '推進到第 50 關',      test: (s) => s.bestStage >= 50 },
+    { id: 'stage100', name: '百關之志',   desc: '推進到第 100 關',     test: (s) => s.bestStage >= 100 },
+    { id: 'stage200', name: '深淵行者',   desc: '推進到第 200 關',     test: (s) => s.bestStage >= 200 },
+    { id: 'stage500', name: '無盡之路',   desc: '推進到第 500 關',     test: (s) => s.bestStage >= 500 },
+    { id: 'reb1',     name: '第一次轉生', desc: '完成 1 次轉生',        test: (s) => (s.rebirths || 0) >= 1 },
+    { id: 'reb10',    name: '輪迴十次',   desc: '完成 10 次轉生',       test: (s) => (s.rebirths || 0) >= 10 },
+    { id: 'marks100', name: '命印百枚',   desc: '累積 100 枚命印',      test: (s) => (s.marks || 0) >= 100 },
+    { id: 'souls5',   name: '五人小隊',   desc: '上陣 5 名靈印',        test: (s) => (s.team || []).length >= 5 },
+    { id: 'star5',    name: '五星圓滿',   desc: '任一靈印升到 5★',      test: (s) => s.souls.some((x) => x.star >= 5) },
+    { id: 'bones5',   name: '靈骨收藏家', desc: '持有 5 塊靈骨',        test: (s) => (s.bones || []).length >= 5 },
+    { id: 'rings45',  name: '環滿全身',   desc: '全隊裝備 45 個靈環',   test: (s) => s.souls.reduce((a, x) => a + (x.rings || []).length, 0) >= 45 },
+  ];
+
+  /* ---------- 里程碑獎勵（每 50 關給十萬年環）---------- */
+  const MILESTONE = { every: 50, tier: 'red' };
+
   /* ---------- 每日任務（每天 3 條，領鑽石）---------- */
   const DAILY = [
     { id: 'idle',  need: 10, label: '掛機 10 分鐘',  unit: '分', reward: { diamonds: 60 } },
@@ -254,6 +274,6 @@
     PULL_COST_TICKET, PULL_COST_DIAMOND, PULL10_COST_TICKET, PULL10_COST_DIAMOND,
     expNeed, levelCap, ringSlots, enemyStats, killReward, offlinePerMinute,
     PULL_POOL, PULL_BONES, BONES, BONE_BY_ID, BONE_AURA, bonePullWeight,
-    starUpBones, starUpCoin, CHECKIN, CODES, COIN_PULL, coinPullCost, COMBAT, SOUL_LV, soulLevelCost, DAILY,
+    starUpBones, starUpCoin, CHECKIN, CODES, COIN_PULL, coinPullCost, COMBAT, SOUL_LV, soulLevelCost, DAILY, ACHIEVEMENTS, ACH_BONUS, MILESTONE,
   };
 })(window);

@@ -21,7 +21,7 @@ import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INCLUDE = ['index.html', 'css/style.css', 'js/config.js', 'js/state.js',
-           'js/battle.js', 'js/ui.js', 'js/i18n.js', 'js/gamepix.js']
+           'js/battle.js', 'js/ui.js', 'js/i18n.js', 'js/gamepix.js', 'js/sfx.js']
 ALLOWED_HOSTS = {'integration.gamepix.com'}
 FORBIDDEN = [r'\balert\s*\(', r'\bconfirm\s*\(', r'\bprompt\s*\(', r'gtag\s*\(',
              r'googletagmanager', r'google-analytics']

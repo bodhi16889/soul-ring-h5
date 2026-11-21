@@ -473,6 +473,12 @@
       if (s.bossFails) delete s.bossFails[s.stage - 1];   // 過了就把失敗紀錄清掉
       B.mode = 'farm';
       emit('stageClear', { stage: s.stage });
+      // 里程碑：每 50 關送一個十萬年環
+      if (s.stage % CFG.MILESTONE.every === 0) {
+        const ring = State.newRing(CFG.MILESTONE.tier, 'water');
+        s.ringBag.push(ring);
+        emit('milestone', { stage: s.stage, ring });
+      }
       spawnWave('farm');
       // 插頁廣告只在關卡之間，且由 GP 自己做冷卻
       if (typeof window !== 'undefined' && window.GP && GP.interstitial) {

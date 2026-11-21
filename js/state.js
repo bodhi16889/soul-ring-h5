@@ -33,6 +33,7 @@
       bones: [],             // [{uid, id}] 未裝備的靈骨
       bonePulls: 0,          // 靈幣抽靈骨次數（成本會遞增）
       daily: { day: '', idle: 0, hunt: 0, merge: 0, claimed: [] },   // 每日任務進度
+      ach: { unlocked: {} },   // 成就（id -> true），每項永久 +0.5% 全屬性
       cd: {},                // 靈獸 id -> 下次可獵時間
       codes: [],
       checkin: { lastDay: '', streak: 0, total: 0 },   // 每日簽到
@@ -111,6 +112,11 @@
 
   let saveTimer = 0;
   function save(force) {
+    if (!S.stats) S.stats = {};
+    try {
+      const _p = power();
+      if (!S.stats.bestPower || _p > S.stats.bestPower) S.stats.bestPower = _p;
+    } catch (e) { /* 存檔不能因戰力計算失敗而中斷 */ }
     S.lastSave = Date.now();
     if (!force && saveTimer) return;
     try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* 私密模式 */ }
@@ -187,7 +193,7 @@
     const own = boneOf(soul) || { atk: 0, hp: 0, def: 0, spd: 0 };
     const aura = teamAura(soul.id);
     const pm = CFG.REBIRTH.perMark;
-    const tbMul = 1 + trueBodyOf(soul).bonus;   // 靈印真身：乘算
+    const tbMul = (1 + trueBodyOf(soul).bonus) * achMul();   // 真身 × 成就，都乘算
     /* 三種加成各自乘算，不能全部倒進同一個括號：
        靈環後期 +3600%，若命印（+6%/點）與靈骨（+14~20%）也加在同一個括號裡，
        25 點命印只讓戰力多 5%，玩家會覺得「轉生沒用、戰力卡死」。
@@ -515,6 +521,35 @@
     return { ok: true, in: true };
   }
 
+  /* ---------- 成就（永久加成）---------- */
+  function achList() {
+    if (!S.ach) S.ach = { unlocked: {} };
+    if (!S.ach.unlocked) S.ach.unlocked = {};
+    return CFG.ACHIEVEMENTS.map((a) => ({
+      id: a.id, name: a.name, desc: a.desc,
+      unlocked: !!S.ach.unlocked[a.id],
+      done: !!a.test(S),
+    }));
+  }
+  function checkAchievements() {
+    if (!S.ach) S.ach = { unlocked: {} };
+    if (!S.ach.unlocked) S.ach.unlocked = {};
+    const fresh = [];
+    CFG.ACHIEVEMENTS.forEach((a) => {
+      if (!S.ach.unlocked[a.id] && a.test(S)) {
+        S.ach.unlocked[a.id] = true;
+        fresh.push({ id: a.id, name: a.name, desc: a.desc });
+      }
+    });
+    return fresh;
+  }
+  function achCount() {
+    return (S.ach && S.ach.unlocked) ? Object.keys(S.ach.unlocked).length : 0;
+  }
+  function achMul() {
+    return 1 + CFG.ACH_BONUS * achCount();
+  }
+
   /* ---------- 每日任務 ---------- */
   function todayKey(now) {
     const d = now ? new Date(now) : new Date();
@@ -765,7 +800,7 @@
     load, save, reset,
     addExp, addCoins, spendCoins, addDiamonds, spendDiamonds,
     soulStats, teamSouls, teamStats, power,
-    totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth, migrate, coinBonePull, critChance, soulLevelUp, soulLevelInfo, soulLevelCap, dailyInfo, dailyAdd, dailyClaim, todayKey,
+    totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth, migrate, coinBonePull, critChance, soulLevelUp, soulLevelInfo, soulLevelCap, dailyInfo, dailyAdd, dailyClaim, todayKey, achList, checkAchievements, achCount, achMul,
     trueBodyOf, resonanceOf, ringSkillOf, hasFreeRingSlot,
     mergeInfo, mergeRings, mergeAll, mergeLowTiers,
     newRing, ringSlotsOf, ringBonus, equipRing, unequipRing, autoEquipBestRing, freeRings,

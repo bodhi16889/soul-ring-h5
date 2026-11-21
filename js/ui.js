@@ -44,6 +44,7 @@
       State.save();
       renderTop();
       State.dailyAdd('idle', 5 / 60);      // 掛機分鐘（每日任務）
+      checkAch();
     }, 5000);
     setInterval(() => { if (tab === 'hunt') renderHunt(); }, 1000);
     window.addEventListener('beforeunload', () => State.save(true));
@@ -747,9 +748,39 @@
     });
   }
 
+  let achAt = 0;
+  function checkAch() {
+    const now = Date.now();
+    if (now - achAt < 3000) return;
+    achAt = now;
+    const fresh = State.checkAchievements();
+    if (fresh.length) {
+      State.save(true);
+      if (global.SFX) SFX.unlock();
+      fresh.forEach((a) => addLog(T(`成就解鎖：${a.name}（${a.desc}）`), 'c-gold'));
+      toast(T(`成就解鎖：${fresh[0].name}`));
+      renderAch();
+    }
+  }
+
+  function renderAch() {
+    const box = $('#achBox');
+    if (!box) return;
+    const list = State.achList();
+    const got = list.filter((a) => a.unlocked).length;
+    const pct = Math.round(State.achCount() * CFG.ACH_BONUS * 1000) / 10;
+    const rows = list.map((a) => `<div class="merge-row">
+        <span class="mr-name">${a.unlocked ? '✅' : '⬜'} ${T(a.name)}</span>
+        <span class="mr-count">${T(a.desc)}</span>
+      </div>`).join('');
+    box.innerHTML = `<div class="merge-head"><b>${T('成就')}</b>
+        <span class="hint">${got} / ${list.length} · ${T(`全屬性 +${pct}%`)}</span></div>${rows}`;
+  }
+
   function renderGacha() {
     const s = State.data;
     renderDaily();
+    renderAch();
     $('#ticketInfo').textContent = T(`覺醒券 ${s.tickets} · 鑽石 ${fmt(s.diamonds)}`);
     $('#btnPull1').textContent = T(`覺醒一次（${CFG.PULL_COST_TICKET} 券 / ${CFG.PULL_COST_DIAMOND} 💎）`);
     $('#btnPull10').textContent = T(`十連覺醒（${CFG.PULL10_COST_TICKET} 券 / ${CFG.PULL10_COST_DIAMOND} 💎）`);
@@ -826,6 +857,13 @@
       case 'shield':
         floatNum($(`#teamRow .unit:nth-child(${unitIndex(ev.unit) + 1})`), T('護盾'), 'skill');
         break;
+      case 'milestone': {
+        const mt = CFG.TIER_BY_KEY[ev.ring.tier];
+        addLog(T(`里程碑：第 ${ev.stage} 關 → 獲得 ${mt.name}`), 'c-gold');
+        toast(T(`里程碑獎勵：${mt.name}`));
+        if (global.SFX) SFX.unlock();
+        break;
+      }
       case 'skill': {
         ringFx(ev.unit, ev.element);
         banner(ev.resonance ? T(`${ev.name} · 共鳴`) : ev.name);
@@ -833,6 +871,8 @@
         break;
       }
       case 'kill': {
+        if (global.SFX) SFX.kill();
+        checkAch();
         const left = ev.left
           ? (I18N.lang === 'en' ? ` (${ev.left} left)` : `（剩 ${ev.left} 隻）`)
           : '';
@@ -841,6 +881,7 @@
         break;
       }
       case 'levelup':
+        if (global.SFX) SFX.levelup();
         banner(T('境界提升'));
         addLog(T(`等級提升 → Lv.${ev.level}`), 'c-ok');
         break;
@@ -852,6 +893,7 @@
         addLog(T(`挑戰第 ${ev.stage} 關守關靈獸`), 'c-purple');
         break;
       case 'stageClear':
+        if (global.SFX) SFX.clear();
         banner(T('通關'));
         addLog(T(`第 ${ev.stage} 關開啟，掛機效率提升`), 'c-ok');
         break;
@@ -1012,7 +1054,23 @@
       <div class="hint" style="margin-top:4px">${T('加成各自乘算：靈環（加法）→ 靈骨 → 命印 → 真身；戰力停住通常代表該轉生了')}</div>
       <div class="hint" style="margin-top:4px">若靈印頁的靈環槽顯示 /3 或等級上限是 90，代表瀏覽器還在使用舊檔：請開 <b>?v=2</b> 或清快取。</div>
       <div style="margin-top:8px">存檔會自動保存在這台裝置的瀏覽器；換裝置請用存檔碼。</div>
+      <div style="margin-top:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px">
+        <b style="font-size:12px;color:#c9a4ff">${T('紀錄')}</b>
+        <div class="hint" style="margin-top:4px">
+          ${T('最高關卡')} <b>${s.bestStage}</b> ·
+          ${T('最高戰力')} <b>${fmt((s.stats && s.stats.bestPower) || State.power())}</b> ·
+          ${T('轉生')} <b>${s.rebirths || 0}</b> ·
+          ${T('命印')} <b>${s.marks || 0}</b><br>
+          ${T('累計擊殺')} <b>${fmt((s.stats && s.stats.kills) || 0)}</b> ·
+          ${T('獵靈')} <b>${(s.stats && s.stats.hunts) || 0}</b> ·
+          ${T('連續簽到')} <b>${(s.checkin && s.checkin.streak) || 0}</b> ${T('天')} ·
+          ${T('成就')} <b>${State.achCount()} / ${CFG.ACHIEVEMENTS.length}</b>
+        </div>
+      </div>
       <div class="acts" style="display:flex;gap:8px;margin-top:10px">
+        <button class="mini-btn" id="btnSfx">${T('音效')}：${(global.SFX && SFX.enabled) ? T('開') : T('關')}</button>
+      </div>
+      <div class="acts" style="display:flex;gap:8px;margin-top:8px">
         <button class="mini-btn ${I18N.lang === 'en' ? 'primary' : ''}" id="btnLangEn">English</button>
         <button class="mini-btn ${I18N.lang === 'zh' ? 'primary' : ''}" id="btnLangZh">中文</button>
       </div>
@@ -1034,6 +1092,12 @@
       </div>`),
       [{ text: T('關閉'), kind: '' }]);
 
+    $('#btnSfx').addEventListener('click', () => {
+      if (!global.SFX) return;
+      SFX.setEnabled(!SFX.enabled);
+      $('#btnSfx').textContent = `${T('音效')}：${SFX.enabled ? T('開') : T('關')}`;
+      if (SFX.enabled) SFX.tap();
+    });
     $('#btnLangEn').addEventListener('click', () => I18N.setLang('en'));
     $('#btnLangZh').addEventListener('click', () => I18N.setLang('zh'));
 
