@@ -474,3 +474,19 @@ body {
 @keyframes loadspin { to { transform: rotate(360deg); } }
 .loading-bar { width: 160px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.12); overflow: hidden; }
 .loading-bar i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, #ffd166, #b06bff); transition: width .25s ease; }
+
+
+/* 可轉生提示條 */
+.rb-hint {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 10px 12px; margin-bottom: 10px; border-radius: 12px;
+  background: linear-gradient(90deg, rgba(255, 209, 102, .18), rgba(176, 107, 255, .18));
+  border: 1px solid rgba(255, 209, 102, .45);
+  font-size: 11px; line-height: 1.45; color: #ffe9b8;
+}
+.rb-hint b { color: #ffd166; }
+.rb-hint .go {
+  flex: 0 0 auto; padding: 6px 10px; border-radius: 8px; border: 0;
+  background: #ffd166; color: #2b1a05; font-weight: 700; font-size: 11px;
+}
+.rb-hint.hidden { display: none; }

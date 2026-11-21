@@ -58,7 +58,7 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.4.1';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.4.2';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -177,6 +177,8 @@
   const REBIRTH = {
     minStage: 20,
     perMark: { atk: 0.06, hp: 0.06, def: 0.06, spd: 0.02, income: 0.04 },
+    startLevelPerRebirth: 5,   // 每次轉生後起始等級 +5（重跑會越來越快）
+    startLevelMax: 60,
   };
 
   function rebirthGain(bestStage, level) {

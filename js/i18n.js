@@ -67,8 +67,8 @@
     '轉生': 'Rebirth', '命印': 'Marks', '歷史最高': 'Best stage',
     '目前加成': 'Current bonus', '這次轉生可得': 'This rebirth grants',
     '收益': 'Income',
-    '轉生會重置等級／關卡／靈幣／靈環；靈印、星級、靈骨、命印會保留。':
-      'Rebirth resets level, stages, coins and rings. Spirits, stars, bones and marks are kept.',
+    '轉生會重置等級／關卡／靈幣；靈印、星級、靈骨、靈環、命印都會保留。':
+      'Rebirth resets level, stages and coins. Spirits, stars, bones, rings and marks are kept.',
 
     /* 靈環頁 */
     '背包': 'Bag', '等級上限': 'Level cap', '靈環合成': 'Ring fusion',
@@ -143,7 +143,11 @@
     '兌換成功：': 'Redeemed: ', '靈師': 'Spirit Master', '屬性共鳴': 'element resonance', '靈技': 'Skill', '靈技：': 'Skill: ', '無靈環': 'No rings',
     '還沒有靈骨。到「覺醒」抽卡有機會抽到靈骨。': 'No soul bones yet. Pull on the Awaken tab for a chance.',
     '還沒有靈環。到「獵靈」擊敗靈獸，就能吸收第一枚靈環。': 'No rings yet. Beat a spirit beast in Hunt to absorb your first ring.',
-    '需': 'Needs ', '關卡清完 · 去打靈環': 'Stage cleared · go hunt rings',
+    '需': 'Needs ', '前往': 'Go', '戰力明細': 'Power breakdown',
+    '會重置等級／關卡／靈幣；靈印、星級、靈骨、靈環保留':
+      'Resets level, stages and coins. Spirits, stars, bones and rings are kept.',
+    '加成各自乘算：靈環（加法）→ 靈骨 → 命印 → 真身；戰力停住通常代表該轉生了':
+      'Bonuses multiply separately: rings (additive) → bones → marks → true body. A stalled power score usually means it is time to rebirth.', '關卡清完 · 去打靈環': 'Stage cleared · go hunt rings',
     '卡等': 'Level capped', '卡等自動獵靈': 'Auto-hunt when capped',
     '自動挑戰 BOSS': 'Auto-challenge boss', '自動裝備靈環': 'Auto-equip rings',
     '自動合成低階環': 'Auto-fuse low rings', '關': 'OFF', '開': 'ON',
@@ -153,6 +157,7 @@
 
   /* ---------- 動態字串規則（順序敏感，長的先） ---------- */
   var AR = [
+    [/^可轉生：\+(\d+) 命印（全屬性 \+(\d+)%）$/, 'Rebirth ready: +$1 marks (+$2% all stats)'],
     [/^Challenge boss（(\d+) 秒後自動）$/, 'Challenge boss (auto in $1s)'],
     [/^挑戰 BOSS（(\d+) 秒後自動）$/, 'Challenge boss (auto in $1s)'],
     [/^挑戰第\s*(\d+)\s*關守關靈獸$/, 'Challenging the Stage $1 boss'],

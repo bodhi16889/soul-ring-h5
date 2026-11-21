@@ -44,6 +44,9 @@ def serve(directory: Path, port: int) -> socketserver.TCPServer:
     return srv
 
 
+CFG_STARTLV = 5   # CFG.REBIRTH.startLevelPerRebirth（每次轉生後起始等級 +5）
+
+
 def weigh_ok(w):
     """3 次失敗應為 0.85^3≈0.614（允許 ±0.03 的四捨五入誤差）。"""
     return 0.57 <= w["ratio"] <= 0.65
@@ -541,10 +544,10 @@ def main() -> int:
                   level: s.level, stage: s.stage, coins: s.coins, rings: s.ringBag.length,
                   bestStage: s.bestStage, marks: s.marks, rebirths: s.rebirths};
         })()""")
-        check("轉生：命印增加、等級/關卡/靈幣/靈環歸零、最高關卡保留",
+        check("轉生：命印增加、等級/關卡/靈幣歸零、靈環保留、最高關卡保留",
               reb["r"]["ok"] is True and reb["marks"] == reb["info"]["gain"] and reb["marks"] >= 5
-              and reb["level"] == 1 and reb["stage"] == 1 and reb["coins"] == 0
-              and reb["rings"] == 0 and reb["bestStage"] == 30 and reb["rebirths"] == 1, str(reb))
+              and reb["level"] == 1 + CFG_STARTLV and reb["stage"] == 1 and reb["coins"] == 0
+              and reb["rings"] == 1 and reb["bestStage"] == 30 and reb["rebirths"] == 1, str(reb))
         check("轉生保留靈印與星級", reb["star0"] == reb["star1"], f"{reb['star0']} → {reb['star1']}")
 
         perm = page.evaluate("""(() => {
@@ -803,6 +806,39 @@ def main() -> int:
         })()""")
         check("BOSS 連續失敗會削弱（第 500 關：3 次失敗 → 血量上限約 ×0.61）",
               weigh_ok(weaken), str(weaken))
+
+        # ---------- 11h. 命印乘算 + 可轉生提示（戰力不再被靈環稀釋）----------
+        markmul = page.evaluate("""(() => {
+          const St=__game.State, s=St.data;
+          const build=(marks)=>{
+            s.level=100; s.slots=5; s.marks=marks; s.stage=79; s.bestStage=79;
+            const ids=['haotian','phoenix','turtle','tower','nether'];
+            s.souls=ids.map(id=>({id, star:4, level:100, rings:[], bone:null}));
+            s.team=ids.slice(); s.ringBag=[]; s.bones=[];
+            ids.forEach(id=>{ for(let k=0;k<9;k++){ const r=St.newRing('red','water'); s.ringBag.push(r); St.equipRing(id,r.uid);} });
+            return St.power();
+          };
+          const base = build(0), m25 = build(25);
+          return {base, m25, ratio:+(m25/base).toFixed(2)};
+        })()""")
+        check("命印獨立乘算：25 點 → 戰力 ×2.5（不再被靈環 +3600% 稀釋）",
+              abs(markmul["ratio"] - 2.5) <= 0.05, str(markmul))
+
+        hint = page.evaluate("""(() => {
+          __game.renderAll();
+          const el = document.getElementById('rebirthHint');
+          return {visible: el && !el.classList.contains('hidden'),
+                  text: el ? el.textContent.replace(/\s+/g, ' ').trim().slice(0, 40) : ''};
+        })()""")
+        check("靈印頁出現「可轉生」提示條（戰力停住時給出口）",
+              hint["visible"] is True and "命印" in hint["text"], str(hint))
+        page.evaluate("""(() => {
+          const St=__game.State, s=St.data;
+          s.marks=0; s.stage=1; s.bestStage=1; s.level=1;
+          s.souls=[{id:'haotian', star:3, level:1, rings:[], bone:null}];
+          s.team=['haotian']; s.ringBag=[]; s.bones=[];
+          __game.Battle.init(); __game.renderAll();
+        })()""")
 
         # ---------- 12. 版面 ----------
         page.wait_for_selector("#stage", state="visible", timeout=5000)

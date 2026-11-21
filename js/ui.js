@@ -374,6 +374,23 @@
     });
   }
 
+  function renderRebirthHint() {
+    const box = $('#rebirthHint');
+    if (!box) return;
+    const info = State.rebirthInfo();
+    if (!info.can || info.gain <= 0) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+    const pct = Math.round(CFG.REBIRTH.perMark.atk * 100 * info.gain);
+    box.classList.remove('hidden');
+    box.innerHTML = `<div>${T(`可轉生：+${info.gain} 命印（全屬性 +${pct}%）`)}
+      <br><span style="opacity:.8">${T('會重置等級／關卡／靈幣；靈印、星級、靈骨、靈環保留')}</span></div>
+      <button class="go" id="btnGoRebirth">${T('前往')}</button>`;
+    const go = $('#btnGoRebirth');
+    if (go) go.addEventListener('click', () => {
+      const card = $('#rebirthBox');
+      if (card) card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
+  }
+
   function renderRebirth() {
     const box = $('#rebirthBox');
     if (!box) return;
@@ -385,7 +402,7 @@
       <div class="rb-line">${T(`歷史最高：第 ${info.bestStage} 關（需 ${info.minStage} 關）`)}</div>
       <div class="rb-line">${T(`目前加成：全屬性 +${Math.round(pm.atk * 100 * info.marks)}% · 收益 +${Math.round(pm.income * 100 * info.marks)}%`)}</div>
       <div class="rb-line">${T('這次轉生可得：')}<b style="color:var(--gold)">${T(`+${info.gain} 命印`)}</b>${T('（每點全屬性 +6%、收益 +4%）')}</div>
-      <div class="rb-line" style="opacity:.75">${T('轉生會重置等級／關卡／靈幣／靈環；靈印、星級、靈骨、命印會保留。')}</div>
+      <div class="rb-line" style="opacity:.75">${T('轉生會重置等級／關卡／靈幣；靈印、星級、靈骨、靈環、命印都會保留。')}</div>
       <button id="btnRebirth" class="wide-btn ${info.can ? '' : ''}" ${info.can ? '' : 'disabled'}>
         ${info.can ? T(`轉生（+${info.gain} 命印）`) : T(`需歷史最高 ${info.minStage} 關`)}
       </button>`;
@@ -686,6 +703,7 @@
     renderSouls();
     renderBones();
     renderRebirth();
+    renderRebirthHint();
     renderRings();
     renderHunt();
     renderCheckin();
@@ -906,6 +924,11 @@
       <div>靈師：<b>${s.name}</b></div>
       <div>最高關卡：<b>${s.bestStage}</b> · 等級 <b>${s.level}</b> / ${State.levelCap()}</div>
       <div>版本：<b>v${CFG.VERSION}</b> · 環槽 ${State.ringSlotsOf(s.souls[0])} 格 / 靈印</div>
+      <div style="margin-top:8px">${T('戰力明細')}：${T('攻擊')} <b>${fmt(State.teamStats().atk)}</b> ·
+        ${T('生命')} <b>${fmt(State.teamStats().hp)}</b> ·
+        ${T('防禦')} <b>${fmt(State.teamStats().def)}</b> ·
+        ${T('速度')} <b>${State.teamStats().spd}</b></div>
+      <div class="hint" style="margin-top:4px">${T('加成各自乘算：靈環（加法）→ 靈骨 → 命印 → 真身；戰力停住通常代表該轉生了')}</div>
       <div class="hint" style="margin-top:4px">若靈印頁的靈環槽顯示 /3 或等級上限是 90，代表瀏覽器還在使用舊檔：請開 <b>?v=2</b> 或清快取。</div>
       <div style="margin-top:8px">存檔會自動保存在這台裝置的瀏覽器；換裝置請用存檔碼。</div>
       <div class="acts" style="display:flex;gap:8px;margin-top:10px">

@@ -181,11 +181,23 @@
     const aura = teamAura(soul.id);
     const pm = CFG.REBIRTH.perMark;
     const tbMul = 1 + trueBodyOf(soul).bonus;   // 靈印真身：乘算
+    /* 三種加成各自乘算，不能全部倒進同一個括號：
+       靈環後期 +3600%，若命印（+6%/點）與靈骨（+14~20%）也加在同一個括號裡，
+       25 點命印只讓戰力多 5%，玩家會覺得「轉生沒用、戰力卡死」。
+       靈環（加法）→ 靈骨（乘）→ 命印（乘）→ 真身（乘） */
+    const boneAtk = 1 + own.atk + aura.atk;
+    const boneHp = 1 + own.hp + aura.hp;
+    const boneDef = 1 + own.def + aura.def;
+    const boneSpd = 1 + own.spd + aura.spd;
+    const markAtk = 1 + pm.atk * S.marks;
+    const markHp = 1 + pm.hp * S.marks;
+    const markDef = 1 + pm.def * S.marks;
+    const markSpd = 1 + pm.spd * S.marks;
     return {
-      atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk + own.atk + aura.atk + pm.atk * S.marks) * tbMul),
-      hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp + own.hp + aura.hp + pm.hp * S.marks) * tbMul),
-      def: Math.round(base.def * starMul * lvMul * (1 + own.def + aura.def + pm.def * S.marks) * tbMul),
-      spd: Math.round(base.spd * (1 + own.spd + aura.spd + pm.spd * S.marks) * tbMul),
+      atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk) * boneAtk * markAtk * tbMul),
+      hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp) * boneHp * markHp * tbMul),
+      def: Math.round(base.def * starMul * lvMul * boneDef * markDef * tbMul),
+      spd: Math.round(base.spd * boneSpd * markSpd * tbMul),
       role: base.role,
       name: base.name,
       emoji: base.emoji,
@@ -537,13 +549,16 @@
     if (!info.can) return { ok: false, msg: T(`歷史最高關卡需達 ${CFG.REBIRTH.minStage} 關`) };
     S.marks += info.gain;
     S.rebirths += 1;
-    S.level = 1;
+    // 每次轉生後起始等級提高，重跑不必一直從 1 級爬
+    const startLv = Math.min(CFG.REBIRTH.startLevelMax || 1,
+                             1 + (CFG.REBIRTH.startLevelPerRebirth || 0) * S.rebirths);
+    S.level = startLv;
     S.exp = 0;
     S.stage = 1;
     S.kills = 0;
     S.coins = 0;
-    S.ringBag = [];
-    S.souls.forEach((soul) => { soul.rings = []; soul.level = 1; });
+    // 靈環保留（那是打來的資產；重置掉會讓玩家重複勞動，戰力也會瞬間掉兩個量級）
+    S.souls.forEach((soul) => { soul.level = startLv; });
     S.cd = {};
     S.lastSave = Date.now();
     save(true);
