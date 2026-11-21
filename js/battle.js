@@ -80,6 +80,23 @@
     // 多隻時單隻較弱（總血量約 1.3 倍），才不會讓群攻變成唯一解
     const hpScale = isBoss ? 1 : (n > 1 ? 0.66 : 1);
     const atkScale = isBoss ? 1 : (n > 1 ? 0.8 : 1);
+
+    // 橡皮筋：不管關卡多深，怪物數值都不超過「隊伍現況」能處理的量
+    const band = CFG.BAND;
+    const units = B.units.filter((u) => u.maxHp > 0);
+    const weakestHp = Math.min.apply(null, units.map((u) => u.maxHp));
+    const dps = units.reduce((a, u) => a + u.atk * (u.spd / 100) * ATB_SPEED * 0.85, 0);
+    const defCap = Math.round(State.teamStats().atk * band.defOfTeamAtk);
+    const effDps = Math.max(1, dps - defCap * 0.4 * 3);    // 扣掉防禦吃掉的傷害
+    let hpCap = effDps * (isBoss ? band.bossSec : band.waveSec);
+    if (isBoss) {
+      const fails = Math.min(band.bossFailMax, (State.data.bossFails || {})[State.data.stage] || 0);
+      hpCap *= Math.pow(band.bossFailStep, fails);   // 連續失敗會削弱 BOSS，保證推得過去
+    }
+    const atkCap = weakestHp * band.atkOfWeakestHp;
+    st.hp = Math.max(1, Math.min(st.hp, Math.round(hpCap)));
+    st.atk = Math.max(1, Math.min(st.atk, Math.round(atkCap)));
+    st.def = Math.max(0, Math.min(st.def, defCap));
     B.enemies = Array.from({ length: n }, (_, i) => {
       const hp = Math.round(st.hp * hpScale);
       return {
@@ -190,7 +207,15 @@
       if (Date.now() >= B.autoReviveAt) {
         B.autoReviveAt = 0;
         reviveTeam(true);
-        if (B.mode === 'boss') { B.mode = 'farm'; spawnWave('farm'); }
+        if (B.mode === 'boss') {
+          const s2 = State.data;
+          s2.bossFails = s2.bossFails || {};
+          s2.bossFails[s2.stage] = Math.min(CFG.BAND.bossFailMax, (s2.bossFails[s2.stage] || 0) + 1);
+          B.pendingBoss = true;        // 復活後直接再挑戰（不用重清小怪）
+          B.mode = 'farm';
+          spawnWave('farm');
+          emit('bossFailed', { stage: s2.stage, fails: s2.bossFails[s2.stage] });
+        }
         if (B.mode === 'hunt') {
           const beast = B.huntBeast;
           if (beast) State.data.cd[beast.id] = Date.now() + 15000;   // 失敗冷卻 15 秒
@@ -346,13 +371,15 @@
   /* ---------- Boss 被動 ---------- */
   function bossAct(e) {
     e.acts++;
+    e.heals = e.heals || 0;
     if (!e.enraged && e.hp / e.maxHp <= 0.4) {
       e.enraged = true;
       e.atk = Math.round(e.atk * 1.35);
       emit('bossRage', { name: e.name, enemyId: e.id });
     }
     // 只在血量低於 70% 時、每 5 次行動回 8%：避免低戰力玩家被無限回血鎖死
-    if (e.acts % 5 === 0 && e.hp < e.maxHp * 0.7) {
+    if (e.acts % 5 === 0 && e.hp < e.maxHp * 0.7 && e.heals < CFG.BAND.bossHealMax) {
+      e.heals++;
       const heal = Math.round(e.maxHp * 0.08);
       e.hp = Math.min(e.maxHp, e.hp + heal);
       emit('bossHeal', { name: e.name, enemyId: e.id, amount: heal, hp: e.hp, maxHp: e.maxHp });
@@ -425,6 +452,7 @@
       s.stage++;
       s.bestStage = Math.max(s.bestStage, s.stage);
       s.kills = 0;
+      if (s.bossFails) delete s.bossFails[s.stage - 1];   // 過了就把失敗紀錄清掉
       B.mode = 'farm';
       emit('stageClear', { stage: s.stage });
       spawnWave('farm');

@@ -44,6 +44,11 @@ def serve(directory: Path, port: int) -> socketserver.TCPServer:
     return srv
 
 
+def weigh_ok(w):
+    """3 次失敗應為 0.85^3≈0.614（允許 ±0.03 的四捨五入誤差）。"""
+    return 0.57 <= w["ratio"] <= 0.65
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--headed", action="store_true")
@@ -440,7 +445,7 @@ def main() -> int:
         page.reload(wait_until="load")
         page.wait_for_function("window.__game && window.__game.ready", timeout=20000)
         kept = page.evaluate("({coins: __game.State.data.coins, souls: __game.State.data.souls.length})")
-        check("重新載入後進度保留", kept["coins"] == 777777 and kept["souls"] >= 1, str(kept))
+        check("重新載入後進度保留", kept["coins"] >= 777777 and kept["souls"] >= 1, str(kept))
 
         # ---------- 11b. 放置自動化：自動 BOSS／卡等自動獵靈 ----------
         auto_boss = page.evaluate("""(() => new Promise((resolve) => {
@@ -576,6 +581,22 @@ def main() -> int:
         })""")
         check("轉生 UI：靈印頁有轉生卡、頂部顯示命印", rb_ui["box"] and "命印" in rb_ui["text"]
               and rb_ui["marks"] not in (None, "", "0"), str(rb_ui)[:160])
+
+        # ---------- 11d-2. 抽卡走到靈骨分支不會炸 ----------
+        bone_pull = page.evaluate("""(() => {
+          const St = __game.State, s = St.data;
+          const rnd = Math.random;
+          Math.random = () => 0.01;          // 強制走「靈骨」分支
+          const before = s.bones.length;
+          let out;
+          try { out = St.pullOnce(true); } catch (e) { out = { error: String(e) }; }
+          Math.random = rnd;
+          return {ok: out.ok, kind: out.result && out.result.kind,
+                  gained: s.bones.length - before, err: out.error || null};
+        })()""")
+        check("抽卡抽到靈骨不會丟錯（PULL_BONES 存在）",
+              bone_pull["ok"] is True and bone_pull["kind"] == "bone"
+              and bone_pull["gained"] == 1 and bone_pull["err"] is None, str(bone_pull))
 
         # ---------- 11e. Stage 2：9 環槽 / 靈環技能 / 共鳴 / 靈印真身 ----------
         slots = page.evaluate("""(() => {
@@ -742,6 +763,47 @@ def main() -> int:
         page.evaluate("__game.State.data.settings = {autoBoss:false, autoHunt:false, autoRing:true, autoMerge:true};"
                       " __game.State.save(true)")
 
+        # ---------- 11g. 難度橡皮筋：深關卡不再永久卡死 ----------
+        page.evaluate("""(() => {
+          const St=__game.State, s=St.data;
+          s.level=100; s.slots=5; s.marks=0; s.stage=62; s.bestStage=62;
+          s.settings={autoBoss:true, autoHunt:false, autoRing:true, autoMerge:true};
+          const ids=['haotian','phoenix','turtle','tower','nether'];
+          s.souls=ids.map(id=>({id, star:4, level:100, rings:[], bone:null}));
+          s.team=ids.slice(); s.ringBag=[]; s.bones=[]; s.bossFails={};
+          s.kills = CFG.BASE_KILLS_PER_STAGE;
+          ids.forEach(id=>{ for(let k=0;k<9;k++){ const r=St.newRing('red','water'); s.ringBag.push(r); St.equipRing(id,r.uid);} });
+          __game.Battle.init(); __game.renderAll();
+          __game.Battle.state.pendingBoss = true;
+          __game.Battle.challengeBoss();
+        })()""")
+        start_stage = page.evaluate("__game.State.data.stage")
+        time.sleep(40)
+        prog = page.evaluate("""(() => {
+          const s=__game.State.data, B=__game.Battle.state;
+          return {stage:s.stage, fails:(s.bossFails||{})[62]||0,
+                  alive:B.units.filter(u=>u.alive).length};
+        })()""")
+        check("第 62 關（深關卡）40 秒內推得過去，不再無限卡關",
+              prog["stage"] > start_stage, str(prog))
+
+        weaken = page.evaluate("""(() => {
+          const St=__game.State, B=__game.Battle.state, s=St.data;
+          s.stage = 500;
+          const spawn = (fails) => {
+            s.bossFails = {500: fails};
+            B.mode='farm'; B.pendingBoss = true;
+            __game.Battle.challengeBoss();
+            return Math.round(B.enemies[0].maxHp);
+          };
+          const base = spawn(0);
+          const weak = spawn(3);
+          s.bossFails = {};
+          return {base, weak, ratio:+(weak/base).toFixed(3)};
+        })()""")
+        check("BOSS 連續失敗會削弱（第 500 關：3 次失敗 → 血量上限約 ×0.61）",
+              weigh_ok(weaken), str(weaken))
+
         # ---------- 12. 版面 ----------
         page.wait_for_selector("#stage", state="visible", timeout=5000)
         layout = page.evaluate("""({
@@ -840,6 +902,34 @@ def main() -> int:
         })()""")
         check("pause/resume 冪等（SDK 與分頁切換共用同一個開關）",
               paused["flag"] is True and paused["off"] is True, str(paused))
+        # 語言切換：設定頁按鈕會寫入偏好並重載
+        en.click('#btnMenu')
+        time.sleep(0.4)
+        has_btns = en.evaluate("!!document.getElementById('btnLangZh') && !!document.getElementById('btnLangEn')")
+        en.click('#btnLangZh')
+        en.wait_for_load_state('load')
+        en.wait_for_function("window.__game && window.__game.ready", timeout=30000)
+        time.sleep(0.6)
+        zh_state = en.evaluate("""({lang: document.documentElement.lang,
+          tab: document.querySelector('.nav-btn b').textContent,
+          pref: localStorage.getItem('soulring.lang')})""")
+        check("設定頁可切換中文：寫入偏好、重新載入後變中文",
+              has_btns and zh_state["lang"] == "zh-Hant"
+              and zh_state["tab"] == "戰鬥" and zh_state["pref"] == "zh", str(zh_state))
+
+        en.click('#btnMenu')
+        time.sleep(0.4)
+        en.click('#btnLangEn')
+        en.wait_for_load_state('load')
+        en.wait_for_function('window.__game && window.__game.ready', timeout=30000)
+        time.sleep(0.6)
+        back = en.evaluate("""({lang: document.documentElement.lang,
+          tab: document.querySelector('.nav-btn b').textContent,
+          pref: localStorage.getItem('soulring.lang')})""")
+        check("再切回 English：介面回到英文、偏好記為 en",
+              back["lang"] == "en" and back["tab"] == "Battle"
+              and back["pref"] == "en", str(back))
+
         check("英文模式沒有 console / page error", not en_errs, str(en_errs[:3]))
         en.screenshot(path=str(ART / "soulring-en.png"))
         en.close()

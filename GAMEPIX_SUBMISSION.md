@@ -38,41 +38,29 @@
 
 ## 3. Editorial 頁（文案）
 
-**Short description**
+**Description（後台只有一個欄位，限 100–500 字元）**
 
 ```
-Idle cultivation RPG: awaken your spirits, hunt soul beasts for rings, fuse three of a tier into the next, and rebirth for permanent power. Five-spirit auto-battle, nine ring slots per spirit, gacha and endless stages.
+Idle cultivation RPG: awaken your spirits, farm soul rings, fuse them into higher tiers, and rebirth for permanent power. Five-spirit team auto-battle, 9 ring slots per spirit, gacha, daily check-in and endless stages.
 ```
+（218 字元；沒有「長描述」欄位，長篇文案貼不進去）
 
-**Long description**
-
-```
-Spirit Ring Idle is a one-thumb idle RPG about turning a single awakened spirit into a five-spirit team that fights for you.
-
-Your team auto-battles through endless stages while you make the real decisions: which spirits to field, when to hunt a soul beast for a new ring, and how to spend your gems.
-
-Every spirit unlocks one ring slot per 10 levels, up to nine. Rings come in five grades — white, yellow, violet, black and red — each adding attack and health, and the higher grades carry their own spirit skill: a group strike, a stun, or a screen-clearing finisher. Stack three rings of the same element on one spirit and the resonance boosts that element's skill by 25%; stack three, six or nine ten-thousand-year rings and the spirit manifests its true body for a flat multiplier on every stat.
-
-Too many low-grade rings? Fuse three of the same grade into one of the next tier, or press one button to fuse everything at once.
-
-Spend coins and gems on spirit upgrades, star-ups, soul bones and a gacha that can drop five-star spirits. Log in daily for a seven-day check-in cycle, and when a run stalls, rebirth: reset your level and stages to bank permanent marks that boost every stat and all income forever.
-
-Easy to learn, offline progress when you close the tab, and a save code you can export to another device.
-```
-
-**Instructions**
+**How to Play – Instructions（上限 500 字元）**
 
 ```
-Tap the tabs at the bottom to switch between Battle, Spirits, Rings, Hunt and Awaken.
-Combat is automatic — your team attacks on its own.
-Spirits tab: spend coins to level up, star up, and equip soul bones.
-Hunt tab: fight soul beasts for new rings; each spirit gains one ring slot every 10 levels.
-Rings tab: fuse three rings of the same grade into one of the next grade.
-Awaken tab: pull new spirits with tickets or gems, redeem codes, and claim the daily check-in.
-```
+Combat is automatic - your team fights on its own.
 
-| 欄位 | 值 |
-|---|---|
+Battle: watch progress and tap Challenge Boss.
+Spirits: spend coins to level up, star up with soul bones, equip bones.
+Rings: 1 slot every 10 levels (max 9). Equip for ATK/HP; fuse 3 of a grade into the next.
+Hunt: beat spirit beasts for new rings.
+Awaken: pull spirits, redeem codes, claim the daily check-in.
+
+Rebirth at stage 20+ for permanent marks. Progress saves offline.
+Tap the bottom tabs to switch.
+```
+（460 字元。後台預填的 Jump／Swipe up／Drive 是範例字，要整段蓋掉）
+
 | Age rating | Everyone |
 | Languages | English（預設）、Traditional Chinese |
 

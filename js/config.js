@@ -58,7 +58,7 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.4.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.4.1';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -66,6 +66,16 @@
   const RING_MERGE_COUNT = 3;       // 3 個同階 → 1 個高一階
   const BASE_KILLS_PER_STAGE = 8;           // 每關殺 8 隻小怪出 BOSS（放置遊戲不要拖）
   const AUTO_BOSS_DELAY = 1800;            // 清完小怪後幾毫秒自動挑戰 BOSS
+  /* 橡皮筋難度：怪物數值再高也被隊伍現況夾住，避免「某關之後永遠打不死」 */
+  const BAND = {
+    waveSec: 2.5,        // 小怪血量 ≤ 隊伍 DPS × 2.5 秒
+    bossSec: 18,         // BOSS 血量 ≤ 隊伍 DPS × 18 秒
+    atkOfWeakestHp: 0.10, // 敵人單下 ≤ 最脆隊友血量的 10%（約 10 下才倒）
+    defOfTeamAtk: 0.12,  // 敵人防禦 ≤ 隊伍總攻擊的 12%（否則減傷吃光傷害）
+    bossFailStep: 0.85,  // 每次挑戰失敗，BOSS 血量上限再 ×0.85（最多 4 次）
+    bossFailMax: 4,
+    bossHealMax: 2,      // 單場最多回血 2 次，保證打得死
+  };
   const AUTO_HUNT_DELAY = 2500;            // 卡等時幾毫秒自動去獵靈
   const PULL_COST_TICKET = 1;
   const PULL_COST_DIAMOND = 100;
@@ -114,7 +124,9 @@
       atk: Math.round(7 * mul * (isBoss ? 1.0 : 1)),
       def: Math.round(2 * mul * (isBoss ? 1.5 : 1)),
       spd: 70 + Math.min(50, stage),
-      name: isBoss ? `第 ${stage} 關守關靈獸` : '野生靈獸',
+      name: isBoss
+        ? (typeof I18N !== 'undefined' && I18N.lang === 'en' ? `Stage ${stage} Boss` : `第 ${stage} 關守關靈獸`)
+        : (typeof I18N !== 'undefined' && I18N.lang === 'en' ? 'Wild beast' : '野生靈獸'),
       emoji: isBoss ? '👹' : '🦟',
       boss: !!isBoss,
     };
@@ -139,6 +151,7 @@
   ];
   const BONE_BY_ID = Object.fromEntries(BONES.map((b) => [b.id, b]));
   const BONE_AURA = 0.3;          // 光環：給同隊其他靈印的比例
+  const PULL_BONES = BONES;       // 抽卡池：15% 出靈骨（state.rollOne 會讀這個）
   const STAR_COIN = [0, 0, 0, 0, 0, 0];   // 佔位，實際成本用 starUpCoin()
 
   function bonePullWeight() { return 3; }   // 每種靈骨的抽卡權重
@@ -184,11 +197,11 @@
     VERSION, MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
     RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR,
     RING_ORDER, RING_MERGE_COUNT,
-    BASE_KILLS_PER_STAGE, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY,
+    BASE_KILLS_PER_STAGE, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND,
     REBIRTH, rebirthGain, stageMul,
     PULL_COST_TICKET, PULL_COST_DIAMOND, PULL10_COST_TICKET, PULL10_COST_DIAMOND,
     expNeed, levelCap, ringSlots, enemyStats, killReward, offlinePerMinute,
-    PULL_POOL, BONES, BONE_BY_ID, BONE_AURA, bonePullWeight,
+    PULL_POOL, PULL_BONES, BONES, BONE_BY_ID, BONE_AURA, bonePullWeight,
     starUpBones, starUpCoin, CHECKIN, CODES,
   };
 })(window);

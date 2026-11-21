@@ -104,7 +104,7 @@
     bossBtn.disabled = !snap.pendingBoss;
     bossBtn.textContent = snap.pendingBoss
       ? T(`挑戰 BOSS（${Math.round((CFG.AUTO_BOSS_DELAY || 1800) / 1000)} 秒後自動）`)
-      : capped ? T(`卡等 ${snap.kills}/${snap.needed} · 去打靈環`) : T(`清怪 ${snap.kills}/${snap.needed}`);
+      : capped ? T(`關卡清完 · 去打靈環`) : T(`清怪 ${snap.kills}/${snap.needed}`);
 
     renderTeam(snap.units);
     renderEnemies(snap.enemies || [], snap.mode);
@@ -731,11 +731,13 @@
       case 'skill': {
         ringFx(ev.unit, ev.element);
         banner(ev.resonance ? T(`${ev.name} · 共鳴`) : ev.name);
-        if (ev.ring) addLog(T(`靈技：${ev.name}${ev.resonance ? T('（屬性共鳴 +25%）') : ''}`), 'c-purple');
+        if (ev.ring) addLog(T(`${ev.name}${ev.resonance ? T('（屬性共鳴 +25%）') : ''}`), 'c-purple');
         break;
       }
       case 'kill': {
-        const left = ev.left ? T(`（剩 ${ev.left} 隻）`) : '';
+        const left = ev.left
+          ? (I18N.lang === 'en' ? ` (${ev.left} left)` : `（剩 ${ev.left} 隻）`)
+          : '';
         addLog(T(`擊殺${ev.boss ? T('守關靈獸') : T('靈獸')}${left}：靈幣 +${fmt(ev.coins)}、經驗 +${fmt(ev.exp)}`),
           ev.boss ? 'c-gold' : '');
         break;
@@ -907,6 +909,10 @@
       <div class="hint" style="margin-top:4px">若靈印頁的靈環槽顯示 /3 或等級上限是 90，代表瀏覽器還在使用舊檔：請開 <b>?v=2</b> 或清快取。</div>
       <div style="margin-top:8px">存檔會自動保存在這台裝置的瀏覽器；換裝置請用存檔碼。</div>
       <div class="acts" style="display:flex;gap:8px;margin-top:10px">
+        <button class="mini-btn ${I18N.lang === 'en' ? 'primary' : ''}" id="btnLangEn">English</button>
+        <button class="mini-btn ${I18N.lang === 'zh' ? 'primary' : ''}" id="btnLangZh">中文</button>
+      </div>
+      <div class="acts" style="display:flex;gap:8px;margin-top:8px">
         <button class="mini-btn" id="btnAutoMerge">自動合成低階環：${(s.settings.autoMerge === false) ? T('關') : T('開')}</button>
       </div>
       <div class="acts" style="display:flex;gap:8px;margin-top:8px">
@@ -923,6 +929,9 @@
         <button class="mini-btn ghost" id="btnReset">重新開始</button>
       </div>`),
       [{ text: T('關閉'), kind: '' }]);
+
+    $('#btnLangEn').addEventListener('click', () => I18N.setLang('en'));
+    $('#btnLangZh').addEventListener('click', () => I18N.setLang('zh'));
 
     $('#btnAutoMerge').addEventListener('click', () => {
       const st = State.data.settings;

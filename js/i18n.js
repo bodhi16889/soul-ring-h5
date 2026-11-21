@@ -11,9 +11,20 @@
 (function (global) {
   'use strict';
 
+  var KEY = 'soulring.lang';
+  var pref = null;
+  try { pref = localStorage.getItem(KEY); } catch (e) { pref = null; }
   var m = /[?&]lang=([a-zA-Z-]+)/.exec(location.search || '');
-  var raw = (m && m[1] || '').toLowerCase();
-  var LANG = raw.indexOf('zh') === 0 ? 'zh' : 'en';   // 未指定／不支援 → 英文
+  // 網址參數 > 玩家自己選過的 > 預設英文（GamePix 規則：非支援語系一律英文）
+  var LANG = m ? ((m[1] || '').toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en')
+               : (pref === 'zh' ? 'zh' : 'en');
+
+  function setLang(lang) {
+    try { localStorage.setItem(KEY, lang === 'zh' ? 'zh' : 'en'); } catch (e) {}
+    var url = location.pathname + location.search.replace(/[?&]lang=[a-zA-Z-]+/g, '');
+    location.replace(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'lang=' +
+                     (lang === 'zh' ? 'zh' : 'en'));
+  }
 
   /* ---------- 靜態字串表（中文 → 英文） ---------- */
   var EN = {
@@ -132,12 +143,20 @@
     '兌換成功：': 'Redeemed: ', '靈師': 'Spirit Master', '屬性共鳴': 'element resonance', '靈技': 'Skill', '靈技：': 'Skill: ', '無靈環': 'No rings',
     '還沒有靈骨。到「覺醒」抽卡有機會抽到靈骨。': 'No soul bones yet. Pull on the Awaken tab for a chance.',
     '還沒有靈環。到「獵靈」擊敗靈獸，就能吸收第一枚靈環。': 'No rings yet. Beat a spirit beast in Hunt to absorb your first ring.',
-    '需': 'Needs ', '★5 滿星': '★5 Max', '滿星': 'Max',
+    '需': 'Needs ', '關卡清完 · 去打靈環': 'Stage cleared · go hunt rings',
+    '卡等': 'Level capped', '卡等自動獵靈': 'Auto-hunt when capped',
+    '自動挑戰 BOSS': 'Auto-challenge boss', '自動裝備靈環': 'Auto-equip rings',
+    '自動合成低階環': 'Auto-fuse low rings', '關': 'OFF', '開': 'ON',
+    '重新開始': 'Start over', '改暱稱': 'Change name', '領取': 'Claim', '★5 滿星': '★5 Max', '滿星': 'Max',
     '靈印重新凝聚，繼續戰鬥': 'Spirits reformed — back in the fight',
   };
 
   /* ---------- 動態字串規則（順序敏感，長的先） ---------- */
   var AR = [
+    [/^Challenge boss（(\d+) 秒後自動）$/, 'Challenge boss (auto in $1s)'],
+    [/^挑戰 BOSS（(\d+) 秒後自動）$/, 'Challenge boss (auto in $1s)'],
+    [/^挑戰第\s*(\d+)\s*關守關靈獸$/, 'Challenging the Stage $1 boss'],
+    [/^第\s*(\d+)\s*關守關靈獸$/, 'Stage $1 boss'],
     [/^領取第\s*(\d+)\s*天獎勵（(.+)）$/, "Day $1 reward ($2)"],
     [/^第\s*(\d+)\s*天簽到：(.+)（連續 (\d+) 天）$/, 'Day $1 check-in: $2 (streak $3d)'],
     [/^連續簽到 (\d+) 天$/, 'Streak $1 days'],
@@ -184,6 +203,8 @@
 
   var CJK = /[\u3400-\u9fff]/;
   var KEYS = Object.keys(EN).sort(function (a, b) { return b.length - a.length; });
+  /* 這些字太容易誤傷（例如「關」出現在守關靈獸、第 12 關），只接受整串完全相符 */
+  var WHOLE_ONLY = { '關': 1, '開': 1, '需': 1, '第': 1, '次': 1, '魂': 1 };
 
   /* 標點與單位換成英文寫法（只做全域替換，不動數字） */
   var PUNCT = [
@@ -197,6 +218,7 @@
     var out = str;
     for (var i = 0; i < KEYS.length; i++) {
       var k = KEYS[i];
+      if (WHOLE_ONLY[k]) continue;
       if (out.indexOf(k) >= 0) out = out.split(k).join(EN[k]);
     }
     for (var j = 0; j < PUNCT.length; j++) out = out.replace(PUNCT[j][0], PUNCT[j][1]);
@@ -276,7 +298,7 @@
     applyStatic(document);
   }
 
-  global.I18N = { lang: LANG, T: T, P: P, fmt: fmt, applyStatic: applyStatic, boot: boot, EN: EN };
+  global.I18N = { lang: LANG, T: T, P: P, fmt: fmt, applyStatic: applyStatic, boot: boot, EN: EN, setLang: setLang };
   global.T = T;
   global.P = P;
 
