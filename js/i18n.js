@@ -157,6 +157,9 @@
 
   /* ---------- 動態字串規則（順序敏感，長的先） ---------- */
   var AR = [
+    [/^本輪推進：\+(\d+) 關（上次轉生在 第 (\d+) 關）$/, 'This run: +$1 stages (last rebirth at stage $2)'],
+    [/^要推進到 第 (\d+) 關才能轉生$/, 'Push to stage $1 to rebirth'],
+    [/^要推進到 第 (\d+) 關才能轉生（本輪 \+(\d+) 關）$/, 'Push to stage $1 to rebirth (this run: +$2)'],
     [/^可轉生：\+(\d+) 命印（全屬性 \+(\d+)%）$/, 'Rebirth ready: +$1 marks (+$2% all stats)'],
     [/^Challenge boss（(\d+) 秒後自動）$/, 'Challenge boss (auto in $1s)'],
     [/^挑戰 BOSS（(\d+) 秒後自動）$/, 'Challenge boss (auto in $1s)'],

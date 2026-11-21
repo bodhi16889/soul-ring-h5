@@ -48,8 +48,8 @@ CFG_STARTLV = 5   # CFG.REBIRTH.startLevelPerRebirth（每次轉生後起始等�
 
 
 def weigh_ok(w):
-    """3 次失敗應為 0.85^3≈0.614（允許 ±0.03 的四捨五入誤差）。"""
-    return 0.57 <= w["ratio"] <= 0.65
+    """3 次失敗應為 0.82^3≈0.551（允許 ±0.03）。"""
+    return 0.51 <= w["ratio"] <= 0.60
 
 
 def main() -> int:
@@ -804,7 +804,7 @@ def main() -> int:
           s.bossFails = {};
           return {base, weak, ratio:+(weak/base).toFixed(3)};
         })()""")
-        check("BOSS 連續失敗會削弱（第 500 關：3 次失敗 → 血量上限約 ×0.61）",
+        check("BOSS 連續失敗會削弱（第 500 關：3 次失敗 → 血量上限約 ×0.55）",
               weigh_ok(weaken), str(weaken))
 
         # ---------- 11h. 命印乘算 + 可轉生提示（戰力不再被靈環稀釋）----------
@@ -882,6 +882,58 @@ def main() -> int:
               touch["ta"] == "pan-y" and touch["scrollable"] is True and t1 > t0 + 100,
               f"{touch} scrollTop {t0} → {t1}")
         mctx.close()
+
+        # ---------- 11i-2. 轉生新規則：只能靠「本輪推進」換命印 ----------
+        rbnew = page.evaluate("""(() => {
+          const St=__game.State, s=St.data;
+          s.marks=1000; s.rebirths=50; s.level=100;
+          s.bestStage=104; s.lastRebirthBest=104;
+          const atRecord = St.rebirthInfo();
+          s.bestStage=200;
+          const pushed = St.rebirthInfo();
+          const before = s.marks;
+          const r = St.doRebirth();
+          const afterLast = s.lastRebirthBest;
+          return {atRecord:{can:atRecord.can, gain:atRecord.gain, need:atRecord.needStage},
+                  pushed:{can:pushed.can, gain:pushed.gain, deep:pushed.deep},
+                  gained: s.marks - before, afterLast, bestAfter: s.bestStage};
+        })()""")
+        check("轉生必須刷新紀錄：停在同一關卡不能再轉（need = 紀錄+1）",
+              rbnew["atRecord"]["can"] is False and rbnew["atRecord"]["gain"] == 0
+              and rbnew["atRecord"]["need"] == 105, str(rbnew["atRecord"]))
+        check("轉生收益依本輪推進（104→200 = deep 96 → +24 命印 = 19 + 等級5）",
+              rbnew["pushed"]["can"] is True and rbnew["pushed"]["gain"] == 24
+              and rbnew["pushed"]["deep"] == 96, str(rbnew["pushed"]))
+        check("轉生後把本輪紀錄歸零（lastRebirthBest = 當下最高關卡）",
+              rbnew["gained"] == 24 and rbnew["afterLast"] == 200, str(rbnew))
+
+        migrate_rb = page.evaluate("""(() => {
+          const St=__game.State;
+          const old = {v:1, bestStage: 150, marks: 10, level: 40,
+                       souls:[{id:'haotian', star:3, level:40, rings:[]}], team:['haotian']};
+          const m = St.migrate(old);
+          return {lastRebirthBest: m.lastRebirthBest, bestStage: m.bestStage,
+                  hasField: 'lastRebirthBest' in m};
+        })()""")
+        check("舊存檔遷移：lastRebirthBest 自動補成現有最高關卡（不會白送一波）",
+              migrate_rb["hasField"] is True and migrate_rb["lastRebirthBest"] == 150
+              and migrate_rb["bestStage"] == 150, str(migrate_rb))
+
+        widen = page.evaluate("""(() => {
+          const St=__game.State, B=__game.Battle.state, s=St.data;
+          s.level=100; s.slots=5; s.marks=0; s.bestStage=400; s.lastRebirthBest=0;
+          const ids=['haotian','phoenix','turtle','tower','nether'];
+          s.souls=ids.map(id=>({id, star:4, level:100, rings:[], bone:null}));
+          s.team=ids.slice(); s.ringBag=[]; s.bones=[];
+          ids.forEach(id=>{ for(let k=0;k<9;k++){ const r=St.newRing('red','water'); s.ringBag.push(r); St.equipRing(id,r.uid);} });
+          __game.Battle.init();
+          const boss = (stage) => { s.stage=stage; s.bossFails={}; B.mode='farm'; B.pendingBoss=true;
+                                    __game.Battle.challengeBoss(); return Math.round(B.enemies[0].maxHp); };
+          const at104 = boss(104), at400 = boss(400);
+          return {at104, at400, ratio:+(at400/at104).toFixed(2)};
+        })()""")
+        check("深度放寬：第 400 關 BOSS 血量上限明顯高於第 104 關（深度＝難度）",
+              widen["ratio"] >= 1.25, str(widen))
 
         # ---------- 12. 版面 ----------
         page.wait_for_selector("#stage", state="visible", timeout=5000)

@@ -85,18 +85,29 @@
     const band = CFG.BAND;
     const units = B.units.filter((u) => u.maxHp > 0);
     const weakestHp = Math.min.apply(null, units.map((u) => u.maxHp));
-    const dps = units.reduce((a, u) => a + u.atk * (u.spd / 100) * ATB_SPEED * 0.85, 0);
-    const defCap = Math.round(State.teamStats().atk * band.defOfTeamAtk);
+    /* 每人最高「一次 tick 出手一次」＝1/DT 次/秒（命印把 spd 堆到幾千時，
+       若不設上限，DPS 會被高估 10 倍以上，怪物血量上限就跟著爆掉） */
+    const maxActs = 1 / DT;
+    const dps = units.reduce((a, u) => a + u.atk * Math.min(maxActs, (u.spd / 100) * ATB_SPEED) * 0.85, 0);
+    let defCap = Math.round(State.teamStats().atk * band.defOfTeamAtk);
     const effDps = Math.max(1, dps - defCap * 0.4 * 3);    // 扣掉防禦吃掉的傷害
     let hpCap = effDps * (isBoss ? band.bossSec : band.waveSec);
     if (isBoss) {
       const fails = Math.min(band.bossFailMax, (State.data.bossFails || {})[State.data.stage] || 0);
       hpCap *= Math.pow(band.bossFailStep, fails);   // 連續失敗會削弱 BOSS，保證推得過去
     }
+    // 深度放寬：第 100 關之後，每多 100 關上限 ×1（最多 ×4）
+    // 讓關卡數字重新代表難度，不然橡皮筋把每一關都壓成一樣軟
+    const depth = Math.max(0, State.data.stage - band.widenFrom);
+    const widen = Math.min(band.widenMax, 1 + depth / band.widenPerStage);
+    hpCap *= widen;
+    defCap *= 1 + (widen - 1) * 0.5;   // 防禦只放寬一半，否則減傷吃掉傷害、戰鬥拖太久
+    // 深度只拉長「要打多久」，不提高「會不會被打死」：
+    // 攻擊上限不隨深度變動，否則深處 BOSS 會變成必敗（存活時間 < 需要的輸出時間）
     const atkCap = weakestHp * band.atkOfWeakestHp;
     st.hp = Math.max(1, Math.min(st.hp, Math.round(hpCap)));
     st.atk = Math.max(1, Math.min(st.atk, Math.round(atkCap)));
-    st.def = Math.max(0, Math.min(st.def, defCap));
+    st.def = Math.max(0, Math.min(st.def, Math.round(defCap)));
     B.enemies = Array.from({ length: n }, (_, i) => {
       const hp = Math.round(st.hp * hpScale);
       return {

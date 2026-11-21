@@ -58,7 +58,7 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.4.3';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.4.4';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -69,12 +69,17 @@
   /* 橡皮筋難度：怪物數值再高也被隊伍現況夾住，避免「某關之後永遠打不死」 */
   const BAND = {
     waveSec: 2.5,        // 小怪血量 ≤ 隊伍 DPS × 2.5 秒
-    bossSec: 18,         // BOSS 血量 ≤ 隊伍 DPS × 18 秒
+    bossSec: 15,         // BOSS 血量 ≤ 隊伍 DPS × 15 秒
     atkOfWeakestHp: 0.10, // 敵人單下 ≤ 最脆隊友血量的 10%（約 10 下才倒）
     defOfTeamAtk: 0.12,  // 敵人防禦 ≤ 隊伍總攻擊的 12%（否則減傷吃光傷害）
-    bossFailStep: 0.85,  // 每次挑戰失敗，BOSS 血量上限再 ×0.85（最多 4 次）
-    bossFailMax: 4,
+    bossFailStep: 0.82,  // 每次挑戰失敗，BOSS 血量上限再 ×0.82（最多 5 次）
+    bossFailMax: 5,
     bossHealMax: 2,      // 單場最多回血 2 次，保證打得死
+    /* 深度放寬：第 100 關之後，每多 100 關，怪物上限 ×2（上限 ×4）
+       讓「關卡數字」重新等於難度，不然第 800 關和第 104 關一樣軟 */
+    widenFrom: 100,
+    widenPerStage: 150,
+    widenMax: 1.4,
   };
   const AUTO_HUNT_DELAY = 2500;            // 卡等時幾毫秒自動去獵靈
   const PULL_COST_TICKET = 1;
@@ -181,9 +186,14 @@
     startLevelMax: 60,
   };
 
-  function rebirthGain(bestStage, level) {
+  /* 轉生收益只看「本輪推進深度」，不看歷史最高：
+     以前用 bestStage，因為它不會降 → 每次轉生固定 +30，等於按鈕產幣。
+     現在必須刷新紀錄（bestStage > lastRebirthBest）才能轉，deep 才是獎勵來源。 */
+  function rebirthGain(bestStage, level, lastBest) {
     if (!bestStage || bestStage < REBIRTH.minStage) return 0;
-    return Math.floor(bestStage / 5) + Math.floor((level || 1) / 10);
+    const deep = Math.max(0, bestStage - (lastBest || 0));
+    if (deep < 1) return 0;                       // 沒刷新紀錄不給轉
+    return Math.floor(deep / 5) + Math.floor((level || 1) / 20);
   }
 
   /* ---------- 兌換碼 ---------- */

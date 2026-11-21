@@ -400,15 +400,16 @@
       <h3><span>🌀 ${T('轉生')} · ${T('命印')} <span class="rb-mark">${info.marks}</span></span>
           <span class="hint">${T(`第 ${info.rebirths + 1} 次`)}</span></h3>
       <div class="rb-line">${T(`歷史最高：第 ${info.bestStage} 關（需 ${info.minStage} 關）`)}</div>
+      <div class="rb-line">${T(`本輪推進：+${info.deep} 關（上次轉生在 第 ${info.lastBest || info.minStage} 關）`)}</div>
       <div class="rb-line">${T(`目前加成：全屬性 +${Math.round(pm.atk * 100 * info.marks)}% · 收益 +${Math.round(pm.income * 100 * info.marks)}%`)}</div>
       <div class="rb-line">${T('這次轉生可得：')}<b style="color:var(--gold)">${T(`+${info.gain} 命印`)}</b>${T('（每點全屬性 +6%、收益 +4%）')}</div>
       <div class="rb-line" style="opacity:.75">${T('轉生會重置等級／關卡／靈幣；靈印、星級、靈骨、靈環、命印都會保留。')}</div>
       <button id="btnRebirth" class="wide-btn ${info.can ? '' : ''}" ${info.can ? '' : 'disabled'}>
-        ${info.can ? T(`轉生（+${info.gain} 命印）`) : T(`需歷史最高 ${info.minStage} 關`)}
+        ${info.can ? T(`轉生（+${info.gain} 命印）`) : T(`要推進到 第 ${info.needStage} 關才能轉生`)}
       </button>`;
     const btn = $('#btnRebirth');
     if (btn) btn.addEventListener('click', () => {
-      if (!info.can) return toast(T(`歷史最高關卡需達 ${info.minStage} 關`));
+      if (!info.can) return toast(T(`要推進到 第 ${info.needStage} 關才能轉生（本輪 +${info.deep} 關）`));
       if (btn.dataset.armed === '1') { doRebirthNow(); return; }
       btn.dataset.armed = '1';
       btn.classList.add('armed');

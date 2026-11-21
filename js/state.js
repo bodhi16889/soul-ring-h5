@@ -24,6 +24,7 @@
       tickets: 3,
       stage: 1,
       bestStage: 1,
+      lastRebirthBest: 0,
       kills: 0,              // 本關已擊殺小怪
       slots: 1,              // 上陣人數
       souls: [starter],
@@ -71,6 +72,10 @@
     out.checkin = Object.assign({ lastDay: '', streak: 0, total: 0 }, (d && d.checkin) || {});
     out.rebirths = Math.max(0, out.rebirths | 0);
     out.marks = Math.max(0, out.marks | 0);
+    // 舊存檔：把「上次轉生時的最高關卡」補成現在的 bestStage，
+    // 避免一升級就直接白拿一大筆（要再推更深才有）
+    out.lastRebirthBest = typeof d.lastRebirthBest === 'number'
+      ? d.lastRebirthBest : Math.max(0, out.bestStage | 0);
     out.settings = Object.assign({ autoBoss: true, autoHunt: true, autoRing: true, autoMerge: true }, (d && d.settings) || {});
     out.slots = Math.max(1, Math.min(5, out.slots | 0 || 1));
     out.team = out.team.filter((id) => out.souls.some((s) => s.id === id)).slice(0, out.slots);
@@ -531,10 +536,15 @@
 
   /* ---------- 轉生 ---------- */
   function rebirthInfo() {
-    const gain = CFG.rebirthGain(S.bestStage, S.level);
+    const lastBest = S.lastRebirthBest || 0;
+    const deep = Math.max(0, (S.bestStage || 0) - lastBest);
+    const gain = CFG.rebirthGain(S.bestStage, S.level, lastBest);
     return {
       gain,
-      can: gain > 0,
+      deep,
+      lastBest,
+      needStage: Math.max(CFG.REBIRTH.minStage, lastBest + 1),
+      can: gain > 0 && S.bestStage > lastBest,
       marks: S.marks,
       rebirths: S.rebirths,
       bestStage: S.bestStage,
@@ -549,6 +559,7 @@
     if (!info.can) return { ok: false, msg: T(`歷史最高關卡需達 ${CFG.REBIRTH.minStage} 關`) };
     S.marks += info.gain;
     S.rebirths += 1;
+    S.lastRebirthBest = S.bestStage;   // 本輪紀錄歸零，下次要再推更深
     // 每次轉生後起始等級提高，重跑不必一直從 1 級爬
     const startLv = Math.min(CFG.REBIRTH.startLevelMax || 1,
                              1 + (CFG.REBIRTH.startLevelPerRebirth || 0) * S.rebirths);
@@ -658,7 +669,7 @@
     load, save, reset,
     addExp, addCoins, spendCoins, addDiamonds, spendDiamonds,
     soulStats, teamSouls, teamStats, power,
-    totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth,
+    totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth, migrate,
     trueBodyOf, resonanceOf, ringSkillOf, hasFreeRingSlot,
     mergeInfo, mergeRings, mergeAll, mergeLowTiers,
     newRing, ringSlotsOf, ringBonus, equipRing, unequipRing, autoEquipBestRing, freeRings,
