@@ -40,7 +40,11 @@
     if (ci.canCheck) setTimeout(() => toast(T('今日簽到可領取 🎁')), 1400);
     if (res.corrupted) toast(T('存檔損毀，已建立新檔'));
 
-    setInterval(() => { State.save(); renderTop(); }, 5000);
+    setInterval(() => {
+      State.save();
+      renderTop();
+      State.dailyAdd('idle', 5 / 60);      // 掛機分鐘（每日任務）
+    }, 5000);
     setInterval(() => { if (tab === 'hunt') renderHunt(); }, 1000);
     window.addEventListener('beforeunload', () => State.save(true));
     document.addEventListener('visibilitychange', () => { if (document.hidden) State.save(true); });
@@ -193,6 +197,7 @@
       const info = State.starUpInfo(soul);
       const tb = State.trueBodyOf(soul);
       const reso = State.resonanceOf(soul);
+      const lvInfo = State.soulLevelInfo(soul.id);
       const rings = soul.rings.map((uid) => {
         const r = s.ringBag.find((x) => x.uid === uid);
         const t = r ? CFG.TIER_BY_KEY[r.tier] : null;
@@ -229,6 +234,10 @@
             ${info.maxed || !info.canAfford ? 'disabled' : ''}>
             ${info.maxed ? T('★5 滿星') : T(`升星（${info.bones} 靈骨・${fmt(info.coins)}）`)}
           </button>
+          <button class="mini-btn ${lvInfo.can ? 'primary' : ''}" data-act="lvup" data-id="${soul.id}"
+            ${lvInfo.can ? '' : 'disabled'}>
+            ${lvInfo.maxed ? T(`Lv.${lvInfo.level} 已滿`) : T(`升級 Lv.${lvInfo.level}（${fmt(lvInfo.cost)}）`)}
+          </button>
           <button class="mini-btn ghost" data-act="bone" data-id="${soul.id}">${bone ? T('換靈骨') : T('裝靈骨')}</button>
         </div>
       </div>`);
@@ -254,6 +263,15 @@
         Battle.refreshTeam();
         renderAll();
         toast(T(`升星成功 → ★${r.star}（消耗 ${r.eaten} 塊靈骨）`));
+      });
+    });
+    $$('#soulList [data-act="lvup"]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = State.soulLevelUp(b.dataset.id);
+        if (!r.ok) return toast(r.msg);
+        State.save(true);
+        Battle.refreshTeam();
+        renderAll();
       });
     });
     $$('#soulList [data-act="bone"]').forEach((b) => {
@@ -704,8 +722,34 @@
     return info;
   }
 
+  function renderDaily() {
+    const box = $('#dailyBox');
+    if (!box) return;
+    const tasks = State.dailyInfo();
+    const rows = tasks.map((t) => `<div class="merge-row">
+        <span class="mr-name">${T(t.label)}</span>
+        <span class="mr-count">${Math.min(t.need, t.done)} / ${t.need}</span>
+        <button class="mini-btn ${t.can ? 'primary' : ''}" data-daily="${t.id}"
+          ${t.can ? '' : 'disabled'}>
+          ${t.claimed ? T('已領') : T(`領 ${t.reward.diamonds} 💎`)}
+        </button>
+      </div>`).join('');
+    box.innerHTML = `<div class="merge-head"><b>${T('每日任務')}</b>
+        <span class="hint">${T('每天 0 點重置')}</span></div>${rows}`;
+    $$('#dailyBox [data-daily]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = State.dailyClaim(b.dataset.daily);
+        if (!r.ok) return toast(r.msg);
+        State.save(true);
+        renderAll();
+        toast(T(`任務完成：+${r.reward.diamonds} 💎`));
+      });
+    });
+  }
+
   function renderGacha() {
     const s = State.data;
+    renderDaily();
     $('#ticketInfo').textContent = T(`覺醒券 ${s.tickets} · 鑽石 ${fmt(s.diamonds)}`);
     $('#btnPull1').textContent = T(`覺醒一次（${CFG.PULL_COST_TICKET} 券 / ${CFG.PULL_COST_DIAMOND} 💎）`);
     $('#btnPull10').textContent = T(`十連覺醒（${CFG.PULL10_COST_TICKET} 券 / ${CFG.PULL10_COST_DIAMOND} 💎）`);

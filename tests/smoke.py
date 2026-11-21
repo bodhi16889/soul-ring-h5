@@ -997,6 +997,70 @@ def main() -> int:
         check("防禦改成百分比減傷（上限 35%）：def 5,000,000 讓傷害至少降 30%",
               p0["mit0"] == 0 and p0["mitHuge"] == 0.35 and p0["ratio"] >= 1.4, str(p0))
 
+        # ---------- 11l. P1：戰力換速度 / 靈印獨立等級 / 每日任務 ----------
+        speed = page.evaluate("""(() => {
+          const St=__game.State, B=__game.Battle.state, s=St.data;
+          const ids=['haotian','fox','bear','turtle','tower'];
+          const probe=(marks)=>{
+            s.level=100; s.slots=5; s.marks=marks; s.stage=176; s.bestStage=176; s.bossFails={};
+            s.souls=ids.map(id=>({id, star:5, level:100, rings:[], bone:null}));
+            s.team=ids.slice(); s.ringBag=[]; s.bones=[];
+            ids.forEach(id=>{ for(let k=0;k<9;k++){ const r=St.newRing('red','water'); s.ringBag.push(r); St.equipRing(id,r.uid);} });
+            __game.Battle.init();
+            B.mode='farm'; B.pendingBoss=true; __game.Battle.challengeBoss();
+            return B.lastSpeed ? {...B.lastSpeed} : null;
+          };
+          const weak = probe(0), strong = probe(30000);
+          s.marks=0;
+          return {weak, strong};
+        })()""")
+        check("戰力換速度：遠超該關所需時戰鬥秒數降到 60%（弱者維持基準）",
+              speed["strong"]["factor"] <= 0.61 and speed["strong"]["secs"] < speed["weak"]["secs"],
+              str(speed))
+
+        lvup = page.evaluate("""(() => {
+          const St=__game.State, s=St.data;
+          s.level=100; s.coins=1e9; s.souls[0].level=100;
+          const cap = St.soulLevelCap();
+          const cost100 = CFG.soulLevelCost(100);
+          const before = s.coins;
+          const r1 = St.soulLevelUp(s.souls[0].id);
+          const c1 = CFG.soulLevelCost(101);
+          s.souls[0].level = cap;
+          const r2 = St.soulLevelUp(s.souls[0].id);
+          s.coins = 1;
+          s.souls[0].level = 110;
+          const r3 = St.soulLevelUp(s.souls[0].id);
+          return {cap, cost100, r1:{ok:r1.ok, lv:r1.level}, spent: before - s.coins,
+                  atCap: r2.ok, poor: r3.ok};
+        })()""")
+        check("靈印獨立等級：可升到玩家等級 +20，費用遞增，錢不夠/到頂會擋",
+              lvup["cap"] == 120 and lvup["r1"]["ok"] is True and lvup["r1"]["lv"] == 101
+              and lvup["atCap"] is False and lvup["poor"] is False and lvup["cost100"] > 1000000,
+              str(lvup))
+
+        daily = page.evaluate("""(() => {
+          const St=__game.State, s=St.data;
+          s.daily = { day: '', idle: 0, hunt: 0, merge: 0, claimed: [] };
+          __game.renderAll();
+          const t0 = St.dailyInfo();
+          St.dailyAdd('hunt', 3); St.dailyAdd('merge', 3); St.dailyAdd('idle', 10);
+          const t1 = St.dailyInfo();
+          const d0 = s.diamonds;
+          const c1 = St.dailyClaim('hunt');
+          const c2 = St.dailyClaim('hunt');
+          const gain = s.diamonds - d0;
+          // 換日重置
+          s.daily.day = '2000-01-01';
+          const after = St.dailyInfo();
+          return {n: t0.length, before: t1.map(x=>x.can), claimOk: c1.ok, again: c2.ok,
+                  gain, resetCount: after.filter(x=>x.done===0).length};
+        })()""")
+        check("每日任務：3 條、達標可領一次、換日自動重置",
+              daily["n"] == 3 and all(daily["before"]) and daily["claimOk"] is True
+              and daily["again"] is False and daily["gain"] == 60 and daily["resetCount"] == 3,
+              str(daily))
+
         # ---------- 12. 版面 ----------
         page.wait_for_selector("#stage", state="visible", timeout=5000)
         layout = page.evaluate("""({

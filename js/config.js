@@ -58,7 +58,7 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.6.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.7.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -80,6 +80,9 @@
     widenFrom: 100,
     widenPerStage: 150,
     widenMax: 1.4,
+    /* 戰力換速度：實際 DPS 超過該關所需 DPS 時，戰鬥時間可縮到 60%
+       （變強 1.67 倍以內換得到速度；再往上只影響能不能打更深的關） */
+    speedFloor: 0.6,
   };
   const AUTO_HUNT_DELAY = 2500;            // 卡等時幾毫秒自動去獵靈
   const PULL_COST_TICKET = 1;
@@ -184,6 +187,19 @@
   function starUpBones(star) { return Math.max(1, star - 2); }            // 3→4:1、4→5:2
   function starUpCoin(star) { return star <= 3 ? 1200 : 6000; }
 
+  /* ---------- 靈印獨立等級（靈幣升級，可超越玩家等級 10 級）---------- */
+  const SOUL_LV = { maxAhead: 20, max: 150, base: 300, pow: 1.9 };
+  function soulLevelCost(level) {
+    return Math.round(SOUL_LV.base * Math.pow(Math.max(1, level), SOUL_LV.pow));
+  }
+
+  /* ---------- 每日任務（每天 3 條，領鑽石）---------- */
+  const DAILY = [
+    { id: 'idle',  need: 10, label: '掛機 10 分鐘',  unit: '分', reward: { diamonds: 60 } },
+    { id: 'hunt',  need: 3,  label: '獵靈 3 次',     unit: '次', reward: { diamonds: 60 } },
+    { id: 'merge', need: 3,  label: '合成靈環 3 次', unit: '次', reward: { diamonds: 80 } },
+  ];
+
   /* ---------- 每日簽到（7 天一輪，連續簽到 streak 會保留）---------- */
   const CHECKIN = [
     { day: 1, kind: 'coins',    amount: 3000,  label: '靈幣 3000',        emoji: '🪙' },
@@ -238,6 +254,6 @@
     PULL_COST_TICKET, PULL_COST_DIAMOND, PULL10_COST_TICKET, PULL10_COST_DIAMOND,
     expNeed, levelCap, ringSlots, enemyStats, killReward, offlinePerMinute,
     PULL_POOL, PULL_BONES, BONES, BONE_BY_ID, BONE_AURA, bonePullWeight,
-    starUpBones, starUpCoin, CHECKIN, CODES, COIN_PULL, coinPullCost, COMBAT,
+    starUpBones, starUpCoin, CHECKIN, CODES, COIN_PULL, coinPullCost, COMBAT, SOUL_LV, soulLevelCost, DAILY,
   };
 })(window);

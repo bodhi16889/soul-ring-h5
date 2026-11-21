@@ -157,7 +157,11 @@
     '兌換成功：': 'Redeemed: ', '靈師': 'Spirit Master', '屬性共鳴': 'element resonance', '靈技': 'Skill', '靈技：': 'Skill: ', '無靈環': 'No rings',
     '還沒有靈骨。到「覺醒」抽卡有機會抽到靈骨。': 'No soul bones yet. Pull on the Awaken tab for a chance.',
     '還沒有靈環。到「獵靈」擊敗靈獸，就能吸收第一枚靈環。': 'No rings yet. Beat a spirit beast in Hunt to absorb your first ring.',
-    '需': 'Needs ', '爆擊': 'Crit',
+    '需': 'Needs ', '每日任務': 'Daily tasks', '每天 0 點重置': 'Resets at midnight',
+    '已領': 'Claimed', '沒有這個任務': 'No such task', '今天已領過': 'Already claimed today',
+    '任務還沒完成': 'Task not finished', '掛機 10 分鐘': 'Idle for 10 minutes',
+    '獵靈 3 次': 'Hunt 3 times', '合成靈環 3 次': 'Fuse rings 3 times', '已達等級上限（玩家等級 +20）': 'Level cap reached (player Lv +20)',
+    '沒有這個靈印': 'No such spirit', '爆擊': 'Crit',
     '加成各自乘算：靈環（加法）→ 靈骨 → 命印 → 真身；戰力停住通常代表該轉生了':
       'Bonuses multiply separately: rings (additive) → bones → marks → true body. Marks give crit chance; speed saturates around 617.', '靈幣抽靈骨': 'Spend coins on bones', '抽 1 次': 'Pull ×1',
     '連抽 5 次（逐次計價）': 'Pull ×5 (each priced)', '抽': 'Pull',
@@ -179,6 +183,10 @@
 
   /* ---------- 動態字串規則（順序敏感，長的先） ---------- */
   var AR = [
+    [/^領 (\d+) 💎$/, 'Claim $1 💎'],
+    [/^任務完成：\+(\d+) 💎$/, 'Task complete: +$1 💎'],
+    [/^升級 Lv\.(\d+)（(.+)）$/, 'Level up Lv.$1 ($2)'],
+    [/^Lv\.(\d+) 已滿$/, 'Lv.$1 maxed'],
     [/^已抽 (\d+) 次 · 每次必得 1 塊$/, 'Pulled $1 times · 1 bone each'],
     [/^抽到 (\d+) 塊：(.+)$/, 'Got $1 bone(s): $2'],
     [/^本輪推進：\+(\d+) 關（上次轉生在 第 (\d+) 關）$/, 'This run: +$1 stages (last rebirth at stage $2)'],

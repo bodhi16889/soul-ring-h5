@@ -32,6 +32,7 @@
       ringBag: [],           // 未裝備的靈環
       bones: [],             // [{uid, id}] 未裝備的靈骨
       bonePulls: 0,          // 靈幣抽靈骨次數（成本會遞增）
+      daily: { day: '', idle: 0, hunt: 0, merge: 0, claimed: [] },   // 每日任務進度
       cd: {},                // 靈獸 id -> 下次可獵時間
       codes: [],
       checkin: { lastDay: '', streak: 0, total: 0 },   // 每日簽到
@@ -265,6 +266,7 @@
     const nextTier = CFG.RING_ORDER[CFG.RING_ORDER.indexOf(tier) + 1];
     const ring = newRing(nextTier, element);
     S.ringBag.push(ring);
+    dailyAdd('merge', 1);
     return { ok: true, ring, nextTier, element };
   }
   /* 一鍵合成：由低到高，合到不能再合 */
@@ -513,6 +515,66 @@
     return { ok: true, in: true };
   }
 
+  /* ---------- 每日任務 ---------- */
+  function todayKey(now) {
+    const d = now ? new Date(now) : new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function dailyReset() {
+    const key = todayKey();
+    if (!S.daily || S.daily.day !== key) {
+      S.daily = { day: key, idle: 0, hunt: 0, merge: 0, claimed: [] };
+      return true;
+    }
+    return false;
+  }
+  function dailyInfo() {
+    dailyReset();
+    return CFG.DAILY.map((t) => {
+      const done = Math.min(t.need, S.daily[t.id] || 0);
+      const claimed = (S.daily.claimed || []).indexOf(t.id) >= 0;
+      return { id: t.id, label: t.label, need: t.need, unit: t.unit,
+               done, reward: t.reward, claimed, can: done >= t.need && !claimed };
+    });
+  }
+  function dailyAdd(kind, amount) {
+    dailyReset();
+    if (!(kind in S.daily)) return;
+    S.daily[kind] = Math.min(9999, (S.daily[kind] || 0) + amount);
+  }
+  function dailyClaim(id) {
+    const info = dailyInfo().find((x) => x.id === id);
+    if (!info) return { ok: false, msg: T('沒有這個任務') };
+    if (info.claimed) return { ok: false, msg: T('今天已領過') };
+    if (!info.can) return { ok: false, msg: T('任務還沒完成') };
+    S.daily.claimed.push(id);
+    S.diamonds += info.reward.diamonds || 0;
+    return { ok: true, reward: info.reward };
+  }
+
+  /* ---------- 靈印獨立等級（靈幣升級，可超越玩家等級 N 級）---------- */
+  function soulLevelCap() {
+    return Math.min(CFG.SOUL_LV.max, (S.level || 1) + CFG.SOUL_LV.maxAhead);
+  }
+  function soulLevelInfo(soulId) {
+    const soul = S.souls.find((x) => x.id === soulId);
+    if (!soul) return null;
+    const lv = soul.level || 1;
+    const cap = soulLevelCap();
+    const cost = CFG.soulLevelCost(lv);
+    return { level: lv, cap, cost, can: lv < cap && S.coins >= cost, maxed: lv >= cap };
+  }
+  function soulLevelUp(soulId) {
+    const info = soulLevelInfo(soulId);
+    if (!info) return { ok: false, msg: T('沒有這個靈印') };
+    if (info.maxed) return { ok: false, msg: T('已達等級上限（玩家等級 +20）') };
+    if (S.coins < info.cost) return { ok: false, msg: T('靈幣不足'), need: info.cost };
+    S.coins -= info.cost;
+    const soul = S.souls.find((x) => x.id === soulId);
+    soul.level = (soul.level || 1) + 1;
+    return { ok: true, level: soul.level, cost: info.cost };
+  }
+
   /* ---------- 靈幣抽靈骨 ---------- */
   function coinBonePull(times) {
     const n = Math.max(1, times | 0 || 1);
@@ -703,7 +765,7 @@
     load, save, reset,
     addExp, addCoins, spendCoins, addDiamonds, spendDiamonds,
     soulStats, teamSouls, teamStats, power,
-    totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth, migrate, coinBonePull, critChance,
+    totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth, migrate, coinBonePull, critChance, soulLevelUp, soulLevelInfo, soulLevelCap, dailyInfo, dailyAdd, dailyClaim, todayKey,
     trueBodyOf, resonanceOf, ringSkillOf, hasFreeRingSlot,
     mergeInfo, mergeRings, mergeAll, mergeLowTiers,
     newRing, ringSlotsOf, ringBonus, equipRing, unequipRing, autoEquipBestRing, freeRings,

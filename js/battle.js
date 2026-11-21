@@ -91,7 +91,13 @@
     const defMit = 1 - mitigation(defCap, State.data.stage);
     const dps = units.reduce((a, u) => a + u.atk * actsPerSec(u.spd) * 0.85 * defMit, 0);
     const effDps = Math.max(1, dps);
-    let hpCap = effDps * (isBoss ? band.bossSec : band.waveSec);
+    const baseSec = isBoss ? band.bossSec : band.waveSec;
+    // 該關「原始血量 ÷ 基準秒數」= 打穿它所需的 DPS；超過就是變強，可以縮短戰鬥時間
+    const needDps = Math.max(1, st.hp / baseSec);
+    const speedFactor = Math.max(band.speedFloor, Math.min(1, needDps / effDps));
+    let hpCap = effDps * baseSec * speedFactor;
+    B.lastSpeed = { needDps: Math.round(needDps), dps: Math.round(effDps),
+                    factor: +speedFactor.toFixed(2), secs: +(baseSec * speedFactor).toFixed(1) };
     if (isBoss) {
       const fails = Math.min(band.bossFailMax, (State.data.bossFails || {})[State.data.stage] || 0);
       hpCap *= Math.pow(band.bossFailStep, fails);   // 連續失敗會削弱 BOSS，保證推得過去
@@ -433,6 +439,7 @@
       s.ringBag.push(ring);
       s.cd[beast.id] = Date.now() + beast.cdSec * 1000;
       s.stats.hunts++;
+      State.dailyAdd('hunt', 1);
       emit('huntWin', { beast, ring });
       const auto = State.autoEquipBestRing();
       if (auto) emit('autoRing', { soul: auto.soul, ring: auto.ring });
