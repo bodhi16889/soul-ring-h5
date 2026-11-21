@@ -1,5 +1,5 @@
 /* ==========================================================================
-   魂環覺醒：武魂放置錄 — 直式 9:16 版面（最大 480px 置中）
+   靈環覺醒：靈印放置錄 — 直式 9:16 版面（最大 480px 置中）
    ========================================================================== */
 :root {
   --bg: #0b0714;
@@ -178,7 +178,7 @@ body {
   100% { transform: translateX(0); }
 }
 
-/* 魂環升起的經典光圈 */
+/* 靈環升起的經典光圈 */
 .ring-fx {
   position: absolute; left: 50%; bottom: 52px;
   width: 10px; height: 10px; transform: translateX(-50%);
@@ -300,7 +300,7 @@ body {
 .wide-btn:disabled { opacity: .5; }
 .wide-btn:active { transform: scale(.99); }
 
-/* 魂環顏色 */
+/* 靈環顏色 */
 .ring-dot { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; box-shadow: 0 0 8px currentColor; }
 .t-white { color: var(--white); background: var(--white); }
 .t-yellow { color: var(--yellow); background: var(--yellow); }
@@ -308,7 +308,7 @@ body {
 .t-black { color: #b9b9c8; background: #3a3a46; box-shadow: 0 0 8px rgba(160,160,200,.6); }
 .t-red { color: var(--red); background: var(--red); }
 
-/* 魂骨顏色 */
+/* 靈骨顏色 */
 .bone { display: inline-block; width: 10px; height: 14px; border-radius: 3px; background: currentColor; box-shadow: 0 0 8px currentColor; }
 .bone-cyan { color: #5ad8ff; background: #5ad8ff; }
 .bone-red { color: #ff6b6b; background: #ff6b6b; }
@@ -316,7 +316,7 @@ body {
 .bone-blue { color: #6ea8ff; background: #6ea8ff; }
 .bone-gold { color: #ffd166; background: #ffd166; }
 
-/* 魂環合成 */
+/* 靈環合成 */
 .merge-box { border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin-bottom: 10px;
   background: linear-gradient(180deg, rgba(160, 107, 255, .10), rgba(0, 0, 0, .18)); }
 .merge-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
@@ -451,3 +451,26 @@ body {
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+
+/* ===== 載入畫面（GamePix 必要） ===== */
+.loading {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 18px; background: radial-gradient(circle at 50% 40%, #2a1046 0%, #0b0616 70%);
+  transition: opacity .35s ease, visibility .35s ease;
+}
+.loading.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+.loading h1 {
+  font-size: 22px; letter-spacing: .18em; font-weight: 800;
+  color: #fff; text-shadow: 0 0 18px rgba(180, 120, 255, .55);
+}
+.loading-ring {
+  width: 64px; height: 64px; border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, .12);
+  border-top-color: #ffd166; border-right-color: #b06bff;
+  animation: loadspin 1s linear infinite;
+}
+@keyframes loadspin { to { transform: rotate(360deg); } }
+.loading-bar { width: 160px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.12); overflow: hidden; }
+.loading-bar i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, #ffd166, #b06bff); transition: width .25s ease; }

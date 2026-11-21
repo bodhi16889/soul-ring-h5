@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""魂環覺醒 H5 — 端到端驗證（Playwright）。
+"""靈環覺醒 H5 — 端到端驗證（Playwright）。
 
-驗的是「真的能玩」：自動戰鬥會掉血、升級、獵魂掉魂環、魂環提高等級上限、
+驗的是「真的能玩」：自動戰鬥會掉血、升級、獵靈掉靈環、靈環提高等級上限、
 BOSS 推進關卡、抽卡與兌換碼、存檔碼往返、離線收益、直式版面。
 
     /usr/bin/python3 tests/smoke.py [--headed]
@@ -51,7 +51,7 @@ def main() -> int:
 
     ART.mkdir(exist_ok=True)
     srv = serve(ROOT, 8771)
-    url = "http://127.0.0.1:8771/index.html"
+    url = "http://127.0.0.1:8771/index.html?lang=zh"   # 既有斷言用中文；英文模式另有專段
 
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=not args.headed,
@@ -68,7 +68,7 @@ def main() -> int:
         page.evaluate("try { localStorage.clear(); } catch (e) {}")
         page.reload(wait_until="load")
         page.wait_for_function("window.__game && window.__game.ready", timeout=20000)
-        # 手動斷言期間關掉自動節奏，避免背景自己切 BOSS／獵魂
+        # 手動斷言期間關掉自動節奏，避免背景自己切 BOSS／獵靈
         page.evaluate("__game.State.data.settings = {autoBoss:false, autoHunt:false};"
                       " __game.State.save(true)")
         time.sleep(0.5)
@@ -86,8 +86,8 @@ def main() -> int:
           stage: __game.State.data.stage,
         })""")
         check("五個頁籤與五個視圖都在", base["tabs"] == 5 and base["views"] == 5, str(base))
-        check("標題正確、初始 1 武魂上陣、1 級、等級上限 100",
-              base["title"] == "魂環覺醒：武魂放置錄" and base["souls"] == 1
+        check("標題固定為 Spirit Ring Idle（中英一致）、初始 1 靈印上陣、1 級、等級上限 100",
+              base["title"] == "Spirit Ring Idle" and base["souls"] == 1
               and base["team"] == 1 and base["level"] == 1 and base["cap"] == 100, str(base))
         check("開局有戰力", base["power"] > 0, f"power={base['power']}")
         check("沒有 console / page error", not errors, str(errors[:3]))
@@ -111,7 +111,7 @@ def main() -> int:
         progressed = (after["kills"] > before["kills"]) or (after["hp"] < before["hp"]) or (after["hp"] == after["maxHp"] and after["kills"] > 0)
         check("自動戰鬥：不打也會掉血／擊殺", progressed,
               f"hp {before['hp']} -> {after['hp']}, kills {before['kills']} -> {after['kills']}")
-        check("擊殺會給魂幣與經驗", after["coins"] > before["coins"] and (after["exp"] > 0 or after["level"] > 1),
+        check("擊殺會給靈幣與經驗", after["coins"] > before["coins"] and (after["exp"] > 0 or after["level"] > 1),
               f"coins {before['coins']}->{after['coins']}, exp={after['exp']}, lv={after['level']}")
 
         # ---------- 3. 升級 ----------
@@ -120,20 +120,20 @@ def main() -> int:
           const r = __game.State.addExp(s, 4000);
           return {level: s.level, ups: r.levelUps, capped: r.capped, cap: __game.State.levelCap()};
         })()""")
-        check("經驗足夠會連續升級，上限固定 100（魂環不再卡等）",
+        check("經驗足夠會連續升級，上限固定 100（靈環不再卡等）",
               lv["level"] >= 15 and lv["ups"] >= 14 and lv["capped"] is False and lv["cap"] == 100,
               str(lv))
 
-        # ---------- 4. 獵魂 → 魂環 ----------
+        # ---------- 4. 獵靈 → 靈環 ----------
         page.evaluate("__game.switchTab('hunt')")
         time.sleep(0.2)
         hunt_ok = page.evaluate("""(() => {
           const r = __game.Battle.hunt('baboon');
           return {ok: r.ok, msg: r.msg || '', mode: __game.Battle.state.mode};
         })()""")
-        check("獵魂：可以進入十年魂獸（風狒狒）", hunt_ok["ok"] is True and hunt_ok["mode"] == "hunt", str(hunt_ok))
+        check("獵靈：可以進入十年靈獸（嘯風猿）", hunt_ok["ok"] is True and hunt_ok["mode"] == "hunt", str(hunt_ok))
 
-        # 打快一點：把武魂攻擊拉高，避免測試等太久
+        # 打快一點：把靈印攻擊拉高，避免測試等太久
         page.evaluate("__game.Battle.state.units.forEach(u => { u.atk = 400; u.spd = 200; })")
         got_ring = False
         try:
@@ -147,11 +147,11 @@ def main() -> int:
           equipped: __game.State.data.souls.reduce((a, x) => a + x.rings.length, 0),
           mode: __game.Battle.state.mode,
         })""")
-        check("擊敗魂獸會掉落魂環（自動裝備或進背包）、並回到掛機",
+        check("擊敗靈獸會掉落靈環（自動裝備或進背包）、並回到掛機",
               got_ring and ring["mode"] == "farm" and ring["all"] >= 1
               and (ring["bag"] + ring["equipped"]) >= 1, str(ring))
 
-        # ---------- 5. 裝備魂環 → 上限提升 ----------
+        # ---------- 5. 裝備靈環 → 上限提升 ----------
         equip = page.evaluate("""(() => {
           const s = __game.State.data;
           // 先全部卸下，確認「裝備後才 +10」
@@ -162,7 +162,7 @@ def main() -> int:
           return {ok: r.ok, msg: r.msg || '', before, after: __game.State.levelCap(),
                   equipped: s.souls[0].rings.length};
         })()""")
-        check("裝備魂環：等級上限維持 100，改由環槽（每 10 級 1 格）限制",
+        check("裝備靈環：等級上限維持 100，改由環槽（每 10 級 1 格）限制",
               equip["ok"] is True and equip["after"] == 100
               and equip["equipped"] == 1, str(equip))
 
@@ -191,7 +191,7 @@ def main() -> int:
           for (let i = 0; i < 24; i++) { __game.Battle.spawnWave('farm'); sizes.push(B.enemies.length); }
           return {sizes, max: Math.max(...sizes), min: Math.min(...sizes)};
         })()""")
-        check("多波：高等關卡會出 1–3 隻魂獸",
+        check("多波：高等關卡會出 1–3 隻靈獸",
               wave["max"] >= 2 and wave["min"] >= 1, str(wave))
 
         aoe = page.evaluate("""(() => {
@@ -209,7 +209,7 @@ def main() -> int:
           const after = B.enemies.map((e) => e.hp);
           return {before, after, hits: after.filter((hp, i) => hp < before[i]).length};
         })()""")
-        check("群攻（強攻系魂技）會同時打到 3 隻", aoe["hits"] == 3, str(aoe))
+        check("群攻（強攻系靈技）會同時打到 3 隻", aoe["hits"] == 3, str(aoe))
 
         respawn = page.evaluate("""(() => {
           const B = __game.Battle.state;
@@ -256,11 +256,11 @@ def main() -> int:
           const r = __game.State.pullOnce(true);
           return {ok: r.ok, result: r.result, before, after: {tickets: s.tickets, souls: s.souls.length}};
         })()""")
-        check("覺醒抽卡：扣券並產出武魂或魂骨",
+        check("覺醒抽卡：扣券並產出靈印或靈骨",
               pull["ok"] is True and pull["after"]["tickets"] == pull["before"]["tickets"] - 1
               and pull["result"]["kind"] in ("new", "star", "dup", "bone"), str(pull))
 
-        # ---------- 7b. 魂骨：真實加成與升星 ----------
+        # ---------- 7b. 靈骨：真實加成與升星 ----------
         bone = page.evaluate("""(() => {
           const s = __game.State.data;
           s.bones = [{uid:'t1', id:'giant'}, {uid:'t2', id:'life'}, {uid:'t3', id:'wind'}];
@@ -273,7 +273,7 @@ def main() -> int:
           return {eq, before, after, free: __game.State.freeBones().length,
                   equipped: __game.State.equippedBones()};
         })()""")
-        check("魂骨可裝備，並真的提升武魂攻擊（巨力 +14%）",
+        check("靈骨可裝備，並真的提升靈印攻擊（巨力 +14%）",
               bone["eq"]["ok"] is True and bone["after"]["atk"] > bone["before"]["atk"]
               and abs(bone["after"]["atk"] / bone["before"]["atk"] - 1.14) < 0.05
               and bone["free"] == 2 and bone["equipped"] == 1,
@@ -291,7 +291,7 @@ def main() -> int:
           return {beforeHp: before.hp, afterHp: after.hp,
                   hostHp: __game.State.soulStats(s.souls[0]).hp};
         })()""")
-        check("魂骨光環：同隊其他武魂吃到 30% 加成（18% × 30% ≈ +5.4% 生命）",
+        check("靈骨光環：同隊其他靈印吃到 30% 加成（18% × 30% ≈ +5.4% 生命）",
               aura["afterHp"] > aura["beforeHp"]
               and abs(aura["afterHp"] / aura["beforeHp"] - 1.054) < 0.02, str(aura))
 
@@ -309,7 +309,7 @@ def main() -> int:
           const r2 = __game.State.starUp(s.souls[0].id);
           return {info, r, after, atk3, atk4, r2};
         })()""")
-        check("武魂升星：吃掉 1 塊魂骨＋1200 魂幣，星級與屬性提升",
+        check("靈印升星：吃掉 1 塊靈骨＋1200 靈幣，星級與屬性提升",
               star["r"]["ok"] is True and star["after"]["star"] == 4
               and star["after"]["bones"] == 1 and star["after"]["coins"] == 100000 - 1200
               and star["atk4"] > star["atk3"], f"{star['after']} atk {star['atk3']}->{star['atk4']}")
@@ -328,7 +328,7 @@ def main() -> int:
           bones: __game.State.data.bones,
           ok: __game.State.data.bones.every(b => b.uid && b.id),
         })""")
-        check("舊存檔（魂骨存字串）會自動遷移成 {uid,id}", mig["ok"] and len(mig["bones"]) == 2, str(mig))
+        check("舊存檔（靈骨存字串）會自動遷移成 {uid,id}", mig["ok"] and len(mig["bones"]) == 2, str(mig))
 
         # ---------- 8. 兌換碼 ----------
         code1 = page.evaluate("(() => { const r = __game.State.redeem('VIP666'); return {r, diamonds: __game.State.data.diamonds, tickets: __game.State.data.tickets}; })()")
@@ -369,7 +369,7 @@ def main() -> int:
                   diamonds: s.diamonds - dia0,
                   tier: s.ringBag[s.ringBag.length - 1] && s.ringBag[s.ringBag.length - 1].tier};
         })()""")
-        check("第 7 天給大獎（萬年魂環＋券 3＋鑽石 888）",
+        check("第 7 天給大獎（黑靈環＋券 3＋鑽石 888）",
               day7["r"]["dayIndex"] == 7 and day7["rings"] == 1
               and day7["tickets"] == 3 and day7["diamonds"] == 888 and day7["tier"] == "black",
               str(day7))
@@ -424,7 +424,7 @@ def main() -> int:
           const g = __game.State.offlineGain(s);
           return {g, coins: s.coins, exp: s.exp};
         })()""")
-        check("離線 2 小時會結算魂幣與經驗", bool(off["g"]) and off["g"]["minutes"] >= 110
+        check("離線 2 小時會結算靈幣與經驗", bool(off["g"]) and off["g"]["minutes"] >= 110
               and off["coins"] > 0 and off["g"]["coins"] > 0, json.dumps(off, ensure_ascii=False)[:200])
 
         cap_off = page.evaluate("""(() => {
@@ -442,7 +442,7 @@ def main() -> int:
         kept = page.evaluate("({coins: __game.State.data.coins, souls: __game.State.data.souls.length})")
         check("重新載入後進度保留", kept["coins"] == 777777 and kept["souls"] >= 1, str(kept))
 
-        # ---------- 11b. 放置自動化：自動 BOSS／卡等自動獵魂 ----------
+        # ---------- 11b. 放置自動化：自動 BOSS／卡等自動獵靈 ----------
         auto_boss = page.evaluate("""(() => new Promise((resolve) => {
           const St = __game.State, B = __game.Battle.state;
           St.data.settings = {autoBoss: true, autoHunt: false};
@@ -473,7 +473,7 @@ def main() -> int:
             else if (Date.now() - t0 > 6000) { clearInterval(iv); resolve({ok: false, mode: B.mode}); }
           }, 100);
         }))()""")
-        check("卡等自動獵魂：等級到上限會自己進魂獸戰",
+        check("卡等自動獵靈：等級到上限會自己進靈獸戰",
               auto_hunt["ok"] is True and auto_hunt.get("ms", 9999) < 9000, str(auto_hunt))
 
         prio = page.evaluate("""(() => new Promise((resolve) => {
@@ -492,7 +492,7 @@ def main() -> int:
             else if (Date.now() - t0 > 8000) { clearInterval(iv); resolve({ok: false, mode: B.mode}); }
           }, 100);
         }))()""")
-        check("卡等時獵魂優先於打 BOSS（先拿環才有成長）", prio["ok"] is True, str(prio))
+        check("卡等時獵靈優先於打 BOSS（先拿環才有成長）", prio["ok"] is True, str(prio))
 
         page.evaluate("__game.State.data.settings = {autoBoss:false, autoHunt:false};"
                       " __game.State.save(true); __game.Battle.init()")
@@ -505,12 +505,12 @@ def main() -> int:
           expPerKill1: __game.CFG.killReward(1).exp,
           baboonHp: __game.CFG.BEAST_BY_ID.baboon.hp,
         })""")
-        check("前期節奏：Lv10 需求 < 1200 經驗、每關 8 隻、首隻魂獸 ≤ 260 血",
+        check("前期節奏：Lv10 需求 < 1200 經驗、每關 8 隻、首隻靈獸 ≤ 260 血",
               pace["expTo10"] < 1200 and pace["perStage"] == 8
               and pace["expPerKill1"] >= 10 and pace["baboonHp"] <= 260
               and 1000 <= pace["autoBossMs"] <= 3000, str(pace))
 
-        # ---------- 11d. 轉生（魂印）與無限關卡 ----------
+        # ---------- 11d. 轉生（命印）與無限關卡 ----------
         gate = page.evaluate("""(() => {
           const St = __game.State, s = St.data;
           s.bestStage = 12; s.level = 12; s.marks = 0; s.rebirths = 0;
@@ -525,7 +525,7 @@ def main() -> int:
         reb = page.evaluate("""(() => {
           const St = __game.State, s = St.data;
           s.bestStage = 30; s.level = 30; s.stage = 30; s.coins = 9999;
-          s.ringBag = [{uid:'rx', tier:'violet', name:'千年魂環', equipped:null}];
+          s.ringBag = [{uid:'rx', tier:'violet', name:'紫靈環', equipped:null}];
           s.souls[0].rings = []; s.souls[0].level = 30;
           const star0 = s.souls[0].star;
           const atk0 = St.soulStats(s.souls[0]).atk;
@@ -536,11 +536,11 @@ def main() -> int:
                   level: s.level, stage: s.stage, coins: s.coins, rings: s.ringBag.length,
                   bestStage: s.bestStage, marks: s.marks, rebirths: s.rebirths};
         })()""")
-        check("轉生：魂印增加、等級/關卡/魂幣/魂環歸零、最高關卡保留",
+        check("轉生：命印增加、等級/關卡/靈幣/靈環歸零、最高關卡保留",
               reb["r"]["ok"] is True and reb["marks"] == reb["info"]["gain"] and reb["marks"] >= 5
               and reb["level"] == 1 and reb["stage"] == 1 and reb["coins"] == 0
               and reb["rings"] == 0 and reb["bestStage"] == 30 and reb["rebirths"] == 1, str(reb))
-        check("轉生保留武魂與星級", reb["star0"] == reb["star1"], f"{reb['star0']} → {reb['star1']}")
+        check("轉生保留靈印與星級", reb["star0"] == reb["star1"], f"{reb['star0']} → {reb['star1']}")
 
         perm = page.evaluate("""(() => {
           const St = __game.State, s = St.data;
@@ -549,7 +549,7 @@ def main() -> int:
           return {marks: mk, income: St.incomeMul(), power: St.power(),
                   bonusPct: Math.round(CFG.REBIRTH.perMark.atk * 100 * mk)};
         })()""")
-        check("魂印是永久加成：收益倍率 > 1、戰力重算",
+        check("命印是永久加成：收益倍率 > 1、戰力重算",
               perm["marks"] >= 5 and perm["income"] > 1 and perm["power"] > 0
               and perm["bonusPct"] >= 30, str(perm))
 
@@ -574,10 +574,10 @@ def main() -> int:
           text: (document.getElementById('rebirthBox') || {}).textContent || '',
           marks: (document.getElementById('marks') || {}).textContent,
         })""")
-        check("轉生 UI：武魂頁有轉生卡、頂部顯示魂印", rb_ui["box"] and "魂印" in rb_ui["text"]
+        check("轉生 UI：靈印頁有轉生卡、頂部顯示命印", rb_ui["box"] and "命印" in rb_ui["text"]
               and rb_ui["marks"] not in (None, "", "0"), str(rb_ui)[:160])
 
-        # ---------- 11e. Stage 2：9 環槽 / 魂環技能 / 共鳴 / 武魂真身 ----------
+        # ---------- 11e. Stage 2：9 環槽 / 靈環技能 / 共鳴 / 靈印真身 ----------
         slots = page.evaluate("""(() => {
           const St = __game.State, s = St.data;
           const out = {};
@@ -615,7 +615,7 @@ def main() -> int:
           return {before, after, hits: after.filter((hp, i) => hp < before[i]).length,
                   ev: events[0] || null, skill: St.ringSkillOf(soul)};
         })()""")
-        check("魂環技能：千年環給群體魂技，一擊打到全部敵人",
+        check("靈環技能：千年環給群體靈技，一擊打到全部敵人",
               ring_skill["hits"] == 3 and ring_skill["ev"]["ring"] is True
               and ring_skill["skill"]["type"] == "aoe", str(ring_skill)[:200])
 
@@ -646,7 +646,7 @@ def main() -> int:
           return {mixed, same, ratio: +(same / mixed).toFixed(3),
                   reso: St.resonanceOf(s.souls[0])};
         })()""")
-        check("屬性共鳴：3 個同系魂環 → 魂技傷害 ×1.25（同年份對照）",
+        check("屬性共鳴：3 個同系靈環 → 靈技傷害 ×1.25（同年份對照）",
               reso["reso"] and reso["reso"]["count"] == 3
               and abs(reso["ratio"] - 1.25) < 0.01, str(reso))
 
@@ -660,7 +660,7 @@ def main() -> int:
             s.ringBag.push(r); St.equipRing(soul.id, r.uid);
           });
           const tb = St.trueBodyOf(soul);
-          // 用「暫時關掉真身加成」當對照組，才不會把魂環本身的 +150% 算進去
+          // 用「暫時關掉真身加成」當對照組，才不會把靈環本身的 +150% 算進去
           const saved = CFG.TRUE_BODY[0].mult;
           CFG.TRUE_BODY[0].mult = 0;
           const atk0 = St.soulStats(soul).atk;
@@ -668,11 +668,11 @@ def main() -> int:
           const atk1 = St.soulStats(soul).atk;
           return {atk0, atk1, tb, bonus: saved, ratio: +(atk1 / atk0).toFixed(3)};
         })()""")
-        check("武魂真身：3 個萬年魂環 → 全屬性 +15%（已驗加成確實生效）",
+        check("靈印真身：3 個黑靈環 → 全屬性 +15%（已驗加成確實生效）",
               body["tb"]["high"] == 3 and body["tb"]["bonus"] == 0.15
               and body["bonus"] == 0.15 and 1.12 <= body["ratio"] <= 1.20, str(body))
 
-        # ---------- 11f. 魂環合成（3 個同階 → 1 個高一階）----------
+        # ---------- 11f. 靈環合成（3 個同階 → 1 個高一階）----------
         merge1 = page.evaluate("""(() => {
           const St = __game.State, s = St.data;
           s.level = 60; s.ringBag = []; s.souls.forEach((x) => { x.rings = []; });
@@ -786,6 +786,64 @@ def main() -> int:
         dp.screenshot(path=str(ART / "soulring-desktop.png"))
         desktop.close()
 
+        # ---------- 13. 英文預設 / GamePix 合規 ----------
+        en = browser.new_context(viewport={"width": 420, "height": 900}, locale="zh-TW").new_page()
+        en_errs = []
+        en.on("pageerror", lambda e: en_errs.append(str(e)))
+        # 故意用中文系統語系開「沒有 ?lang」的網址：預設必須是英文
+        en.goto(f"http://127.0.0.1:8771/index.html?v=en{int(time.time())}", wait_until="load")
+        en.wait_for_function("window.__game && window.__game.ready", timeout=30000)
+        time.sleep(2.5)
+        lang = en.evaluate("({lang: document.documentElement.lang, title: document.title, "
+                           "tab: document.querySelector('.nav-btn b').textContent})")
+        check("預設英文（中文系統語系也一樣）、標題固定 Spirit Ring Idle",
+              lang["lang"] == "en" and lang["title"] == "Spirit Ring Idle"
+              and lang["tab"] == "Battle", str(lang))
+
+        for tab in ("battle", "souls", "rings", "hunt", "gacha"):
+            en.evaluate(f"__game.switchTab('{tab}')")
+            time.sleep(0.5)
+            cjk = en.evaluate("""(() => {
+              const bad = [];
+              const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+              let n;
+              while ((n = w.nextNode())) {
+                const t = n.nodeValue.trim();
+                if (/[\\u3400-\\u9fff]/.test(t)) bad.push(t.slice(0, 30));
+              }
+              return bad;
+            })()""")
+            check(f"英文模式：{tab} 頁沒有殘留中文", not cjk, str(cjk[:5]))
+
+        gpx = en.evaluate("""({
+          hasGP: typeof GP !== 'undefined',
+          adsAllowed: GP.adsAllowed,
+          hasSdk: GP.hasSdk,
+          loading: document.getElementById('loading').classList.contains('hidden'),
+          fmt15k: I18N.fmt(15000),
+          fmtZh: (I18N.lang === 'en'),
+        })""")
+        check("GamePix 包裝層：本機不開廣告、載入畫面已收起、數字用 K/M/B",
+              gpx["hasGP"] is True and gpx["adsAllowed"] is False
+              and gpx["loading"] is True and gpx["fmt15k"] == "15.0K", str(gpx))
+
+        ad = en.evaluate("GP.interstitial().then(r => r)")
+        check("沒有 SDK／非 Player 時插頁廣告安全失敗（遊戲不中斷）",
+              isinstance(ad, dict) and ad.get("success") is False, str(ad))
+
+        paused = en.evaluate("""(() => {
+          const before = __game.Battle.state.units[0].gauge;
+          GP.setPaused(true);
+          const flag = window.__gpPaused === true;
+          GP.setPaused(false);
+          return {flag, off: window.__gpPaused === false};
+        })()""")
+        check("pause/resume 冪等（SDK 與分頁切換共用同一個開關）",
+              paused["flag"] is True and paused["off"] is True, str(paused))
+        check("英文模式沒有 console / page error", not en_errs, str(en_errs[:3]))
+        en.screenshot(path=str(ART / "soulring-en.png"))
+        en.close()
+
         check("整場沒有 console / page error", not errors, str(errors[:5]))
         browser.close()
     srv.shutdown()
@@ -794,7 +852,7 @@ def main() -> int:
     if FAILS:
         print(f"RESULT: FAIL ({len(FAILS)}: {', '.join(FAILS)})")
         return 1
-    print("RESULT: PASS（自動戰鬥 / 多波群攻 / Boss 狂暴回血 / 自動 BOSS 與獵魂 / 升級節奏 / 魂環 / 魂骨 / 簽到 / 抽卡 / 兌換碼 / 存檔碼 / 離線收益 / 版面）")
+    print("RESULT: PASS（自動戰鬥 / 多波群攻 / Boss 狂暴回血 / 自動 BOSS 與獵靈 / 升級節奏 / 靈環 / 靈骨 / 簽到 / 抽卡 / 兌換碼 / 存檔碼 / 離線收益 / 版面）")
     return 0
 
 

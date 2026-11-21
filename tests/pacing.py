@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""節奏量測：從全新存檔開始自動玩，記錄升到 Lv10 與拿到第一枚魂環的時間。
+"""節奏量測：從全新存檔開始自動玩，記錄升到 Lv10 與拿到第一枚靈環的時間。
 
     /usr/bin/python3 tests/pacing.py [--limit 300] [--label baseline]
 
@@ -82,7 +82,7 @@ def main() -> int:
             if marks["firstRing"] is None and (st["rings"] + st["bag"]) >= 1:
                 marks["firstRing"] = el
 
-            # 到達等級上限且還沒有魂環 → 自動去獵魂（模擬新人照提示操作）
+            # 到達等級上限且還沒有靈環 → 自動去獵靈（模擬新人照提示操作）
             if st["lv"] >= st["cap"] and (st["rings"] + st["bag"]) == 0 and not ring_done \
                     and st["lv"] >= 10:
                 hunt = page.evaluate("""(() => {

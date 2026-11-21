@@ -1,31 +1,35 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#120b1f" />
-<title>魂環覺醒：武魂放置錄</title>
-<meta name="description" content="武魂覺醒，獵魂取環，五人小隊自動戰鬥的放置型 RPG。純前端、離線可玩。" />
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='26' fill='none' stroke='%23ffd166' stroke-width='6'/%3E%3Ccircle cx='32' cy='32' r='10' fill='%23ffd166'/%3E%3C/svg%3E" />
+<title>Spirit Ring Idle</title>
+<meta name="description" content="Idle cultivation RPG: awaken spirits, hunt for rings, fuse them, and rebirth. Five-spirit auto-battle with offline progress." />
 <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
+<div id="loading" class="loading">
+  <div class="loading-ring"></div>
+  <h1>Spirit Ring Idle</h1>
+  <div class="loading-bar"><i id="loadingBar"></i></div>
+</div>
 <div id="app">
 
   <!-- ===== 頂部狀態列 ===== -->
   <header id="topbar">
     <div class="tb-left">
-      <div id="avatar" title="魂師">魂</div>
+      <div id="avatar" title="靈師" data-i18n-title="靈師" data-i18n="魂">魂</div>
       <div class="tb-id">
-        <div id="playerName">無名魂師</div>
-        <div id="powerWrap">戰力 <b id="power">0</b></div>
+        <div id="playerName" data-i18n="無名靈師">無名靈師</div>
+        <div id="powerWrap"><span data-i18n="戰力">戰力</span> <b id="power">0</b></div>
       </div>
     </div>
     <div class="tb-right">
       <div class="res" id="marksBox" style="display:none"><span class="ico">🌀</span><b id="marks">0</b></div>
       <div class="res" id="coinBox"><span class="ico">🪙</span><b id="coins">0</b></div>
       <div class="res" id="diamondBox"><span class="ico">💎</span><b id="diamonds">0</b></div>
-      <button id="btnMenu" class="icon-btn" aria-label="設定">⚙</button>
+      <button id="btnMenu" class="icon-btn" aria-label="Settings" data-i18n-title="設定">⚙</button>
     </div>
   </header>
 
@@ -36,95 +40,96 @@
     <section class="view active" data-view="battle">
       <div id="stage" class="stage">
         <div class="stage-bg"></div>
-        <div id="stageName" class="stage-name">諾丁學院 · 後山</div>
+        <div id="stageName" class="stage-name"></div>
         <div id="enemyRow" class="side enemy"></div>
         <div id="teamRow" class="side team"></div>
         <div id="ringFx" class="ring-fx"></div>
         <div id="floaters" class="floaters"></div>
         <div id="battleBanner" class="banner"></div>
-        <button id="bossBtn" class="boss-btn">挑戰 BOSS</button>
+        <button id="bossBtn" class="boss-btn" data-i18n="挑戰 BOSS">挑戰 BOSS</button>
       </div>
       <div class="stage-info">
         <div class="prog-row">
-          <span>第 <b id="stageNum">1</b> 關</span>
+          <span id="stageLabel">Stage <b id="stageNum">1</b></span>
           <span id="progText">0 / 10</span>
         </div>
         <div class="prog-bar"><i id="progBar"></i></div>
         <div class="rate-row">
-          <span>掛機效率</span>
-          <span id="rateText">魂幣 0/分 · 經驗 0/分</span>
+          <span data-i18n="掛機效率">掛機效率</span>
+          <span id="rateText">靈幣 0/分 · 經驗 0/分</span>
         </div>
       </div>
       <div class="log-box"><div id="log" class="log"></div></div>
     </section>
 
-    <!-- 武魂 -->
+    <!-- 靈印 -->
     <section class="view" data-view="souls">
       <div class="panel-head">
-        <h2>武魂</h2><span id="slotInfo" class="hint">上陣 1 / 1</span>
+        <h2 data-i18n="靈印">靈印</h2><span id="slotInfo" class="hint">上陣 1 / 1</span>
       </div>
       <div id="soulList" class="card-list"></div>
       <button id="btnExpandSlot" class="wide-btn">擴充陣容（5 人小隊）</button>
-      <p class="hint">上陣人數越多，掛機收益越高。解鎖需魂幣與等級。</p>
+      <p class="hint" data-i18n="上陣人數越多，掛機收益越高。解鎖需靈幣與等級。">上陣人數越多，掛機收益越高。解鎖需靈幣與等級。</p>
 
-      <div class="panel-head" style="margin-top:14px"><h2>魂骨</h2><span id="boneCount" class="hint"></span></div>
+      <div class="panel-head" style="margin-top:14px"><h2 data-i18n="靈骨">靈骨</h2><span id="boneCount" class="hint"></span></div>
       <div id="boneList" class="card-list"></div>
-      <p class="hint">魂骨裝備給武魂：裝備者吃全額加成，同隊其他武魂獲得 30% 光環。
-        武魂升星會消耗未裝備的魂骨。</p>
+      <p class="hint" data-i18n="靈骨裝備給靈印：裝備者吃全額加成，同隊其他靈印獲得 30% 光環。靈印升星會消耗未裝備的靈骨。">靈骨裝備給靈印：裝備者吃全額加成，同隊其他靈印獲得 30% 光環。
+        靈印升星會消耗未裝備的靈骨。</p>
 
       <div id="rebirthBox" class="rebirth-box"></div>
     </section>
 
-    <!-- 魂環 -->
+    <!-- 靈環 -->
     <section class="view" data-view="rings">
-      <div class="panel-head"><h2>魂環</h2><span id="ringCount" class="hint">0</span></div>
+      <div class="panel-head"><h2 data-i18n="靈環">靈環</h2><span id="ringCount" class="hint">0</span></div>
       <div id="ringList" class="card-list"></div>
-      <p class="hint">魂環只能裝在對應武魂身上；每 10 級開 1 個魂環槽（最多 9 格）。3 個同階可合成 1 個更高階。</p>
+      <p class="hint" data-i18n="靈環只能裝在對應靈印身上；每 10 級開 1 個靈環槽（最多 9 格）。3 個同階可合成 1 個更高階。">靈環只能裝在對應靈印身上；每 10 級開 1 個靈環槽（最多 9 格）。3 個同階可合成 1 個更高階。</p>
     </section>
 
-    <!-- 獵魂 -->
+    <!-- 獵靈 -->
     <section class="view" data-view="hunt">
-      <div class="panel-head"><h2>星斗大森林</h2><span id="huntHint" class="hint"></span></div>
+      <div class="panel-head"><h2 data-i18n="幽篁林">幽篁林</h2><span id="huntHint" class="hint"></span></div>
       <div id="beastList" class="card-list"></div>
-      <p class="hint">擊敗魂獸可獲得魂環；年份越高，屬性加成越強。</p>
+      <p class="hint" data-i18n="擊敗靈獸可獲得靈環；年份越高，屬性加成越強。">擊敗靈獸可獲得靈環；年份越高，屬性加成越強。</p>
     </section>
 
     <!-- 覺醒 -->
     <section class="view" data-view="gacha">
-      <div class="panel-head"><h2>武魂殿</h2><span id="ticketInfo" class="hint"></span></div>
+      <div class="panel-head"><h2 data-i18n="靈印殿">靈印殿</h2><span id="ticketInfo" class="hint"></span></div>
       <div class="checkin-box">
-        <div class="checkin-head"><span>每日簽到</span><span id="streakInfo" class="hint"></span></div>
+        <div class="checkin-head"><span data-i18n="每日簽到">每日簽到</span><span id="streakInfo" class="hint"></span></div>
         <div id="checkinGrid" class="checkin-grid"></div>
-        <button id="btnCheckin" class="wide-btn small checkin-btn">領取今日獎勵</button>
+        <button id="btnCheckin" class="wide-btn small checkin-btn" data-i18n="領取今日獎勵">領取今日獎勵</button>
       </div>
       <div class="gacha-box">
         <div class="gacha-art">✦</div>
-        <button id="btnPull1" class="wide-btn">覺醒一次（1 券 / 100 💎）</button>
-        <button id="btnPull10" class="wide-btn alt">十連覺醒（10 券 / 900 💎）</button>
+        <button id="btnPull1" class="wide-btn" data-i18n="覺醒一次（1 券 / 100 💎）">覺醒一次（1 券 / 100 💎）</button>
+        <button id="btnPull10" class="wide-btn alt" data-i18n="十連覺醒（10 券 / 900 💎）">十連覺醒（10 券 / 900 💎）</button>
       </div>
+      <button id="btnRewardAd" class="wide-btn small alt" data-i18n="看廣告領 888 靈幣">看廣告領 888 靈幣</button>
       <div class="code-box">
-        <input id="codeInput" placeholder="輸入兌換碼" maxlength="20" />
-        <button id="btnCode" class="wide-btn small">兌換</button>
+        <input id="codeInput" placeholder="輸入兌換碼" data-i18n-ph="輸入兌換碼" maxlength="20" />
+        <button id="btnCode" class="wide-btn small" data-i18n="兌換">兌換</button>
       </div>
-      <p class="hint">機率：武魂 ★5 3% · ★4 12% · ★3 以下 70% · 魂骨 15%（每抽）</p>
-      <p class="hint">測試兌換碼：VIP666、DOULUO888、TANG3</p>
+      <p class="hint" data-i18n="機率：靈印 ★5 3% · ★4 12% · ★3 以下 70% · 靈骨 15%（每抽）">機率：靈印 ★5 3% · ★4 12% · ★3 以下 70% · 靈骨 15%（每抽）</p>
+      <p class="hint" data-i18n="測試兌換碼：VIP666、DOULUO888、TANG3">測試兌換碼：VIP666、DOULUO888、TANG3</p>
       <div id="pullResult" class="pull-result"></div>
     </section>
   </main>
 
   <!-- ===== 底部導覽 ===== -->
   <nav id="nav">
-    <button class="nav-btn active" data-tab="battle"><span>🗡️</span>戰鬥</button>
-    <button class="nav-btn" data-tab="souls"><span>🌀</span>武魂</button>
-    <button class="nav-btn" data-tab="rings"><span>💠</span>魂環</button>
-    <button class="nav-btn" data-tab="hunt"><span>🐾</span>獵魂</button>
-    <button class="nav-btn" data-tab="gacha"><span>✨<i id="checkinDot" class="dot hidden"></i></span>覺醒</button>
+    <button class="nav-btn active" data-tab="battle"><span>🗡️</span><b data-i18n="戰鬥">戰鬥</b></button>
+    <button class="nav-btn" data-tab="souls"><span>🌀</span><b data-i18n="靈印">靈印</b></button>
+    <button class="nav-btn" data-tab="rings"><span>💠</span><b data-i18n="靈環">靈環</b></button>
+    <button class="nav-btn" data-tab="hunt"><span>🐾</span><b data-i18n="獵靈">獵靈</b></button>
+    <button class="nav-btn" data-tab="gacha"><span>✨<i id="checkinDot" class="dot hidden"></i></span><b data-i18n="覺醒">覺醒</b></button>
   </nav>
 
   <!-- ===== 彈窗 ===== -->
   <div id="modal" class="modal hidden">
     <div class="modal-card">
-      <h3 id="modalTitle">標題</h3>
+      <h3 id="modalTitle" data-i18n="標題">標題</h3>
       <div id="modalBody" class="modal-body"></div>
       <div id="modalBtns" class="modal-btns"></div>
     </div>
@@ -132,6 +137,9 @@
   <div id="toast" class="toast hidden"></div>
 </div>
 
+<script>window.GamePixConfig = { lifecycle: 'manual' };</script>
+<script src="js/i18n.js"></script>
+<script src="js/gamepix.js"></script>
 <script src="js/config.js"></script>
 <script src="js/state.js"></script>
 <script src="js/battle.js"></script>

@@ -16,7 +16,7 @@
     };
     return {
       v: 1,
-      name: '無名魂師',
+      name: T('無名靈師'),
       level: 1,
       exp: 0,
       coins: 120,
@@ -28,13 +28,13 @@
       slots: 1,              // 上陣人數
       souls: [starter],
       team: ['haotian'],
-      ringBag: [],           // 未裝備的魂環
-      bones: [],             // [{uid, id}] 未裝備的魂骨
-      cd: {},                // 魂獸 id -> 下次可獵時間
+      ringBag: [],           // 未裝備的靈環
+      bones: [],             // [{uid, id}] 未裝備的靈骨
+      cd: {},                // 靈獸 id -> 下次可獵時間
       codes: [],
       checkin: { lastDay: '', streak: 0, total: 0 },   // 每日簽到
       rebirths: 0,           // 轉生次數
-      marks: 0,              // 魂印：永久加成（每點全屬性 +6%）
+      marks: 0,              // 命印：永久加成（每點全屬性 +6%）
       settings: { autoBoss: true, autoHunt: true, autoRing: true, autoMerge: true },   // 放置用開關
       stats: { kills: 0, hunts: 0, pulls: 0 },
       lastSave: Date.now(),
@@ -78,13 +78,13 @@
       if (!Array.isArray(s.rings)) s.rings = [];
       if (s.bone === undefined) s.bone = null;
     });
-    // 舊版魂骨只存 id 字串 → 轉成 {uid, id}
-    // 舊版裝備魂環時會從背包移除物件 → 補回（年份已遺失，以白色處理）
+    // 舊版靈骨只存 id 字串 → 轉成 {uid, id}
+    // 舊版裝備靈環時會從背包移除物件 → 補回（年份已遺失，以白色處理）
     const bagUids = new Set(out.ringBag.map((r) => r.uid));
     out.souls.forEach((soul) => {
       (soul.rings || []).forEach((uid) => {
         if (!bagUids.has(uid)) {
-          out.ringBag.push({ uid, tier: 'white', name: '十年魂環', equipped: soul.id });
+          out.ringBag.push({ uid, tier: 'white', name: T('白靈環'), equipped: soul.id });
           bagUids.add(uid);
         }
       });
@@ -148,7 +148,7 @@
     return { atk, hp };
   }
 
-  /* ---------- 魂骨 ---------- */
+  /* ---------- 靈骨 ---------- */
   function boneOf(soul) {
     if (!soul || !soul.bone) return null;
     const item = S.bones.find((b) => b.uid === soul.bone);
@@ -157,7 +157,7 @@
   function freeBones() { return S.bones.filter((b) => !S.souls.some((s) => s.bone === b.uid)); }
   function equippedBones() { return S.souls.filter((s) => s.bone).length; }
 
-  /* 光環：同隊其他武魂的魂骨，按 BONE_AURA 比例加成（裝備者自己吃 100%） */
+  /* 光環：同隊其他靈印的靈骨，按 BONE_AURA 比例加成（裝備者自己吃 100%） */
   function teamAura(excludeSoulId) {
     const acc = { atk: 0, hp: 0, def: 0, spd: 0 };
     for (const soul of teamSouls()) {
@@ -180,7 +180,7 @@
     const own = boneOf(soul) || { atk: 0, hp: 0, def: 0, spd: 0 };
     const aura = teamAura(soul.id);
     const pm = CFG.REBIRTH.perMark;
-    const tbMul = 1 + trueBodyOf(soul).bonus;   // 武魂真身：乘算
+    const tbMul = 1 + trueBodyOf(soul).bonus;   // 靈印真身：乘算
     return {
       atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk + own.atk + aura.atk + pm.atk * S.marks) * tbMul),
       hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp + own.hp + aura.hp + pm.hp * S.marks) * tbMul),
@@ -210,7 +210,7 @@
     return Math.round(t.atk * 2.2 + t.hp * 0.35 + t.def * 2.5 + t.spd * 0.6);
   }
 
-  /* ---------- 魂環合成：3 個同階 → 1 個高一階 ---------- */
+  /* ---------- 靈環合成：3 個同階 → 1 個高一階 ---------- */
   function mergeInfo() {
     const free = freeRings();
     const out = {};
@@ -224,12 +224,12 @@
     const i = CFG.RING_ORDER.indexOf(tier);
     return i >= 0 && i < CFG.RING_ORDER.length - 1;
   }
-  /* 合成一次（指定階）；回傳新魂環 */
+  /* 合成一次（指定階）；回傳新靈環 */
   function mergeRings(tier) {
-    if (!tiersMergeable(tier)) return { ok: false, msg: '十萬年魂環已是最高階' };
+    if (!tiersMergeable(tier)) return { ok: false, msg: T('紅靈環已是最高階') };
     const pool = freeRings().filter((r) => r.tier === tier);
     if (pool.length < CFG.RING_MERGE_COUNT) {
-      return { ok: false, msg: `需要 ${CFG.RING_MERGE_COUNT} 個同階魂環（目前 ${pool.length}）` };
+      return { ok: false, msg: T(`需要 ${CFG.RING_MERGE_COUNT} 個同階靈環（目前 ${pool.length}）`) };
     }
     const take = pool.slice(0, CFG.RING_MERGE_COUNT);
     const counts = {};
@@ -275,7 +275,7 @@
     return { made };
   }
 
-  /* ---------- 武魂真身（3/6/9 個萬年以上魂環）---------- */
+  /* ---------- 靈印真身（3/6/9 個萬年以上靈環）---------- */
   function trueBodyOf(soul) {
     const high = (soul.rings || []).filter((uid) => {
       const r = S.ringBag.find((x) => x.uid === uid);
@@ -286,7 +286,7 @@
     return { high, bonus };
   }
 
-  /* ---------- 屬性共鳴（3 個同系魂環）---------- */
+  /* ---------- 屬性共鳴（3 個同系靈環）---------- */
   function resonanceOf(soul) {
     const counts = {};
     (soul.rings || []).forEach((uid) => {
@@ -301,7 +301,7 @@
     return best;
   }
 
-  /* 該武魂最強的魂環技能（千年以上才有） */
+  /* 該靈印最強的靈環技能（千年以上才有） */
   function ringSkillOf(soul) {
     let best = null;
     (soul.rings || []).forEach((uid) => {
@@ -318,7 +318,7 @@
     return teamSouls().some((soul) => ringSlotsOf(soul) > 0 && soul.rings.length < ringSlotsOf(soul));
   }
 
-  /* 魂印帶來的收益倍率（魂幣/經驗） */
+  /* 命印帶來的收益倍率（靈幣/經驗） */
   function incomeMul() { return 1 + CFG.REBIRTH.perMark.income * S.marks; }
 
   function totalRingsEquipped() {
@@ -342,7 +342,7 @@
       s.exp -= need;
       s.level++;
       ups++;
-      // 武魂等級跟玩家等級同步成長（上限 90）
+      // 靈印等級跟玩家等級同步成長（上限 90）
       for (const soul of s.souls) soul.level = Math.min(90, Math.max(soul.level || 1, Math.min(s.level, 90)));
     }
     return { levelUps: ups, capped: s.level >= cap, before, after: s.level };
@@ -359,14 +359,14 @@
     S.diamonds -= n; return true;
   }
 
-  /* ---------- 魂環 ---------- */
+  /* ---------- 靈環 ---------- */
   let uidSeq = 0;
   function newRing(tierKey, element) {
     const t = CFG.TIER_BY_KEY[tierKey];
     uidSeq++;
     return {
       uid: 'r' + Date.now().toString(36) + '_' + uidSeq,
-      tier: tierKey, name: t ? t.name : '魂環',
+      tier: tierKey, name: t ? t.name : T('靈環'),
       element: element || 'wind',
       equipped: null,
     };
@@ -374,7 +374,7 @@
   function ringSlotsOf(soul) {
     return CFG.ringSlots(S.level);   // 每 10 級 1 槽，最多 9
   }
-  /* 自動裝備：找第一個還有空槽的上陣武魂 */
+  /* 自動裝備：找第一個還有空槽的上陣靈印 */
   function autoEquipBestRing() {
     if ((S.settings || {}).autoRing === false) return null;
     if (!freeRings().length) return null;
@@ -395,15 +395,15 @@
   function equipRing(soulId, uid) {
     const soul = S.souls.find((s) => s.id === soulId);
     const item = S.ringBag.find((r) => r.uid === uid);
-    if (!soul || !item) return { ok: false, msg: '找不到魂環' };
-    if (item.equipped) return { ok: false, msg: '這枚魂環已經裝在別人身上' };
-    if (soul.rings.length >= ringSlotsOf(soul)) return { ok: false, msg: `魂環槽已滿（每 10 級才開一格，目前 ${ringSlotsOf(soul)} 格）` };
+    if (!soul || !item) return { ok: false, msg: T('找不到靈環') };
+    if (item.equipped) return { ok: false, msg: T('這枚靈環已經裝在別人身上') };
+    if (soul.rings.length >= ringSlotsOf(soul)) return { ok: false, msg: T(`靈環槽已滿（每 10 級才開一格，目前 ${ringSlotsOf(soul)} 格）`) };
     soul.rings.push(uid);
     item.equipped = soulId;
     return { ok: true };
   }
 
-  /* 沒裝備的魂環（背包） */
+  /* 沒裝備的靈環（背包） */
   function freeRings() { return S.ringBag.filter((r) => !r.equipped); }
   function unequipRing(soulId, uid) {
     const soul = S.souls.find((s) => s.id === soulId);
@@ -419,8 +419,8 @@
   function equipBone(soulId, uid) {
     const soul = S.souls.find((s) => s.id === soulId);
     const item = S.bones.find((b) => b.uid === uid);
-    if (!soul || !item) return { ok: false, msg: '找不到魂骨' };
-    if (S.souls.some((s) => s.bone === uid)) return { ok: false, msg: '這塊魂骨已裝備' };
+    if (!soul || !item) return { ok: false, msg: T('找不到靈骨') };
+    if (S.souls.some((s) => s.bone === uid)) return { ok: false, msg: T('這塊靈骨已裝備') };
     soul.bone = uid;
     return { ok: true };
   }
@@ -431,7 +431,7 @@
     return { ok: true };
   }
 
-  /* 升星：消耗未裝備魂骨（star-2 塊）＋魂幣，上限 5★ */
+  /* 升星：消耗未裝備靈骨（star-2 塊）＋靈幣，上限 5★ */
   function starUpInfo(soul) {
     const star = soul.star || 3;
     return {
@@ -445,12 +445,12 @@
   }
   function starUp(soulId) {
     const soul = S.souls.find((s) => s.id === soulId);
-    if (!soul) return { ok: false, msg: '找不到武魂' };
+    if (!soul) return { ok: false, msg: T('找不到靈印') };
     const info = starUpInfo(soul);
-    if (info.maxed) return { ok: false, msg: '已是 5 星' };
-    if (freeBones().length < info.bones) return { ok: false, msg: `需要 ${info.bones} 塊未裝備魂骨（目前 ${info.available}）` };
-    if (S.coins < info.coins) return { ok: false, msg: `魂幣不足（需 ${info.coins}）` };
-    // 吃掉最舊的未裝備魂骨
+    if (info.maxed) return { ok: false, msg: T('已是 5 星') };
+    if (freeBones().length < info.bones) return { ok: false, msg: T(`需要 ${info.bones} 塊未裝備靈骨（目前 ${info.available}）`) };
+    if (S.coins < info.coins) return { ok: false, msg: T(`靈幣不足（需 ${info.coins}）`) };
+    // 吃掉最舊的未裝備靈骨
     const eat = freeBones().slice(0, info.bones).map((b) => b.uid);
     S.bones = S.bones.filter((b) => !eat.includes(b.uid));
     S.coins -= info.coins;
@@ -467,10 +467,10 @@
     return S.slots < 5 && S.level >= slotNextLevel() && S.coins >= slotNextCost() && S.souls.length > S.slots;
   }
   function expandSlot() {
-    if (S.slots >= 5) return { ok: false, msg: '已是五人小隊' };
-    if (S.level < slotNextLevel()) return { ok: false, msg: `需等級 ${slotNextLevel()}` };
-    if (S.souls.length <= S.slots) return { ok: false, msg: '沒有可上陣的新武魂，先去覺醒抽卡' };
-    if (!spendCoins(slotNextCost())) return { ok: false, msg: '魂幣不足' };
+    if (S.slots >= 5) return { ok: false, msg: T('已是五人小隊') };
+    if (S.level < slotNextLevel()) return { ok: false, msg: T(`需等級 ${slotNextLevel()}`) };
+    if (S.souls.length <= S.slots) return { ok: false, msg: T('沒有可上陣的新靈印，先去覺醒抽卡') };
+    if (!spendCoins(slotNextCost())) return { ok: false, msg: T('靈幣不足') };
     S.slots++;
     const next = S.souls.find((s) => !S.team.includes(s.id));
     if (next) S.team.push(next.id);
@@ -479,11 +479,11 @@
   function toggleTeam(soulId) {
     const inTeam = S.team.includes(soulId);
     if (inTeam) {
-      if (S.team.length <= 1) return { ok: false, msg: '至少要上陣一位武魂' };
+      if (S.team.length <= 1) return { ok: false, msg: T('至少要上陣一位靈印') };
       S.team = S.team.filter((id) => id !== soulId);
       return { ok: true, in: false };
     }
-    if (S.team.length >= S.slots) return { ok: false, msg: '陣容已滿，先擴充名額' };
+    if (S.team.length >= S.slots) return { ok: false, msg: T('陣容已滿，先擴充名額') };
     S.team.push(soulId);
     return { ok: true, in: true };
   }
@@ -491,12 +491,12 @@
   /* ---------- 抽卡 ---------- */
   function pullOnce(useTickets) {
     const cost = useTickets ? CFG.PULL_COST_TICKET : CFG.PULL_COST_DIAMOND;
-    if (useTickets) { if (S.tickets < cost) return { ok: false, msg: '覺醒券不足' }; S.tickets -= cost; }
-    else { if (!spendDiamonds(cost)) return { ok: false, msg: '鑽石不足' }; }
+    if (useTickets) { if (S.tickets < cost) return { ok: false, msg: T('覺醒券不足') }; S.tickets -= cost; }
+    else { if (!spendDiamonds(cost)) return { ok: false, msg: T('鑽石不足') }; }
     return { ok: true, result: rollOne() };
   }
   function rollOne() {
-    // 15% 出魂骨，其餘出武魂
+    // 15% 出靈骨，其餘出靈印
     if (Math.random() < 0.15 && CFG.PULL_BONES.length) {
       const b = CFG.BONES[Math.floor(Math.random() * CFG.BONES.length)];
       const uid = 'bo' + Date.now().toString(36) + Math.floor(Math.random() * 1000);
@@ -527,14 +527,14 @@
       rebirths: S.rebirths,
       bestStage: S.bestStage,
       minStage: CFG.REBIRTH.minStage,
-      bonusText: `全屬性 +${Math.round(CFG.REBIRTH.perMark.atk * 100 * S.marks)}% · 收益 +${Math.round(CFG.REBIRTH.perMark.income * 100 * S.marks)}%`,
+      bonusText: T(`全屬性 +${Math.round(CFG.REBIRTH.perMark.atk * 100 * S.marks)}% · 收益 +${Math.round(CFG.REBIRTH.perMark.income * 100 * S.marks)}%`),
     };
   }
 
-  /* 轉生：保留武魂/星級/魂骨/魂印/簽到，重置本輪進度 */
+  /* 轉生：保留靈印/星級/靈骨/命印/簽到，重置本輪進度 */
   function doRebirth() {
     const info = rebirthInfo();
-    if (!info.can) return { ok: false, msg: `歷史最高關卡需達 ${CFG.REBIRTH.minStage} 關` };
+    if (!info.can) return { ok: false, msg: T(`歷史最高關卡需達 ${CFG.REBIRTH.minStage} 關`) };
     S.marks += info.gain;
     S.rebirths += 1;
     S.level = 1;
@@ -592,7 +592,7 @@
   }
   function checkIn(now) {
     const info = checkinInfo(now);
-    if (!info.canCheck) return { ok: false, msg: '今天已經簽過了，明天再來' };
+    if (!info.canCheck) return { ok: false, msg: T('今天已經簽過了，明天再來') };
     const c = S.checkin;
     c.streak = info.streak;
     c.total += 1;
@@ -606,10 +606,10 @@
   /* ---------- 兌換碼 ---------- */
   function redeem(code) {
     const key = String(code || '').trim().toUpperCase();
-    if (!key) return { ok: false, msg: '請輸入兌換碼' };
-    if (S.codes.includes(key)) return { ok: false, msg: '這個兌換碼已用過' };
+    if (!key) return { ok: false, msg: T('請輸入兌換碼') };
+    if (S.codes.includes(key)) return { ok: false, msg: T('這個兌換碼已用過') };
     const c = CFG.CODES[key];
-    if (!c) return { ok: false, msg: '兌換碼無效' };
+    if (!c) return { ok: false, msg: T('兌換碼無效') };
     S.codes.push(key);
     if (c.diamonds) S.diamonds += c.diamonds;
     if (c.tickets) S.tickets += c.tickets;
@@ -628,13 +628,13 @@
     try {
       const json = decodeURIComponent(escape(atob(String(code || '').trim())));
       const data = JSON.parse(json);
-      if (!data || !Array.isArray(data.souls)) throw new Error('格式錯誤');
+      if (!data || !Array.isArray(data.souls)) throw new Error(T('格式錯誤'));
       S = migrate(data);
       S.lastSave = Date.now();
       save(true);
       return { ok: true, save: S };
     } catch (e) {
-      return { ok: false, msg: '存檔碼無法解析' };
+      return { ok: false, msg: T('存檔碼無法解析') };
     }
   }
 

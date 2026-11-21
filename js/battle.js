@@ -1,6 +1,6 @@
 /* ==========================================================================
- * battle.js — ATB 自動戰鬥、技能、關卡推進、獵魂
- * 支援一波 1–3 隻敵人：群攻武魂（強攻系）打全體才有意義。
+ * battle.js — ATB 自動戰鬥、技能、關卡推進、獵靈
+ * 支援一波 1–3 隻敵人：群攻靈印（強攻系）打全體才有意義。
  * Boss 被動：血量 ≤40% 狂暴一次、每 4 次行動回血 10%。
  * ========================================================================== */
 (function (global) {
@@ -68,7 +68,7 @@
     if (kind === 'hunt') {
       const beast = B.huntBeast;
       B.enemies = [{
-        id: beast.id, name: beast.name, emoji: beast.emoji,
+        id: beast.id, name: T(beast.name), emoji: beast.emoji,
         maxHp: beast.hp, hp: beast.hp, atk: beast.atk, def: Math.round(beast.atk * 0.35),
         spd: 88, gauge: 0, stun: 0, alive: true, boss: true, hunt: true, acts: 0, enraged: false,
       }];
@@ -84,7 +84,7 @@
       const hp = Math.round(st.hp * hpScale);
       return {
         id: 'e' + B.waveNo + '_' + i,
-        name: n > 1 ? `${st.name} ${i + 1}` : st.name,
+        name: T(n > 1 ? `${st.name} ${i + 1}` : st.name),
         emoji: st.emoji,
         maxHp: hp, hp,
         atk: Math.round(st.atk * atkScale),
@@ -136,8 +136,8 @@
   }
 
   function challengeBoss() {
-    if (!B.pendingBoss) return { ok: false, msg: '先清掉 10 隻小怪' };
-    if (!State.teamSouls().length) return { ok: false, msg: '沒有上陣武魂' };
+    if (!B.pendingBoss) return { ok: false, msg: T('先清掉 10 隻小怪') };
+    if (!State.teamSouls().length) return { ok: false, msg: T('沒有上陣靈印') };
     B.mode = 'boss';
     B.pendingBoss = false;
     spawnWave('boss');
@@ -148,15 +148,15 @@
 
   function hunt(beastId) {
     const beast = CFG.BEAST_BY_ID[beastId];
-    if (!beast) return { ok: false, msg: '找不到魂獸' };
-    if (B.mode === 'hunt') return { ok: false, msg: '正在獵魂中' };
+    if (!beast) return { ok: false, msg: T('找不到靈獸') };
+    if (B.mode === 'hunt') return { ok: false, msg: T('正在獵靈中') };
     const next = State.data.cd[beastId] || 0;
-    if (Date.now() < next) return { ok: false, msg: `冷卻中，還要 ${Math.ceil((next - Date.now()) / 1000)} 秒` };
-    if (State.data.level < beast.reqLevel) return { ok: false, msg: `需等級 ${beast.reqLevel} 才能挑戰` };
+    if (Date.now() < next) return { ok: false, msg: T(`冷卻中，還要 ${Math.ceil((next - Date.now()) / 1000)} 秒`) };
+    if (State.data.level < beast.reqLevel) return { ok: false, msg: T(`需等級 ${beast.reqLevel} 才能挑戰`) };
     B.huntBeast = beast;
     B.mode = 'hunt';
     spawnWave('hunt');
-    reviveTeam(true);            // 獵魂是獨立挑戰，進場回滿血
+    reviveTeam(true);            // 獵靈是獨立挑戰，進場回滿血
     emit('huntStart', { beast });
     return { ok: true };
   }
@@ -178,6 +178,7 @@
 
   /* ---------- 主循環 ---------- */
   function tick() {
+    if (B.adBreak || (typeof window !== 'undefined' && window.__gpPaused)) return;
     if (!B.enemies.length) spawnWave(B.mode === 'hunt' ? 'hunt' : (B.mode === 'boss' ? 'boss' : 'farm'));
 
     // 全滅 → 2 秒後自動復活（放置遊戲不要卡死）
@@ -227,14 +228,14 @@
     }
   }
 
-  /* ---------- 放置自動化：自動挑戰 BOSS、卡等自動獵魂 ---------- */
+  /* ---------- 放置自動化：自動挑戰 BOSS、卡等自動獵靈 ---------- */
   function maybeAuto() {
     const now = Date.now();
     if (now < B.autoAt) return;
     const s = State.data;
     const cfg = s.settings || {};
 
-    // 卡等時「獵魂」優先於「打 BOSS」：卡等打王沒有任何經驗，先拿環才有成長
+    // 卡等時「獵靈」優先於「打 BOSS」：卡等打王沒有任何經驗，先拿環才有成長
     if (cfg.autoHunt !== false && B.mode === 'farm' && State.hasFreeRingSlot()) {
       const ready = CFG.BEASTS.filter((b) => s.level >= b.reqLevel && (s.cd[b.id] || 0) <= now);
       const beast = ready[ready.length - 1];   // 打得到就挑最高階的
@@ -294,7 +295,7 @@
       }
       return;
     }
-    emit('skill', { unit: u, role: u.role, name: (CFG.SOUL_BY_ID[u.id] || {}).skillName || '魂技' });
+    emit('skill', { unit: u, role: u.role, name: (CFG.SOUL_BY_ID[u.id] || {}).skillName || T('靈技') });
 
     if (u.role === 'atk') {
       // 強攻系：全體 200%（多波時才看得出價值）
@@ -427,6 +428,12 @@
       B.mode = 'farm';
       emit('stageClear', { stage: s.stage });
       spawnWave('farm');
+      // 插頁廣告只在關卡之間，且由 GP 自己做冷卻
+      if (typeof window !== 'undefined' && window.GP && GP.interstitial) {
+        B.adBreak = true;
+        GP.interstitial().then(function () { B.adBreak = false; },
+                               function () { B.adBreak = false; });
+      }
       return;
     }
 

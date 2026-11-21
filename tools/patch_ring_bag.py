@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""魂環背包模型（equipped 標記）— UI 與測試同步。"""
+"""靈環背包模型（equipped 標記）— UI 與測試同步。"""
 import io, os
 
 # ---------- ui.js ----------
@@ -15,11 +15,11 @@ def rep(old, new):
 
 rep("""  function pickRingFor(soulId) {
     const s = State.data;
-    if (!s.ringBag.length) return toast('背包沒有魂環，去獵魂取得');
+    if (!s.ringBag.length) return toast('背包沒有靈環，去獵靈取得');
     const body = s.ringBag.map((r) => {""",
     """  function pickRingFor(soulId) {
     const free = State.freeRings();
-    if (!free.length) return toast('背包沒有魂環，去獵魂取得');
+    if (!free.length) return toast('背包沒有靈環，去獵靈取得');
     const body = free.map((r) => {""")
 
 rep("""    $('#ringCount').textContent = `背包 ${s.ringBag.length} · 已裝備 ${equipped} · 等級上限 ${State.levelCap()}`;""",
@@ -38,7 +38,7 @@ p = os.path.expanduser('~/work/soul-ring-h5/tests/smoke.py')
 s = io.open(p, encoding='utf-8').read()
 
 old = '''        ring = page.evaluate("({bag: __game.State.data.ringBag, mode: __game.Battle.state.mode, cd: __game.State.data.cd})")
-        check("擊敗魂獸會掉落魂環、並回到掛機", got_ring and ring["mode"] == "farm" and len(ring["bag"]) >= 1,
+        check("擊敗靈獸會掉落靈環、並回到掛機", got_ring and ring["mode"] == "farm" and len(ring["bag"]) >= 1,
               str(ring))'''
 new = '''        ring = page.evaluate("""({
           bag: __game.State.freeRings().length,
@@ -46,7 +46,7 @@ new = '''        ring = page.evaluate("""({
           equipped: __game.State.data.souls.reduce((a, x) => a + x.rings.length, 0),
           mode: __game.Battle.state.mode,
         })""")
-        check("擊敗魂獸會掉落魂環（自動裝備或進背包）、並回到掛機",
+        check("擊敗靈獸會掉落靈環（自動裝備或進背包）、並回到掛機",
               got_ring and ring["mode"] == "farm" and ring["all"] >= 1
               and (ring["bag"] + ring["equipped"]) >= 1, str(ring))'''
 assert s.count(old) == 1
