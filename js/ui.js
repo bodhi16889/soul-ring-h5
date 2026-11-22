@@ -33,7 +33,10 @@
     Battle.on(onBattleEvent);
     Battle.init();
     renderAll();
-    if (global.GP) { GP.loading(85); GP.loaded(); }
+    if (global.GP) {
+      GP.loading(85);
+      GP.loaded().then(function () { GP.gameStart(); });   // 開場即自動戰鬥＝gameplay 開始
+    }
 
     if (res.offline) showOffline(res.offline);
     const ci = State.checkinInfo();

@@ -7,6 +7,10 @@
 <title>Spirit Ring Idle</title>
 <meta name="description" content="Idle cultivation RPG: awaken spirits, hunt for rings, fuse them, and rebirth. Five-spirit auto-battle with offline progress." />
 <link rel="stylesheet" href="css/style.css" />
+<!-- GamePix SDK v3：官方要求「SDK 必須早於遊戲 bundle」，且 GamePixConfig 必須在 SDK 之前設定。
+     載入失敗（離線／CDN 掛掉）時 js/gamepix.js 會全部 no-op，遊戲照常可玩。 -->
+<script>window.GamePixConfig = { lifecycle: 'manual' };</script>
+<script src="https://integration.gamepix.com/sdk/v3/gamepix.sdk.js"></script>
 </head>
 <body>
 <div id="loading" class="loading">
@@ -140,7 +144,6 @@
   <div id="toast" class="toast hidden"></div>
 </div>
 
-<script>window.GamePixConfig = { lifecycle: 'manual' };</script>
 <script src="js/i18n.js"></script>
 <script src="js/gamepix.js"></script>
 <script src="js/sfx.js"></script>

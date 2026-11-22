@@ -30,8 +30,11 @@
 
   function note(msg) { state.log.push(msg); if (state.log.length > 40) state.log.shift(); }
 
+  var lastPct = 0;
   function loading(pct) {
     var p = Math.max(0, Math.min(100, pct | 0));
+    if (p < lastPct) return;          // 只前進不後退（SDK 也丟棄倒退值）
+    lastPct = p;
     var bar = document.getElementById('loadingBar');
     if (bar) bar.style.width = p + '%';
     if (hasSdk() && global.GamePix.lifecycle && global.GamePix.lifecycle.loading) {
@@ -39,16 +42,18 @@
     }
   }
 
+  /* 回傳 Promise（呼叫端可以 await 完再 gameStart），SDK 不存在時也會 resolve */
   function loaded() {
     loading(100);
     var done = function () { hideOverlay(); };
     if (hasSdk() && global.GamePix.lifecycle && global.GamePix.lifecycle.loaded) {
       try {
         var r = global.GamePix.lifecycle.loaded();
-        if (r && typeof r.then === 'function') { r.then(done, done); return; }
+        if (r && typeof r.then === 'function') return Promise.resolve(r).then(done, done);
       } catch (e) { note('loaded err'); }
     }
     done();
+    return Promise.resolve();
   }
 
   function hideOverlay() {
@@ -109,6 +114,7 @@
       try {
         global.GamePix.events.on('pause', function () { setPaused(true); note('sdk pause'); });
         global.GamePix.events.on('resume', function () { setPaused(false); note('sdk resume'); });
+        note('events bound');          // 可供測試斷言：pause/resume 真的註冊了
       } catch (e) { note('events err'); }
     }
     document.addEventListener('visibilitychange', function () {
@@ -122,7 +128,7 @@
   /* 依序：載入 SDK → 回報 loading → 綁事件 */
   function boot() {
     loading(8);
-    if (hasSdk()) { bind(); loading(40); return; }
+    if (hasSdk()) { note('sdk preset'); bind(); loading(40); return; }
     var s = document.createElement('script');
     s.src = SDK_URL;
     s.async = true;

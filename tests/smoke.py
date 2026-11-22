@@ -1322,6 +1322,65 @@ def main() -> int:
         check("i18n 字典沒有「重複且值不同」的 key（會靜默蓋掉正確翻譯，如 防禦=Defender）",
               dup == [], f"{dup[:5]}")
 
+        # ---------- 11s. GamePix SDK 串接（靜態載入 + lifecycle 完整）----------
+        gpctx = browser.new_context(viewport={"width": 640, "height": 480})
+        gpctx.add_init_script("""
+            window.__gpCalls = [];
+            (function () {
+              var iv = setInterval(function () {
+                if (!window.GamePix || !window.GamePix.lifecycle || window.GamePix.lifecycle.__probed) return;
+                ['loading', 'loaded', 'gameStart'].forEach(function (k) {
+                  var o = window.GamePix.lifecycle[k];
+                  if (typeof o !== 'function') return;
+                  window.GamePix.lifecycle[k] = function () {
+                    window.__gpCalls.push(k + '(' + Array.prototype.slice.call(arguments).join(',') + ')');
+                    return o.apply(this, arguments);
+                  };
+                });
+                window.GamePix.lifecycle.__probed = true;
+                clearInterval(iv);
+              }, 5);
+            })();
+        """)
+        gpp = gpctx.new_page()
+        gp_errs = []
+        gpp.on("pageerror", lambda e: gp_errs.append(str(e)[:150]))
+        gpp.goto(f"http://127.0.0.1:8771/index.html?v=gpx{int(time.time())}", wait_until="load")
+        gpp.wait_for_function("window.__game && window.__game.ready", timeout=30000)
+        time.sleep(3)
+        gp = gpp.evaluate("""(() => {
+          const tag = document.querySelector('script[src*="gamepix.sdk.js"]');
+          const cfgScript = [...document.querySelectorAll('script')].find(s => s.textContent.includes('GamePixConfig'));
+          return {
+            ver: CFG.VERSION,
+            inHead: tag ? tag.parentElement.tagName : null,
+            async: tag ? tag.async : null,
+            src: tag ? tag.src : null,
+            configBeforeSdk: !!(cfgScript && tag && (cfgScript.compareDocumentPosition(tag) & Node.DOCUMENT_POSITION_FOLLOWING)),
+            lifecycle: window.GamePix ? Object.keys(GamePix.lifecycle).filter(k => k.indexOf('__') !== 0) : null,
+            ads: window.GamePix ? Object.keys(GamePix.ads) : null,
+            calls: window.__gpCalls,
+            started: window.GP ? GP.state.started : null,
+            bound: window.GP ? GP.log.indexOf('events bound') : -1,
+          };
+        })()""")
+        check("index.html 用靜態 <script> 在 <head> 載入 GamePix SDK，且 GamePixConfig 在 SDK 之前",
+              gp["inHead"] == "HEAD" and gp["async"] is False and gp["configBeforeSdk"] is True
+              and "integration.gamepix.com/sdk/v3/gamepix.sdk.js" in (gp["src"] or ""),
+              f'{gp["inHead"]} async={gp["async"]} cfgBefore={gp["configBeforeSdk"]}')
+        check("SDK 物件有 lifecycle（loading/loaded/gameStart/firstInteraction）與 ads（interstitial/reward）",
+              gp["lifecycle"] == ["loaded", "gameStart", "firstInteraction", "loading"]
+              and gp["ads"] == ["interstitial", "reward"], f'{gp["lifecycle"]} / {gp["ads"]}')
+        loads = [c for c in gp["calls"] if c.startswith("loading(")]
+        pcts = [int(c[len("loading("):-1]) for c in loads]
+        check("lifecycle 呼叫順序正確：loading 單調遞增 → loaded() → gameStart()",
+              pcts == sorted(pcts) and "loaded()" in gp["calls"] and "gameStart()" in gp["calls"]
+              and gp["calls"].index("loaded()") < gp["calls"].index("gameStart()"),
+              f'{gp["calls"]}')
+        check("GamePix pause/resume 已註冊（wrapper 有 events bound）、遊戲開場即 gameStart",
+              gp["bound"] >= 0 and gp["started"] is True and not gp_errs, f'bound={gp["bound"]} errs={gp_errs[:1]}')
+        gpctx.close()
+
         # ---------- 12. 版面 ----------
         page.wait_for_selector("#stage", state="visible", timeout=5000)
         layout = page.evaluate("""({
