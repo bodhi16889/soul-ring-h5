@@ -1,0 +1,4428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#120b1f" />
+<title>Spirit Ring Idle</title>
+<meta name="description" content="Idle cultivation RPG: awaken spirits, hunt for rings, fuse them, and rebirth. Five-spirit auto-battle with offline progress." />
+<style>
+/* ==========================================================================
+   靈環覺醒：靈印放置錄 — 直式 9:16 版面（最大 480px 置中）
+   ========================================================================== */
+:root {
+  --bg: #0b0714;
+  --bg2: #150d24;
+  --panel: rgba(30, 20, 48, .92);
+  --line: rgba(255, 255, 255, .10);
+  --gold: #ffd166;
+  --gold-dim: #b9975b;
+  --purple: #a06bff;
+  --text: #ece6f7;
+  --muted: #9c90b5;
+  --ok: #57d98b;
+  --bad: #ff6b6b;
+  --white: #f2f2f2;
+  --yellow: #ffd93d;
+  --violet: #b06bff;
+  --black: #6f6f7d;
+  --red: #ff4d5e;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; margin: 0; }
+body {
+  background:
+    radial-gradient(900px 500px at 50% -10%, #2a1a45 0%, transparent 60%),
+    linear-gradient(180deg, #0b0714, #080510 60%, #0b0714);
+  color: var(--text);
+  font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+#app {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #120b20, #0a0614);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .05), 0 0 60px rgba(126, 66, 255, .18);
+  overflow: hidden;
+}
+
+/* ---------- 頂部狀態列 ---------- */
+#topbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  background: linear-gradient(180deg, rgba(64, 38, 104, .55), rgba(20, 12, 34, .65));
+  border-bottom: 1px solid var(--line);
+  z-index: 5;
+}
+.tb-left, .tb-right { display: flex; align-items: center; gap: 8px; min-width: 0; }
+#avatar {
+  width: 34px; height: 34px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-weight: 700; color: #2a1b3d;
+  background: radial-gradient(circle at 30% 25%, #ffe9a8, var(--gold) 60%, #b98a2b);
+  box-shadow: 0 0 12px rgba(255, 209, 102, .35);
+}
+.tb-id { min-width: 0; }
+#playerName { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+#powerWrap { font-size: 12px; color: var(--muted); }
+#power { color: var(--gold); font-size: 13px; font-variant-numeric: tabular-nums; transition: color .2s; }
+#power.bump { color: #fff; text-shadow: 0 0 10px var(--gold); }
+.res { display: flex; align-items: center; gap: 3px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.res .ico { font-size: 13px; filter: drop-shadow(0 0 4px rgba(255,209,102,.5)); }
+.res b { font-weight: 600; }
+.icon-btn {
+  width: 30px; height: 30px; border-radius: 9px; border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .06); color: var(--text); font-size: 15px;
+  display: grid; place-items: center; cursor: pointer;
+}
+.icon-btn:active { transform: scale(.94); }
+
+/* ---------- 觸控捲動修正 ----------
+   GamePix SDK 載入後會注入 `* { touch-action: none }`（為了防止長按選字/放大），
+   連帶讓 #views 裡的 .view 無法用手指上下滑。這裡用 !important 把可捲動區域還原，
+   specificity 無關，!important 一定贏。 */
+.view, .view *,
+.log, .log *,
+.modal, .modal *,
+.modal-card, .modal-card *,
+.modal-body, .modal-body *,
+#checkinGrid, #checkinGrid * { touch-action: pan-y !important; }
+
+/* ---------- 分頁容器 ---------- */
+#views { flex: 1 1 auto; position: relative; overflow: hidden; }
+.view {
+  position: absolute; inset: 0;
+  display: none; flex-direction: column;
+  padding: 10px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.view.active { display: flex; }
+.view::-webkit-scrollbar { width: 0; }
+
+/* ---------- 戰鬥舞台 ---------- */
+#stage {
+  position: relative;
+  flex: 0 0 auto;
+  height: 46%;
+  min-height: 210px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #140d24;
+  isolation: isolate;
+}
+.stage-bg {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(120% 70% at 50% 0%, rgba(160, 107, 255, .35), transparent 60%),
+    radial-gradient(80% 60% at 20% 100%, rgba(87, 217, 139, .16), transparent 60%),
+    linear-gradient(180deg, #1b1230, #0e0a19 70%);
+}
+.stage-bg::after {
+  content: "";
+  position: absolute; inset: 0;
+  background-image: radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,.5), transparent),
+                    radial-gradient(1px 1px at 70% 20%, rgba(255,255,255,.35), transparent),
+                    radial-gradient(1px 1px at 45% 70%, rgba(255,255,255,.3), transparent),
+                    radial-gradient(1px 1px at 85% 60%, rgba(255,255,255,.35), transparent);
+  opacity: .7;
+}
+.stage-name {
+  position: absolute; top: 8px; left: 10px; right: 10px;
+  font-size: 12px; color: #d9cef2; letter-spacing: .06em;
+  text-shadow: 0 1px 4px #000;
+}
+.side {
+  position: absolute; bottom: 46px;
+  display: flex; align-items: flex-end; gap: 6px;
+}
+.side.team { left: 8px; right: 8px; justify-content: flex-start; flex-wrap: wrap; }
+.side.enemy { right: 8px; justify-content: flex-end; }
+
+.unit {
+  position: relative;
+  width: 54px;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  transition: transform .12s;
+}
+.unit .body {
+  width: 42px; height: 42px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 18px;
+  background: radial-gradient(circle at 35% 30%, #4a3570, #211536);
+  border: 2px solid rgba(255, 255, 255, .18);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .5);
+  position: relative;
+}
+.unit.enemy.bossUnit .body { width: 66px; height: 66px; font-size: 32px; box-shadow: 0 0 18px rgba(255, 107, 107, .35); }
+.unit.enemy .body {
+  background: radial-gradient(circle at 35% 30%, #5a2230, #2b1018);
+  border-color: rgba(255, 107, 107, .35);
+  width: 56px; height: 56px; font-size: 26px;
+}
+.unit.hit { animation: hitShake .18s; }
+.unit.dead { opacity: .35; filter: grayscale(1); }
+.unit.dead .body::after {
+  content: "✕"; position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: 20px; font-weight: 700; color: #ff8080; text-shadow: 0 0 8px #000;
+}
+.unit .name { font-size: 9px; color: #cbbfe6; white-space: nowrap; }
+.bars { width: 100%; display: flex; flex-direction: column; gap: 2px; }
+.bar { height: 4px; border-radius: 3px; background: rgba(0, 0, 0, .55); overflow: hidden; }
+.bar > i { display: block; height: 100%; width: 100%; transition: width .18s linear; }
+.bar.hp > i { background: linear-gradient(90deg, #57d98b, #9df0bb); }
+.unit.enemy .bar.hp > i { background: linear-gradient(90deg, #ff6b6b, #ffa8a8); }
+.bar.mp { height: 3px; }
+.bar.mp > i { background: linear-gradient(90deg, #6ea8ff, #b7d3ff); width: 0; }
+
+@keyframes hitShake {
+  0% { transform: translateX(0); }
+  30% { transform: translateX(-4px); }
+  60% { transform: translateX(4px); }
+  100% { transform: translateX(0); }
+}
+
+/* 靈環升起的經典光圈 */
+.ring-fx {
+  position: absolute; left: 50%; bottom: 52px;
+  width: 10px; height: 10px; transform: translateX(-50%);
+  pointer-events: none;
+}
+.ring-fx.on::before, .ring-fx.on::after {
+  content: "";
+  position: absolute; left: 50%; top: 50%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(.2);
+  border: 3px solid var(--ring, #ffd93d);
+  box-shadow: 0 0 22px var(--ring, #ffd93d), inset 0 0 18px var(--ring, #ffd93d);
+  animation: ringRise .9s ease-out forwards;
+}
+.ring-fx.on::after { animation-delay: .12s; border-width: 2px; }
+@keyframes ringRise {
+  0% { width: 20px; height: 20px; opacity: 0; transform: translate(-50%, -50%) scale(.2); }
+  25% { opacity: 1; }
+  100% { width: 190px; height: 190px; opacity: 0; transform: translate(-50%, -50%) scale(1); }
+}
+
+.stage::after {
+  content: "";
+  position: absolute; left: 6%; right: 6%; bottom: 34px; height: 46px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(160, 107, 255, .18), transparent 70%);
+  pointer-events: none;
+}
+.floaters { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.float-num {
+  position: absolute; font-weight: 700; font-size: 15px;
+  color: #fff; text-shadow: 0 2px 6px #000, 0 0 10px rgba(255, 255, 255, .35);
+  animation: floatUp .85s ease-out forwards;
+  white-space: nowrap;
+}
+.float-num.crit { color: #ffd166; font-size: 19px; }
+.float-num.heal { color: #7df0a9; }
+.float-num.skill { color: #c9a4ff; font-size: 13px; }
+@keyframes floatUp {
+  0% { opacity: 0; transform: translate(-50%, 0) scale(.8); }
+  20% { opacity: 1; transform: translate(-50%, -8px) scale(1.05); }
+  100% { opacity: 0; transform: translate(-50%, -46px) scale(1); }
+}
+
+.banner {
+  position: absolute; left: 0; right: 0; top: 42%;
+  text-align: center; font-size: 22px; font-weight: 800; letter-spacing: .18em;
+  color: var(--gold); text-shadow: 0 0 18px rgba(255, 209, 102, .7);
+  opacity: 0; transform: scale(.8); transition: opacity .25s, transform .25s;
+  pointer-events: none;
+}
+.banner.show { opacity: 1; transform: scale(1); }
+
+.boss-btn {
+  position: absolute; right: 10px; bottom: 10px;
+  padding: 8px 14px; border-radius: 999px; border: 1px solid var(--gold-dim);
+  background: linear-gradient(180deg, rgba(255, 209, 102, .95), rgba(201, 148, 46, .95));
+  color: #2a1b09; font-weight: 800; font-size: 12px; letter-spacing: .05em;
+  box-shadow: 0 4px 16px rgba(255, 209, 102, .35);
+  cursor: pointer;
+}
+.boss-btn:disabled { filter: grayscale(.7); opacity: .55; }
+.boss-btn:active { transform: scale(.96); }
+
+.stage-info { flex: 0 0 auto; margin-top: 8px; }
+.prog-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+.prog-row b { color: var(--text); }
+.prog-bar { height: 6px; border-radius: 4px; background: rgba(255, 255, 255, .08); margin: 5px 0; overflow: hidden; }
+.prog-bar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--purple), var(--gold)); transition: width .25s; }
+.rate-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+
+.log-box { flex: 1 1 auto; min-height: 54px; margin-top: 8px; border-radius: 12px; border: 1px solid var(--line); background: rgba(0, 0, 0, .25); overflow: hidden; }
+.log { padding: 6px 9px; font-size: 12px; line-height: 1.55; color: #bdb2d6; height: 100%; overflow-y: auto; }
+.log::-webkit-scrollbar { width: 0; }
+.log .c-gold { color: var(--gold); }
+.log .c-bad { color: var(--bad); }
+.log .c-ok { color: var(--ok); }
+.log .c-purple { color: #c9a4ff; }
+
+/* ---------- 共用面板 ---------- */
+.panel-head { display: flex; align-items: baseline; justify-content: space-between; margin: 2px 2px 8px; }
+.panel-head h2 { font-size: 15px; margin: 0; letter-spacing: .08em; }
+.hint { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.card-list { display: flex; flex-direction: column; gap: 8px; }
+
+.card {
+  border: 1px solid var(--line); border-radius: 12px;
+  background: linear-gradient(180deg, rgba(46, 30, 74, .72), rgba(22, 14, 36, .82));
+  padding: 9px 10px;
+}
+.card .row1 { display: flex; align-items: center; gap: 8px; }
+.card .star { color: var(--gold); font-size: 12px; letter-spacing: 1px; }
+.card .tag { font-size: 10px; padding: 1px 6px; border-radius: 6px; background: rgba(160, 107, 255, .18); color: #c9a4ff; }
+.card .tag.on { background: rgba(87, 217, 139, .16); color: var(--ok); }
+.card .stats { margin-top: 6px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; font-size: 12px; color: var(--muted); }
+.card .stats b { color: var(--text); font-variant-numeric: tabular-nums; }
+.card .acts { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+.card.compact { padding: 7px 9px; }
+
+.mini-btn {
+  flex: 1 1 auto; min-width: 78px;
+  padding: 8px 10px; border-radius: 9px; font-size: 12px;
+  min-height: 44px;              /* 觸控目標最小 44px（WCAG 2.5.5 / iOS HIG） */
+  border: 1px solid var(--line); background: rgba(255, 255, 255, .06); color: var(--text);
+  cursor: pointer;
+}
+.mini-btn.primary { background: linear-gradient(180deg, rgba(160, 107, 255, .9), rgba(112, 62, 200, .9)); border-color: transparent; color: #fff; font-weight: 600; }
+.mini-btn.ghost { background: transparent; }
+.mini-btn:disabled { opacity: .45; }
+.mini-btn:active { transform: scale(.97); }
+
+.wide-btn {
+  width: 100%; margin-top: 8px; padding: 10px;
+  border-radius: 11px; border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(160, 107, 255, .85), rgba(103, 56, 190, .9));
+  color: #fff; font-weight: 700; font-size: 13px; cursor: pointer;
+}
+.wide-btn.alt { background: linear-gradient(180deg, rgba(255, 209, 102, .92), rgba(196, 141, 40, .95)); color: #2a1b09; }
+.wide-btn.small { width: auto; margin: 0; padding: 9px 14px; font-size: 12px; }
+.wide-btn:disabled { opacity: .5; }
+.wide-btn:active { transform: scale(.99); }
+
+/* 靈環顏色 */
+.ring-dot { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; box-shadow: 0 0 8px currentColor; }
+.t-white { color: var(--white); background: var(--white); }
+.t-yellow { color: var(--yellow); background: var(--yellow); }
+.t-violet { color: var(--violet); background: var(--violet); }
+.t-black { color: #b9b9c8; background: #3a3a46; box-shadow: 0 0 8px rgba(160,160,200,.6); }
+.t-red { color: var(--red); background: var(--red); }
+
+/* 靈骨顏色 */
+.bone { display: inline-block; width: 10px; height: 14px; border-radius: 3px; background: currentColor; box-shadow: 0 0 8px currentColor; }
+.bone-cyan { color: #5ad8ff; background: #5ad8ff; }
+.bone-red { color: #ff6b6b; background: #ff6b6b; }
+.bone-green { color: #57d98b; background: #57d98b; }
+.bone-blue { color: #6ea8ff; background: #6ea8ff; }
+.bone-gold { color: #ffd166; background: #ffd166; }
+
+/* 靈環合成 */
+.merge-box { border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin-bottom: 10px;
+  background: linear-gradient(180deg, rgba(160, 107, 255, .10), rgba(0, 0, 0, .18)); }
+.merge-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.merge-head b { font-size: 12px; color: #c9a4ff; letter-spacing: .06em; }
+.merge-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-top: 1px dashed rgba(255,255,255,.06); }
+.merge-row:first-of-type { border-top: 0; }
+.merge-row .mr-name { flex: 1 1 auto; font-size: 12px; color: #d9cef2; }
+.merge-row .mr-count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.merge-row .mini-btn { flex: 0 0 auto; min-width: 56px; }
+
+/* 轉生 */
+.rebirth-box { margin-top: 14px; padding: 12px; border-radius: 14px;
+  border: 1px solid rgba(255, 209, 102, .3);
+  background: radial-gradient(circle at 20% 0%, rgba(255, 209, 102, .16), transparent 60%), rgba(0, 0, 0, .25); }
+.rebirth-box h3 { margin: 0 0 6px; font-size: 14px; color: var(--gold); letter-spacing: .06em; display: flex; justify-content: space-between; }
+.rebirth-box .rb-line { font-size: 12px; color: var(--muted); line-height: 1.7; }
+.rebirth-box .rb-mark { color: var(--gold); font-weight: 700; font-size: 15px; }
+.rebirth-box button { margin-top: 8px; }
+.rebirth-box button.armed { background: linear-gradient(180deg, rgba(255, 107, 107, .95), rgba(190, 60, 60, .95)); color: #fff; }
+
+/* 每日簽到 */
+.checkin-box { border: 1px solid var(--line); border-radius: 14px; padding: 10px; margin-bottom: 10px;
+  background: radial-gradient(circle at 15% 0%, rgba(255, 209, 102, .12), transparent 60%); }
+.checkin-head { display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 12px; color: var(--gold); margin-bottom: 8px; letter-spacing: .06em; }
+.checkin-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.ci-cell { position: relative; border-radius: 9px; padding: 6px 2px 5px; text-align: center;
+  border: 1px solid var(--line); background: rgba(255, 255, 255, .04); }
+.ci-cell .d { font-size: 9px; color: var(--muted); }
+.ci-cell .e { font-size: 16px; line-height: 1.2; }
+.ci-cell .l { font-size: 8px; color: #bdb2d6; padding: 0 1px; line-height: 1.2;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ci-cell.done { opacity: .45; }
+.ci-cell.done::after { content: "✓"; position: absolute; top: -4px; right: -4px;
+  width: 14px; height: 14px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 10px; font-weight: 700; background: var(--ok); color: #06130b; }
+.ci-cell.today { border-color: var(--gold); box-shadow: 0 0 14px rgba(255, 209, 102, .35);
+  animation: ciPulse 1.8s ease-in-out infinite; }
+.ci-cell.big .e { font-size: 18px; }
+@keyframes ciPulse { 0%, 100% { box-shadow: 0 0 8px rgba(255, 209, 102, .25); } 50% { box-shadow: 0 0 20px rgba(255, 209, 102, .55); } }
+.checkin-btn { margin-top: 8px; }
+.checkin-btn:disabled { opacity: .5; }
+.dot { position: absolute; transform: translate(10px, -6px); width: 7px; height: 7px; border-radius: 50%;
+  background: var(--bad); box-shadow: 0 0 8px var(--bad); }
+.dot.hidden { display: none; }
+.nav-btn span { position: relative; display: inline-block; }
+
+/* 抽卡 */
+.gacha-box { text-align: center; border: 1px solid var(--line); border-radius: 14px; padding: 14px 12px 12px; background: radial-gradient(circle at 50% 0%, rgba(160, 107, 255, .22), transparent 65%); }
+.gacha-art { font-size: 48px; color: var(--gold); text-shadow: 0 0 28px rgba(255, 209, 102, .8); margin-bottom: 6px; animation: spinSlow 6s linear infinite; }
+@keyframes spinSlow { to { transform: rotate(360deg); } }
+.code-box { display: flex; gap: 8px; margin-top: 10px; }
+.code-box input {
+  flex: 1 1 auto; min-width: 0; padding: 9px 11px; border-radius: 10px;
+  border: 1px solid var(--line); background: rgba(0, 0, 0, .3); color: var(--text); font-size: 13px;
+}
+.pull-result { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+.pull-chip { padding: 8px 10px; border-radius: 9px; font-size: 12px; min-height: 44px; display: inline-flex; align-items: center; background: rgba(255, 255, 255, .07); border: 1px solid var(--line); }
+.pull-chip.s4 { border-color: rgba(160, 107, 255, .6); color: #c9a4ff; }
+.pull-chip.s5 { border-color: var(--gold); color: var(--gold); box-shadow: 0 0 10px rgba(255, 209, 102, .35); }
+
+/* ---------- 底部導覽 ---------- */
+#nav {
+  flex: 0 0 auto;
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  border-top: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(22, 14, 36, .96), rgba(10, 6, 20, .98));
+  padding: 4px 2px calc(4px + env(safe-area-inset-bottom));
+  z-index: 5;
+}
+.nav-btn {
+  border: 0; background: transparent; color: var(--muted);
+  font-size: 10px; padding: 5px 0 3px; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  cursor: pointer;
+}
+.nav-btn span { font-size: 17px; line-height: 1; }
+.nav-btn.active { color: var(--gold); }
+.nav-btn.active span { text-shadow: 0 0 12px rgba(255, 209, 102, .6); }
+
+/* ---------- 彈窗 ---------- */
+.modal {
+  position: absolute; inset: 0; z-index: 20;
+  background: rgba(4, 2, 10, .72);
+  display: flex; align-items: center; justify-content: center;
+  padding: 18px;
+  backdrop-filter: blur(2px);
+}
+.modal.hidden { display: none; }
+.modal-card {
+  width: 100%; max-width: 360px; max-height: 82%;
+  overflow-y: auto;
+  border-radius: 16px; border: 1px solid rgba(255, 209, 102, .25);
+  background: linear-gradient(180deg, #20142f, #120b1e);
+  box-shadow: 0 16px 50px rgba(0, 0, 0, .7), 0 0 40px rgba(160, 107, 255, .18);
+  padding: 16px;
+}
+.modal-card h3 { margin: 0 0 10px; font-size: 16px; color: var(--gold); letter-spacing: .06em; }
+.modal-body { font-size: 12.5px; color: #cfc6e3; line-height: 1.7; }
+.modal-body textarea {
+  width: 100%; height: 92px; margin-top: 8px; resize: none;
+  border-radius: 10px; border: 1px solid var(--line); background: rgba(0, 0, 0, .35);
+  color: var(--text); font-size: 11px; padding: 8px; font-family: ui-monospace, monospace;
+}
+.modal-btns { display: flex; gap: 8px; margin-top: 14px; }
+.modal-btns button {
+  min-height: 44px;
+  flex: 1 1 0; padding: 10px; border-radius: 10px; font-size: 13px; font-weight: 600;
+  border: 1px solid var(--line); background: rgba(255, 255, 255, .07); color: var(--text); cursor: pointer;
+}
+.modal-btns button.primary { background: linear-gradient(180deg, rgba(160, 107, 255, .9), rgba(103, 56, 190, .95)); border-color: transparent; color: #fff; }
+.modal-btns button:active { transform: scale(.98); }
+
+/* ---------- Toast ---------- */
+.toast {
+  position: absolute; left: 50%; bottom: 86px; transform: translateX(-50%) translateY(10px);
+  z-index: 30; max-width: 86%;
+  padding: 9px 14px; border-radius: 999px;
+  background: rgba(20, 12, 34, .95); border: 1px solid rgba(255, 209, 102, .35);
+  color: var(--gold); font-size: 12px; text-align: center;
+  opacity: 0; transition: opacity .2s, transform .2s;
+  pointer-events: none;
+}
+.toast.hidden { display: none; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* 手機（<=380px）微調 */
+@media (max-width: 380px) {
+  .unit { width: 46px; }
+  .unit .body { width: 36px; height: 36px; font-size: 16px; }
+  .unit.enemy .body { width: 48px; height: 48px; font-size: 22px; }
+  #playerName { max-width: 92px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+
+/* ===== 載入畫面（GamePix 必要） ===== */
+.loading {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 18px; background: radial-gradient(circle at 50% 40%, #2a1046 0%, #0b0616 70%);
+  transition: opacity .35s ease, visibility .35s ease;
+}
+.loading.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+.loading h1 {
+  font-size: 22px; letter-spacing: .18em; font-weight: 800;
+  color: #fff; text-shadow: 0 0 18px rgba(180, 120, 255, .55);
+}
+.loading-ring {
+  width: 64px; height: 64px; border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, .12);
+  border-top-color: #ffd166; border-right-color: #b06bff;
+  animation: loadspin 1s linear infinite;
+}
+@keyframes loadspin { to { transform: rotate(360deg); } }
+.loading-bar { width: 160px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.12); overflow: hidden; }
+.loading-bar i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, #ffd166, #b06bff); transition: width .25s ease; }
+
+
+/* 可轉生提示條 */
+.rb-hint {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 10px 12px; margin-bottom: 10px; border-radius: 12px;
+  background: linear-gradient(90deg, rgba(255, 209, 102, .18), rgba(176, 107, 255, .18));
+  border: 1px solid rgba(255, 209, 102, .45);
+  font-size: 11px; line-height: 1.45; color: #ffe9b8;
+}
+.rb-hint b { color: #ffd166; }
+.rb-hint .go {
+  flex: 0 0 auto; padding: 6px 10px; border-radius: 8px; border: 0;
+  background: #ffd166; color: #2b1a05; font-weight: 700; font-size: 11px;
+}
+.rb-hint.hidden { display: none; }
+
+
+/* 存檔碼 / 輸入框要能選取（GamePix SDK 會注入 * { user-select: none }） */
+textarea, input,
+.modal-card textarea, .modal-card input {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+  -webkit-touch-callout: default !important;
+  touch-action: pan-y !important;
+}
+.modal-card textarea { line-height: 1.45; word-break: break-all; }
+
+</style>
+<!-- CrazyGames SDK v3：必須早於遊戲任何 JS，且要 await SDK.init() -->
+<script>window.ADS_PROVIDER = 'crazy';</script>
+<script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
+</head>
+<body>
+<div id="loading" class="loading">
+  <div class="loading-ring"></div>
+  <h1>Spirit Ring Idle</h1>
+  <div class="loading-bar"><i id="loadingBar"></i></div>
+</div>
+<div id="app">
+
+  <!-- ===== 頂部狀態列 ===== -->
+  <header id="topbar">
+    <div class="tb-left">
+      <div id="avatar" title="靈師" data-i18n-title="靈師" data-i18n="魂">魂</div>
+      <div class="tb-id">
+        <div id="playerName" data-i18n="無名靈師">無名靈師</div>
+        <div id="powerWrap"><span data-i18n="戰力">戰力</span> <b id="power">0</b></div>
+      </div>
+    </div>
+    <div class="tb-right">
+      <div class="res" id="marksBox" style="display:none"><span class="ico">🌀</span><b id="marks">0</b></div>
+      <div class="res" id="coinBox"><span class="ico">🪙</span><b id="coins">0</b></div>
+      <div class="res" id="diamondBox"><span class="ico">💎</span><b id="diamonds">0</b></div>
+      <button id="btnMenu" class="icon-btn" aria-label="Settings" data-i18n-title="設定">⚙</button>
+    </div>
+  </header>
+
+  <!-- ===== 分頁內容 ===== -->
+  <main id="views">
+
+    <!-- 戰鬥 -->
+    <section class="view active" data-view="battle">
+      <div id="stage" class="stage">
+        <div class="stage-bg"></div>
+        <div id="stageName" class="stage-name"></div>
+        <div id="enemyRow" class="side enemy"></div>
+        <div id="teamRow" class="side team"></div>
+        <div id="ringFx" class="ring-fx"></div>
+        <div id="floaters" class="floaters"></div>
+        <div id="battleBanner" class="banner"></div>
+        <button id="bossBtn" class="boss-btn" data-i18n="挑戰 BOSS">挑戰 BOSS</button>
+      </div>
+      <div class="stage-info">
+        <div class="prog-row">
+          <span id="stageLabel">Stage <b id="stageNum">1</b></span>
+          <span id="progText">0 / 10</span>
+        </div>
+        <div class="prog-bar"><i id="progBar"></i></div>
+        <div class="rate-row">
+          <span data-i18n="掛機效率">掛機效率</span>
+          <span id="rateText">靈幣 0/分 · 經驗 0/分</span>
+        </div>
+      </div>
+      <div class="log-box"><div id="log" class="log"></div></div>
+    </section>
+
+    <!-- 靈印 -->
+    <section class="view" data-view="souls">
+      <div class="panel-head">
+        <h2 data-i18n="靈印">靈印</h2><span id="slotInfo" class="hint">上陣 1 / 1</span>
+      </div>
+      <div id="rebirthHint" class="rb-hint hidden"></div>
+      <div id="soulList" class="card-list"></div>
+      <button id="btnExpandSlot" class="wide-btn">擴充陣容（5 人小隊）</button>
+      <p class="hint" data-i18n="上陣人數越多，掛機收益越高。解鎖需靈幣與等級。">上陣人數越多，掛機收益越高。解鎖需靈幣與等級。</p>
+
+      <div class="panel-head" style="margin-top:14px"><h2 data-i18n="靈骨">靈骨</h2><span id="boneCount" class="hint"></span></div>
+      <div id="boneList" class="card-list"></div>
+      <p class="hint" data-i18n="靈骨裝備給靈印：裝備者吃全額加成，同隊其他靈印獲得 30% 光環。靈印升星會消耗未裝備的靈骨。">靈骨裝備給靈印：裝備者吃全額加成，同隊其他靈印獲得 30% 光環。
+        靈印升星會消耗未裝備的靈骨。</p>
+
+      <div id="rebirthBox" class="rebirth-box"></div>
+    </section>
+
+    <!-- 靈環 -->
+    <section class="view" data-view="rings">
+      <div class="panel-head"><h2 data-i18n="靈環">靈環</h2><span id="ringCount" class="hint">0</span></div>
+      <div id="ringList" class="card-list"></div>
+      <p class="hint" data-i18n="靈環只能裝在對應靈印身上；每 10 級開 1 個靈環槽（最多 9 格）。3 個同階可合成 1 個更高階。">靈環只能裝在對應靈印身上；每 10 級開 1 個靈環槽（最多 9 格）。3 個同階可合成 1 個更高階。</p>
+    </section>
+
+    <!-- 獵靈 -->
+    <section class="view" data-view="hunt">
+      <div class="panel-head"><h2 data-i18n="幽篁林">幽篁林</h2><span id="huntHint" class="hint"></span></div>
+      <div id="beastList" class="card-list"></div>
+      <p class="hint" data-i18n="擊敗靈獸可獲得靈環；年份越高，屬性加成越強。">擊敗靈獸可獲得靈環；年份越高，屬性加成越強。</p>
+    </section>
+
+    <!-- 覺醒 -->
+    <section class="view" data-view="gacha">
+      <div class="panel-head"><h2 data-i18n="靈印殿">靈印殿</h2><span id="ticketInfo" class="hint"></span></div>
+      <div class="checkin-box" id="dailyBox"></div>
+      <div class="checkin-box" id="achBox"></div>
+      <div class="checkin-box">
+        <div class="checkin-head"><span data-i18n="每日簽到">每日簽到</span><span id="streakInfo" class="hint"></span></div>
+        <div id="checkinGrid" class="checkin-grid"></div>
+        <button id="btnCheckin" class="wide-btn small checkin-btn" data-i18n="領取今日獎勵">領取今日獎勵</button>
+      </div>
+      <div class="gacha-box">
+        <div class="gacha-art">✦</div>
+        <button id="btnPull1" class="wide-btn" data-i18n="覺醒一次（1 券 / 100 💎）">覺醒一次（1 券 / 100 💎）</button>
+        <button id="btnPull10" class="wide-btn alt" data-i18n="十連覺醒（10 券 / 900 💎）">十連覺醒（10 券 / 900 💎）</button>
+      </div>
+      <button id="btnRewardAd" class="wide-btn small alt" data-i18n="看廣告領 888 靈幣">看廣告領 888 靈幣</button>
+      <div class="code-box">
+        <input id="codeInput" placeholder="輸入兌換碼" data-i18n-ph="輸入兌換碼" maxlength="20" />
+        <button id="btnCode" class="wide-btn small" data-i18n="兌換">兌換</button>
+      </div>
+      <p class="hint" data-i18n="機率：靈印 ★5 3% · ★4 12% · ★3 以下 70% · 靈骨 15%（每抽）">機率：靈印 ★5 3% · ★4 12% · ★3 以下 70% · 靈骨 15%（每抽）</p>
+      <p class="hint" data-i18n="測試兌換碼：VIP666、DOULUO888、TANG3">測試兌換碼：VIP666、DOULUO888、TANG3</p>
+      <div id="pullResult" class="pull-result"></div>
+    </section>
+  </main>
+
+  <!-- ===== 底部導覽 ===== -->
+  <nav id="nav">
+    <button class="nav-btn active" data-tab="battle"><span>🗡️</span><b data-i18n="戰鬥">戰鬥</b></button>
+    <button class="nav-btn" data-tab="souls"><span>🌀</span><b data-i18n="靈印">靈印</b></button>
+    <button class="nav-btn" data-tab="rings"><span>💠</span><b data-i18n="靈環">靈環</b></button>
+    <button class="nav-btn" data-tab="hunt"><span>🐾</span><b data-i18n="獵靈">獵靈</b></button>
+    <button class="nav-btn" data-tab="gacha"><span>✨<i id="checkinDot" class="dot hidden"></i></span><b data-i18n="覺醒">覺醒</b></button>
+  </nav>
+
+  <!-- ===== 彈窗 ===== -->
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-card">
+      <h3 id="modalTitle" data-i18n="標題">標題</h3>
+      <div id="modalBody" class="modal-body"></div>
+      <div id="modalBtns" class="modal-btns"></div>
+    </div>
+  </div>
+  <div id="toast" class="toast hidden"></div>
+</div>
+
+<script>
+/* ==========================================================================
+ * i18n.js — 語系層（GamePix 規則：預設英文，只有明確 ?lang=zh 才給中文）
+ *
+ * 用法：
+ *   T('戰鬥')                  → 'Battle'（查表）
+ *   T(`第 ${n} 關`)            → 'Stage n'（查表失敗時套規則）
+ *   P(obj, 'name')             → 依語系取 obj.name_en / obj.name
+ *
+ * 不要在遊戲邏輯裡判斷語系；一律呼叫這裡。
+ * ========================================================================== */
+(function (global) {
+  'use strict';
+
+  var KEY = 'soulring.lang';
+  var pref = null;
+  try { pref = localStorage.getItem(KEY); } catch (e) { pref = null; }
+  var m = /[?&]lang=([a-zA-Z-]+)/.exec(location.search || '');
+  // 網址參數 > 玩家自己選過的 > 預設英文（GamePix 規則：非支援語系一律英文）
+  var LANG = m ? ((m[1] || '').toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en')
+               : (pref === 'zh' ? 'zh' : 'en');
+
+  function setLang(lang) {
+    try { localStorage.setItem(KEY, lang === 'zh' ? 'zh' : 'en'); } catch (e) {}
+    var url = location.pathname + location.search.replace(/[?&]lang=[a-zA-Z-]+/g, '');
+    location.replace(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'lang=' +
+                     (lang === 'zh' ? 'zh' : 'en'));
+  }
+
+  /* ---------- 靜態字串表（中文 → 英文） ---------- */
+  var EN = {
+    /* 通用 */
+    '戰鬥': 'Battle', '靈印': 'Spirits', '靈環': 'Rings', '獵靈': 'Hunt', '覺醒': 'Awaken',
+    '設定': 'Settings', '關閉': 'Close', '取消': 'Cancel', '確定': 'OK', '返回': 'Back',
+    '戰力': 'Power', '攻擊': 'ATK', '生命': 'HP', '防禦': 'DEF', '速度': 'SPD',
+    '等級': 'Lv', '經驗': 'EXP', '靈幣': 'Coins', '鑽石': 'Gems', '覺醒券': 'Tickets',
+    '上陣': 'Deploy', '下陣': 'Remove', '上陣中': 'In team', '上陣人數': 'Team size',
+    '強攻型': 'Attacker', '控制型': 'Controller', '防禦型': 'Defender', '輔助型': 'Support',
+    '無名靈師': 'Nameless Master', '靈師': 'Spirit Master',
+    '已達五人小隊上限': 'Team is full (5)',
+    '上陣人數越多，掛機收益越高。解鎖需靈幣與等級。':
+      'More spirits on the team means more idle income. Unlocking costs coins and levels.',
+
+    /* 戰鬥 */
+    '掛機效率': 'Idle rate', '清怪': 'Cleared', '野生靈獸': 'Wild beast',
+    '全隊倒下': 'Team wiped', '全隊倒下，2 秒後自動重整': 'Team wiped — regrouping in 2s',
+    '境界提升': 'Level up', '靈印重新凝聚，繼續戰鬥': 'Spirits reformed — back in the fight',
+    '群攻命中': 'AoE hits',
+    '擊殺靈獸': 'Beast slain',
+    '等級提升': 'Level up',
+    '守關靈獸出現，可以挑戰 BOSS 了': 'Stage boss appeared — ready to challenge',
+    '挑戰 BOSS': 'Challenge boss',
+    '群攻命中 2 隻靈獸': 'AoE hit 2 beasts',
+    '群攻命中 3 隻靈獸': 'AoE hit 3 beasts',
+
+    /* 武魂頁 */
+    '魂環槽': 'Ring slots', '靈環槽': 'Ring slots',
+    '真身': 'True body', '共鳴': 'Resonance',
+    '裝備靈環': 'Equip ring', '換靈骨': 'Swap bone', '裝靈骨': 'Equip bone',
+    '卸下': 'Unequip', '升星': 'Star up',
+    '靈骨：無': 'Bone: none', '靈骨': 'Spirit bones',
+    '未裝備': 'Unequipped', '已裝備': 'Equipped',
+    '全屬性': 'All stats',
+    '靈骨裝備給靈印：裝備者吃全額加成，同隊其他靈印獲得 30% 光環。靈印升星會消耗未裝備的靈骨。':
+      'Soul bones go on a spirit: the holder gets the full bonus, the rest of the team gets a 30% aura. Star-ups consume unequipped bones.',
+
+    /* 轉生 */
+    '轉生': 'Rebirth', '命印': 'Marks', '歷史最高': 'Best stage',
+    '目前加成': 'Current bonus', '這次轉生可得': 'This rebirth grants',
+    '收益': 'Income',
+    '轉生會重置等級／關卡／靈幣；靈印、星級、靈骨、靈環、命印都會保留。':
+      'Rebirth resets level, stages and coins. Spirits, stars, bones, rings and marks are kept.',
+
+    /* 靈環頁 */
+    '背包': 'Bag', '等級上限': 'Level cap', '靈環合成': 'Ring fusion',
+    '3 個同階 → 1 個高一階（不會動已裝備的）':
+      '3 of a grade → 1 of the next grade (equipped rings are untouched)',
+    '一鍵合成（白・黃・紫・黑 全部合到不能再合）':
+      'Fuse all (white / yellow / violet / black, as far as possible)',
+    '合成': 'Fuse', '被動：純屬性增幅（無靈技）': 'Passive: stats only (no skill)',
+    '靈環只能裝在對應靈印身上；每 10 級開 1 個靈環槽（最多 9 格）。3 個同階可合成 1 個更高階。':
+      'Rings fit the spirit that dropped them. One slot unlocks every 10 levels (max 9). Fuse 3 of a grade into the next.',
+    '白靈環': 'White ring', '黃靈環': 'Yellow ring', '紫靈環': 'Violet ring',
+    '黑靈環': 'Black ring', '紅靈環': 'Red ring',
+    '風系': 'Wind', '木系': 'Wood', '毒系': 'Poison', '土系': 'Earth', '水系': 'Water',
+
+    /* 獵靈 */
+    '掉落': 'Drops', '進入獵殺': 'Hunt', '十年': 'White', '百年': 'Yellow',
+    '千年': 'Violet', '萬年': 'Black', '十萬年': 'Red',
+    '擊敗靈獸可獲得靈環；年份越高，屬性加成越強。':
+      'Beat spirit beasts for rings. Higher grades give stronger bonuses.',
+    '嘯風猿': 'Howling Ape', '纏魂藤蛇': 'Tangle Viper', '織影蛛': 'Shade Weaver',
+    '暗金裂爪熊': 'Darkgold Clawbear', '深海巨鯨': 'Abyss Whale',
+    '幽篁林': 'Hollow Grove', '青岩學院': 'Blue Rock Academy', '鐵砧城': 'Anvil City',
+    '霜火雙泉': 'Frostfire Springs', '潮汐島': 'Tidal Isle', '靈印城': 'Spirit City',
+    '斷刃之城': 'Broken Blade City', '裂隙': 'The Rift',
+    '後山': 'Backhill', '外圍': 'Outskirts', '競技場': 'Arena', '試煉之路': 'Trial Path',
+    '擂台': 'Platform', '深淵': 'Abyss',
+
+    /* 抽卡／簽到 */
+    '覺醒殿': 'Awaken Shrine', '靈印殿': 'Spirit Shrine',
+    '每日簽到': 'Daily check-in', '連續': 'Streak', '領取': 'Claim',
+    '覺醒一次': 'Pull ×1', '十連覺醒': 'Pull ×10', '兌換': 'Redeem',
+    '機率：靈印 ★5 3% · ★4 12% · ★3 以下 70% · 靈骨 15%（每抽）':
+      'Rates per pull: spirit ★5 3% · ★4 12% · ★3 or lower 70% · spirit bone 15%',
+    '測試兌換碼：': 'Test codes: ',
+    '今日簽到可領取': "Today's check-in is ready",
+    '天': 'd', '鑽石': 'Gems', '靈幣3000': '3000 coins', '鑽石120': '120 gems',
+    '覺醒券2': '2 tickets', '靈幣12000': '12000 coins', '鑽石500': '500 gems',
+
+    /* 靈印名稱 */
+    '巨靈槌': 'Colossus Hammer', '赤焰鳶': 'Ember Kite', '青藤': 'Verdant Vine',
+    '惑心狐': 'Heartfox', '玄甲龜': 'Obsidian Turtle', '鐵背熊': 'Ironback Bear',
+    '琉璃塔': 'Glazed Pagoda', '甘露囊': 'Dew Pouch', '幽影貓': 'Shadow Cat',
+    '怒潮戟': 'Tide Halberd',
+    '巨靈九式': 'Ninefold Smash', '焰羽燎原': 'Ember Wings', '藤蔓纏繞': 'Vine Bind',
+    '惑心領域': 'Heart Domain', '甲冑真身': 'Ironclad Body', '震山咆哮': 'Mountain Roar',
+    '琉璃灌頂': 'Glaze Blessing', '甘露回春': 'Dew Mend', '影襲爪': 'Shadow Claw',
+    '怒潮席捲': 'Tide Surge',
+    '巨靈九式': 'Ninefold Smash', '焰羽燎原': 'Ember Wings', '藤蔓纏繞': 'Vine Bind',
+    '惑心領域': 'Heart Domain', '甲冑真身': 'Ironclad Body', '震山咆哮': 'Mountain Roar',
+    '琉璃灌頂': 'Glaze Blessing', '甘露回春': 'Dew Mend', '影襲爪': 'Shadow Claw',
+    '怒潮席捲': 'Tide Surge',
+    '對全體敵人造成 200% 攻擊傷害': 'Hits every enemy for 200% ATK',
+    '對單體造成 200% 傷害並灼燒': '200% damage to one target and burns it',
+    '單體 60% 傷害，40% 機率暈眩 1 回合': '60% damage, 40% chance to stun for a turn',
+    '全體 45% 傷害，命中者減速 30%': '45% to all, slowing what it hits by 30%',
+    '嘲諷 1 回合，全隊獲得護盾': 'Taunts for a turn and shields the team',
+    '嘲諷並降低敵方攻擊 20%': 'Taunts and cuts enemy ATK by 20%',
+    '全隊攻擊 +40%、回復 25% 生命': 'Team ATK +40% and heals 25% HP',
+    '回復生命最低的隊友 40% 生命': 'Heals the weakest ally for 40% HP',
+    '對單體造成 230% 傷害': '230% damage to one target',
+    '全體 110% 傷害，無視 30% 防禦': '110% to all, ignoring 30% DEF',
+    '靈技 · 神滅': 'Skill · Annihilation', '靈技 · 震懾': 'Skill · Dread',
+    '靈技 · 千軍': 'Skill · Myriad',
+    '外附靈骨': 'Soul Bone', '疾風': 'Gale', '王者': 'King',
+
+    /* 存檔／設定 */
+    '自動挑戰 BOSS': 'Auto-challenge boss', '自動獵靈': 'Auto-hunt',
+    '自動裝備靈環': 'Auto-equip rings', '自動合成低階環': 'Auto-fuse low rings',
+    '匯出存檔碼': 'Export save code', '匯入存檔碼': 'Import save code',
+    '版本': 'Version', '最高關卡': 'Best stage',
+    '重置全部進度': 'Reset all progress',
+
+    /* 片段（混合字串用；長的先換） */
+    '魂': 'S', '裝到': 'Equip to', '券': 'tickets', '標題': 'Title',
+    '風': 'Wind', '水': 'Water', '木': 'Wood', '土': 'Earth', '毒': 'Poison',
+    '靈印城 · 擂台': 'Spirit City · Platform', '幽篁林': 'Hollow Grove',
+    '看廣告領 888 靈幣': 'Watch an ad for 888 coins',
+    '測試兌換碼：VIP666、DOULUO888、TANG3': 'Test codes: VIP666, DOULUO888, TANG3',
+    '輸入兌換碼': 'Enter code', '領取今日獎勵': "Claim today's reward",
+    '廣告載入中…': 'Loading ad…', '獎勵已發放：+888 靈幣': 'Reward granted: +888 coins',
+    '廣告未完成，沒有獎勵': 'Ad not completed — no reward',
+    '存檔損毀，已建立新檔': 'Save was corrupted — a new one was created',
+    '今日簽到可領取 🎁': "Today's check-in is ready 🎁",
+    '連續簽到有獎': 'Daily streak rewards',
+    '今天已簽到 · 明天再來': 'Checked in today · come back tomorrow',
+    '兌換成功：': 'Redeemed: ', '靈師': 'Spirit Master', '屬性共鳴': 'element resonance', '靈技': 'Skill', '靈技：': 'Skill: ', '無靈環': 'No rings',
+    '還沒有靈骨。到「覺醒」抽卡有機會抽到靈骨。': 'No soul bones yet. Pull on the Awaken tab for a chance.',
+    '還沒有靈環。到「獵靈」擊敗靈獸，就能吸收第一枚靈環。': 'No rings yet. Beat a spirit beast in Hunt to absorb your first ring.',
+    '需': 'Needs ',
+    '存檔狀態': 'Save status', '還原備份': 'Restore backup', '主檔': 'Main', '備份': 'Backup',
+    '正常': 'OK', '損毀': 'corrupt', '無': 'none', '寫入失敗': 'write failed',
+    '已停止自動存檔': 'autosave paused', '備份無法還原': 'Backup could not be restored',
+    '主存檔損毀，已從備份還原': 'Main save was corrupt — restored from backup',
+    '存檔來自較新版本，已停止自動存檔以免覆蓋':
+      'Save is from a newer version; autosave paused so it is not overwritten',
+    '存檔損毀，已建立新檔（舊檔已保留）': 'Save was corrupt — started fresh (old file kept)', 'BOSS 戰': 'BOSS fight',
+    '若靈印頁的靈環槽顯示 /3 或等級上限是 90，代表瀏覽器還在使用舊檔：請開 ?v=2 或清快取。':
+      'If the Spirits page still shows /3 ring slots or cap 90, your browser cached an old build: open ?v=2 or clear cache.',
+    '存檔會自動保存在這台裝置的瀏覽器；換裝置請用存檔碼。':
+      'Progress is saved in this browser. Use a save code to move to another device.', '複製': 'Copy', '匯入': 'Import', '取消': 'Cancel', '儲存': 'Save',
+    '確定清除': 'Clear everything', '貼上存檔碼': 'Paste save code', '改暱稱': 'Change name',
+    '匯出存檔碼': 'Export save code', '匯入存檔碼': 'Import save code',
+    '存檔已匯入': 'Save imported', '已重新開始': 'Started over', '已複製': 'Copied',
+    '複製整段文字，貼到新裝置的「匯入存檔碼」。':
+      'Copy the whole text and paste it into Import save code on the new device.',
+    '貼上存檔碼，會覆蓋目前進度。': 'Paste a save code. It overwrites your current progress.',
+    '確定要清空進度嗎？此動作無法復原。': 'Clear all progress? This cannot be undone.', '已複製存檔碼': 'Save code copied',
+    '已全選，請長按文字選「拷貝」': 'Selected — long-press and choose Copy',
+    '按「複製」後貼到新裝置的「匯入存檔碼」；若沒反應，長按框內文字全選再複製。':
+      'Tap Copy, then paste it into Import save code on the new device. If nothing happens, long-press the text and copy it manually.',
+    '請長按選取複製': 'Long-press to select and copy', '成就': 'Achievements', '音效': 'Sound', '紀錄': 'Records',
+    '最高戰力': 'Best power', '累計擊殺': 'Total kills', '連續簽到': 'Login streak',
+    '初入魂道': 'First steps', '站穩腳跟': 'Holding ground',
+    '百關之志': 'Hundred stages', '深淵行者': 'Abyss walker', '無盡之路': 'Endless road',
+    '第一次轉生': 'First rebirth', '輪迴十次': 'Ten rebirths', '命印百枚': 'Hundred marks',
+    '五人小隊': 'Full team', '五星圓滿': 'Five stars', '靈骨收藏家': 'Bone collector',
+    '環滿全身': 'Fully ringed', '推進到第 20 關': 'Reach stage 20',
+    '推進到第 50 關': 'Reach stage 50', '推進到第 100 關': 'Reach stage 100',
+    '推進到第 200 關': 'Reach stage 200', '推進到第 500 關': 'Reach stage 500',
+    '完成 1 次轉生': 'Rebirth once', '完成 10 次轉生': 'Rebirth 10 times',
+    '累積 100 枚命印': 'Bank 100 marks', '上陣 5 名靈印': 'Field 5 spirits',
+    '任一靈印升到 5★': 'Get any spirit to 5★', '持有 5 塊靈骨': 'Hold 5 soul bones',
+    '全隊裝備 45 個靈環': 'Equip 45 rings', '每日任務': 'Daily tasks', '每天 0 點重置': 'Resets at midnight',
+    '已領': 'Claimed', '沒有這個任務': 'No such task', '今天已領過': 'Already claimed today',
+    '任務還沒完成': 'Task not finished', '掛機 10 分鐘': 'Idle for 10 minutes',
+    '獵靈 3 次': 'Hunt 3 times', '合成靈環 3 次': 'Fuse rings 3 times', '已達等級上限（玩家等級 +20）': 'Level cap reached (player Lv +20)',
+    '沒有這個靈印': 'No such spirit', '爆擊': 'Crit',
+    '加成各自乘算：靈環（加法）→ 靈骨 → 命印 → 真身；戰力停住通常代表該轉生了':
+      'Bonuses multiply separately: rings (additive) → bones → marks → true body. Marks give crit chance; speed saturates around 617.', '靈幣抽靈骨': 'Spend coins on bones', '抽 1 次': 'Pull ×1',
+    '連抽 5 次（逐次計價）': 'Pull ×5 (each priced)', '抽': 'Pull',
+    '王者靈骨（全屬性）較稀有；抽越多次單價越高。':
+      'King bones (all stats) are rare; the price rises with every pull.',
+    '還沒有靈骨。用上面的靈幣抽，或到「覺醒」抽卡。':
+      'No bones yet. Buy some with coins above, or pull on the Awaken tab.',
+    '靈幣不足': 'Not enough coins', '前往': 'Go', '戰力明細': 'Power breakdown',
+    '會重置等級／關卡／靈幣；靈印、星級、靈骨、靈環保留':
+      'Resets level, stages and coins. Spirits, stars, bones and rings are kept.',
+    '加成各自乘算：靈環（加法）→ 靈骨 → 命印 → 真身；戰力停住通常代表該轉生了':
+      'Bonuses multiply separately: rings (additive) → bones → marks → true body. Marks give crit chance; speed saturates around 617.', '關卡清完 · 去打靈環': 'Stage cleared · go hunt rings',
+    '卡等': 'Level capped', '卡等自動獵靈': 'Auto-hunt when capped',
+    '自動挑戰 BOSS': 'Auto-challenge boss', '自動裝備靈環': 'Auto-equip rings',
+    '自動合成低階環': 'Auto-fuse low rings', '關': 'OFF', '開': 'ON',
+    '重新開始': 'Start over', '改暱稱': 'Change name', '領取': 'Claim', '★5 滿星': '★5 Max', '滿星': 'Max',
+    '靈印重新凝聚，繼續戰鬥': 'Spirits reformed — back in the fight',
+  };
+
+  /* ---------- 動態字串規則（順序敏感，長的先） ---------- */
+  var AR = [
+    [/^環槽 (\d+) 格 \/ 靈印$/, '$1 slots / spirit'],
+    [/^已還原備份：第 (\d+) 關$/, 'Backup restored: stage $1'],
+    [/^全屬性 \+(\d+(?:\.\d+)?)%$/, 'All stats +$1%'],
+    [/^里程碑：第 (\d+) 關 → 獲得 (.+)$/, 'Milestone: stage $1 → $2'],
+    [/^里程碑獎勵：(.+)$/, 'Milestone reward: $1'],
+    [/^成就解鎖：(.+?)（(.+)）$/, 'Achievement unlocked: $1 ($2)'],
+    [/^成就解鎖：(.+)$/, 'Achievement unlocked: $1'],
+    [/^領 (\d+) 💎$/, 'Claim $1 💎'],
+    [/^任務完成：\+(\d+) 💎$/, 'Task complete: +$1 💎'],
+    [/^升級 Lv\.(\d+)（(.+)）$/, 'Level up Lv.$1 ($2)'],
+    [/^Lv\.(\d+) 已滿$/, 'Lv.$1 maxed'],
+    [/^已抽 (\d+) 次 · 每次必得 1 塊$/, 'Pulled $1 times · 1 bone each'],
+    [/^抽到 (\d+) 塊：(.+)$/, 'Got $1 bone(s): $2'],
+    [/^本輪推進：\+(\d+) 關（上次轉生在 第 (\d+) 關）$/, 'This run: +$1 stages (last rebirth at stage $2)'],
+    [/^要推進到 第 (\d+) 關才能轉生$/, 'Push to stage $1 to rebirth'],
+    [/^要推進到 第 (\d+) 關才能轉生（本輪 \+(\d+) 關）$/, 'Push to stage $1 to rebirth (this run: +$2)'],
+    [/^可轉生：\+(\d+) 命印（全屬性 \+(\d+)%）$/, 'Rebirth ready: +$1 marks (+$2% all stats)'],
+    [/^Challenge boss（(\d+) 秒後自動）$/, 'Challenge boss (auto in $1s)'],
+    [/^挑戰 BOSS（(\d+) 秒後自動）$/, 'Challenge boss (auto in $1s)'],
+    [/^挑戰第\s*(\d+)\s*關守關靈獸$/, 'Challenging the Stage $1 boss'],
+    [/^第\s*(\d+)\s*關守關靈獸$/, 'Stage $1 boss'],
+    [/^領取第\s*(\d+)\s*天獎勵（(.+)）$/, "Day $1 reward ($2)"],
+    [/^第\s*(\d+)\s*天簽到：(.+)（連續 (\d+) 天）$/, 'Day $1 check-in: $2 (streak $3d)'],
+    [/^連續簽到 (\d+) 天$/, 'Streak $1 days'],
+    [/^需歷史最高 (\d+) 關$/, 'Best stage $1 required'],
+    [/^需 Lv\.(\d+)$/, 'Needs Lv.$1'],
+    [/^冷卻 (\d+)s$/, 'Cooldown $1s'],
+    [/^([\d.]+) 券 \/ (\d+) 💎$/, '$1 tickets / $2 gems'],
+    [/^第\s*(\d+)\s*關$/, 'Stage $1'],
+    [/^第\s*(\d+)\s*天$/, 'Day $1'],
+    [/^第\s*(\d+)\s*次$/, 'Rebirth #$1'],
+    [/^第\s*(\d+)\s*天獎勵（(.+)）$/, 'Day $1 reward ($2)'],
+    [/^清怪\s*(\d+)\/(\d+)$/, 'Cleared $1/$2'],
+    [/^靈環槽\s*(\d+)\/(\d+)$/, 'Ring slots $1/$2'],
+    [/^魂環槽\s*(\d+)\/(\d+)$/, 'Ring slots $1/$2'],
+    [/^已裝備\s*(\d+)\/(\d+)$/, 'Equipped $1/$2'],
+    [/^上陣\s*(\d+)\s*\/\s*(\d+)$/, 'Team $1/$2'],
+    [/^連續\s*(\d+)\s*天$/, 'Streak $1d'],
+    [/^背包\s*(\d+)\s*·\s*已裝備\s*(\d+)\s*·\s*等級上限\s*(\d+)$/,
+      'Bag $1 · Equipped $2 · Cap $3'],
+    [/^攻擊\s*\+(\d+)%\s*·\s*生命\s*\+(\d+)%$/, 'ATK +$1% · HP +$2%'],
+    [/^真身\s*\+(\d+)%$/, 'True body +$1%'],
+    [/^共鳴\s*(.+?)×(\d+)$/, 'Resonance $1×$2'],
+    [/^升星（(\d+)\s*靈骨・(\d+)）$/, 'Star up ($1 bones · $2)'],
+    [/^轉生（\+(\d+)\s*命印）$/, 'Rebirth (+$1 marks)'],
+    [/^\+(\d+)\s*命印$/, '+$1 marks'],
+    [/^（每點全屬性 \+(\d+)%、收益 \+(\d+)%）$/, '(each mark: +$1% all stats, +$2% income)'],
+    [/^歷史最高：第\s*(\d+)\s*關（需 (\d+) 關）$/, 'Best stage $1 (needs $2)'],
+    [/^目前加成：全屬性 \+(\d+)% · 收益 \+(\d+)%$/, 'Bonus: +$1% all stats · +$2% income'],
+    [/^這次轉生可得：$/, 'This rebirth grants:'],
+    [/^Lv\.(\d+)（每 10 級開 1 槽）｜(.+)$/, 'Lv.$1 (1 slot / 10 levels) · $2'],
+    [/^擊殺靈獸：靈幣 \+(\d+)、經驗 \+(\d+)$/, 'Beast slain: +$1 coins, +$2 EXP'],
+    [/^等級提升 → Lv\.(\d+)$/, 'Level up → Lv.$1'],
+    [/^靈幣 ([\d.]+)萬\/分 · 經驗 (\d+)\/分$/, '$1M coins/min · $2 EXP/min'],
+    [/^群攻命中 (\d+) 隻靈獸$/, 'AoE hit $1 beasts'],
+    [/^裝到 (.+)$/, 'Equip to $1'],
+    [/^(.+) · 卸下$/, '$1 · unequip'],
+    [/^(.+?)（速度 \+(\d+)%）$/, '$1 (SPD +$2%)'],
+    [/^(.+?)（(.+)）$/, '$1 ($2)'],
+    [/^→ (.+?)（速度 \+(\d+)%）$/, '→ $1 (SPD +$2%)'],
+    [/^靈骨：(.+)$/, 'Bone: $1'],
+    [/^外附靈骨 · (.+)$/, 'Soul Bone · $1'],
+    [/^合共 (\d+) 次$/, '$1 fusions'],
+  ];
+
+  var CJK = /[\u3400-\u9fff]/;
+  var KEYS = Object.keys(EN).sort(function (a, b) { return b.length - a.length; });
+  /* 這些字太容易誤傷（例如「關」出現在守關靈獸、第 12 關），只接受整串完全相符 */
+  var WHOLE_ONLY = { '關': 1, '開': 1, '需': 1, '第': 1, '次': 1, '魂': 1 };
+
+  /* 標點與單位換成英文寫法（只做全域替換，不動數字） */
+  var PUNCT = [
+    [/：/g, ': '], [/、/g, ', '], [/，/g, ', '], [/（/g, ' ('], [/）/g, ')'],
+    [/「/g, '"'], [/」/g, '"'], [/・/g, ' / '], [/／/g, '/'],
+    [/＋/g, '+'], [/[ 	]{2,}/g, ' '],
+  ];
+
+  /* 詞彙替換：把已知中文詞換成英文（長的先換），給「混合字串」用 */
+  function phrase(str) {
+    var out = str;
+    for (var i = 0; i < KEYS.length; i++) {
+      var k = KEYS[i];
+      if (WHOLE_ONLY[k]) continue;
+      if (out.indexOf(k) >= 0) out = out.split(k).join(EN[k]);
+    }
+    for (var j = 0; j < PUNCT.length; j++) out = out.replace(PUNCT[j][0], PUNCT[j][1]);
+    return out;
+  }
+
+  function rulePass(str) {
+    for (var i = 0; i < AR.length; i++) {
+      if (AR[i][0].test(str)) return str.replace(AR[i][0], AR[i][1]);
+    }
+    return str;
+  }
+
+  function T(zh) {
+    if (LANG !== 'en' || typeof zh !== 'string') return zh;
+    if (EN[zh] != null) return EN[zh];
+    var s1 = rulePass(zh);
+    if (s1 !== zh) {
+      if (!CJK.test(s1)) return s1;
+      var s1b = phrase(s1);
+      if (!CJK.test(s1b)) return s1b;
+      return s1b;
+    }
+    var s2 = phrase(zh);
+    return s2;
+  }
+
+  /* 依語系取欄位（name_en / name） */
+  function P(obj, field) {
+    if (!obj) return '';
+    if (LANG === 'en') {
+      var v = obj[field + '_en'];
+      if (v != null) return v;
+    }
+    return obj[field] != null ? obj[field] : '';
+  }
+
+  /* 數字：中文用 萬/億，英文用 K/M/B */
+  function fmt(n) {
+    n = Number(n) || 0;
+    var neg = n < 0; n = Math.abs(n);
+    var out;
+    if (LANG === 'en') {
+      if (n >= 1e9) out = (n / 1e9).toFixed(1) + 'B';
+      else if (n >= 1e6) out = (n / 1e6).toFixed(1) + 'M';
+      else if (n >= 1e4) out = (n / 1e3).toFixed(1) + 'K';
+      else out = String(Math.round(n));
+    } else {
+      if (n >= 1e8) out = (n / 1e8).toFixed(2) + '億';
+      else if (n >= 1e4) out = (n / 1e4).toFixed(1) + '萬';
+      else out = String(Math.round(n));
+    }
+    return (neg ? '-' : '') + out;
+  }
+
+  /* 靜態標記：<span data-i18n="戰鬥"></span> / <input data-i18n-ph="輸入兌換碼"> */
+  function applyStatic(root) {
+    if (LANG !== 'en') return;
+    (root || document).querySelectorAll('[data-i18n]').forEach(function (el) {
+      var k = el.getAttribute('data-i18n');
+      var v = T(k);
+      if (v !== k) el.textContent = v;
+    });
+    (root || document).querySelectorAll('[data-i18n-ph]').forEach(function (el) {
+      var k = el.getAttribute('data-i18n-ph');
+      el.setAttribute('placeholder', T(k));
+    });
+    (root || document).querySelectorAll('[data-i18n-title]').forEach(function (el) {
+      var k = el.getAttribute('data-i18n-title');
+      el.setAttribute('title', T(k));
+    });
+  }
+
+  function boot() {
+    document.documentElement.lang = LANG === 'en' ? 'en' : 'zh-Hant';
+    document.title = 'Spirit Ring Idle';
+    applyStatic(document);
+  }
+
+  global.I18N = { lang: LANG, T: T, P: P, fmt: fmt, applyStatic: applyStatic, boot: boot, EN: EN, setLang: setLang };
+  global.T = T;
+  global.P = P;
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})(window);
+
+</script>
+<script>
+/* ==========================================================================
+ * ads.js — 廣告／平台 SDK 的門面（façade）
+ *
+ * 為什麼要這一層：同一個遊戲要上 GamePix、CrazyGames、itch，每家的 SDK 名稱、
+ * 生命週期、廣告 API 都不同。這裡只留「遊戲需要的動詞」，SDK 差異收在各 provider：
+ *
+ *   js/ads.js          ← 這個檔：DOM（載入條／遮罩）、冷卻、暫停狀態、事件派送
+ *   js/ads-gamepix.js  ← GamePix SDK v3
+ *   js/ads-crazy.js    ← CrazyGames SDK v3
+ *   （itch 版：兩個 provider 都不打包，ui.js 走 hideLoading() 分支）
+ *
+ * 對外介面（與舊版 GP 完全相容，window.GP 是別名）：
+ *   boot() loading(pct) loaded()->Promise gameStart()
+ *   interstitial()->Promise<{success}> reward()->Promise<{success}>
+ *   happy(type) sad(type) setPaused(bool)
+ *   paused / adsAllowed / hasSdk / log / state / name
+ *
+ * 本機測試：?ads=crazy|gamepix|none 可強制選 provider；?gpx_ads=1 讓 GamePix 本機也放廣告。
+ * ========================================================================== */
+(function (global) {
+  'use strict';
+
+  var providers = global.ADS_PROVIDERS = global.ADS_PROVIDERS || {};
+
+  /* ---------- 選 provider：先看強制值，再看 host/SDK 是否存在 ---------- */
+  var forced = (function () {
+    if (global.ADS_PROVIDER) return String(global.ADS_PROVIDER).toLowerCase();
+    var m = /[?&]ads=([a-z]+)/i.exec(global.location ? global.location.search || '' : '');
+    return m ? m[1].toLowerCase() : '';
+  })();
+
+  function pick() {
+    if (forced === 'none') return null;
+    if (forced && providers[forced]) return providers[forced];
+    if (providers.gamepix && providers.gamepix.hasSdk()) return providers.gamepix;
+    if (providers.crazy && providers.crazy.hasSdk()) return providers.crazy;
+    return null;
+  }
+
+  /* provider 檔案在 ads.js 之後才載入（index.html 順序），所以不能在建構時就挑；
+     改成第一次用到時才挑，之後快取。 */
+  var P = null, picked = false;
+  function provider() { if (!picked) { P = pick(); picked = true; } return P; }
+  var state = { paused: false, started: false, lastAd: 0, lastReward: 0, log: [] };
+  var AD_COOLDOWN = 120000;       // 插頁最短間隔（ CrazyGames 自己也會節流，這只是雙保險）
+  var REWARD_COOLDOWN = 600000;   // 獎勵廣告最短間隔
+  var lastPct = 0;
+
+  function note(msg) { state.log.push(msg); if (state.log.length > 40) state.log.shift(); }
+
+  /* ---------- 載入條與遮罩（DOM 只出現在這一層）---------- */
+  function loading(pct) {
+    var p = Math.max(0, Math.min(100, pct | 0));
+    if (p < lastPct) return;              // 只前進不後退
+    lastPct = p;
+    var bar = document.getElementById('loadingBar');
+    if (bar) bar.style.width = p + '%';
+    var pv = provider();
+    if (pv && pv.loading) { try { pv.loading(p); } catch (e) { note('loading err'); } }
+  }
+
+  function hideOverlay() {
+    var el = document.getElementById('loading');
+    if (el) el.classList.add('hidden');
+  }
+
+  function loaded() {
+    loading(100);
+    var done = function () { hideOverlay(); };
+    var pv = provider(), r = null;
+    if (pv && pv.loaded) { try { r = pv.loaded(); } catch (e) { note('loaded err'); } }
+    return Promise.resolve(r).then(done, done);
+  }
+
+  function boot() {
+    var pv = provider();
+    if (pv && pv.init) { try { pv.init(); } catch (e) { note('init err'); } }
+    else note('no provider');
+    loading(8);
+  }
+
+  function gameStart() {
+    if (state.started) return;
+    state.started = true;
+    var pv = provider();
+    if (pv && pv.gameStart) { try { pv.gameStart(); note('gameStart'); } catch (e) { note('start err'); } }
+  }
+
+  /* ---------- 廣告（統一成 Promise<{success}>）---------- */
+  function allowed() { var pv = provider(); return !!(pv && pv.adsAllowed && pv.adsAllowed()); }
+
+  function runAd(kind) {
+    var now = Date.now();
+    if (!allowed()) return Promise.resolve({ success: false, message: 'ads-disabled' });
+    if (kind === 'midgame') {
+      if (now - state.lastAd < AD_COOLDOWN) return Promise.resolve({ success: false, message: 'cooldown' });
+      state.lastAd = now;
+    } else {
+      if (now - state.lastReward < REWARD_COOLDOWN) return Promise.resolve({ success: false, message: 'cooldown' });
+      state.lastReward = now;
+    }
+    var pv = provider();
+    var fn = kind === 'midgame' ? pv && pv.interstitial : pv && pv.reward;
+    if (!fn) return Promise.resolve({ success: false, message: 'not-supported' });
+    var out;
+    try { out = fn.call(pv); } catch (e) { note(kind + ' err'); return Promise.resolve({ success: false }); }
+    return Promise.resolve(out).then(
+      function (r) { note(kind + ' ' + (r && r.success)); return r && typeof r === 'object' ? r : { success: !!r }; },
+      function () { note(kind + ' fail'); return { success: false }; }
+    );
+  }
+
+  function interstitial() { return runAd('midgame'); }
+  function reward() { return runAd('rewarded'); }
+
+  function happy(t) { var pv = provider(); if (pv && pv.happy) { try { pv.happy(t); } catch (e) {} } }
+  function sad(t) { var pv = provider(); if (pv && pv.sad) { try { pv.sad(t); } catch (e) {} } }
+
+  /* ---------- 暫停（冪等；SDK 事件與分頁切換都會呼叫）---------- */
+  function setPaused(v) {
+    if (state.paused === v) return;
+    state.paused = v;
+    global.__gpPaused = v;
+    var pv = provider();
+    if (pv && pv.paused) { try { pv.paused(v); } catch (e) {} }
+    document.dispatchEvent(new CustomEvent(v ? 'gp:pause' : 'gp:resume'));
+  }
+
+  var api = {
+    boot: boot, loading: loading, loaded: loaded, gameStart: gameStart,
+    interstitial: interstitial, reward: reward, happy: happy, sad: sad,
+    setPaused: setPaused,
+    get paused() { return state.paused; },
+    get adsAllowed() { return allowed(); },
+    get hasSdk() { var pv = provider(); return !!(pv && pv.hasSdk && pv.hasSdk()); },
+    get log() { return state.log.slice(); },
+    note: function (m) { note(m); },
+    get name() { var pv = provider(); return pv ? pv.id : 'none'; },
+    state: state,
+  };
+
+  global.ADS = api;
+  global.GP = api;          // 舊程式碼與測試沿用；之後新程式碼請用 ADS
+})(window);
+
+</script>
+<script>
+/* ==========================================================================
+ * ads-crazy.js — CrazyGames SDK v3 provider
+ *
+ * SDK：https://sdk.crazygames.com/crazygames-sdk-v3.js（由 index.html 靜態載入）
+ * 注意 v3 的差異：
+ *   - 必須 await SDK.init() 之後才能呼叫其他 API
+ *   - loading 改名：loadingStart() / loadingStop()（v2 的 sdkGameLoadingStart 已移除）
+ *   - 廣告：ad.requestAd('midgame'|'rewarded', { adStarted, adError, adFinished })
+ *   - 頻率由 CrazyGames 自己節流（最快 3 分鐘一次），我們仍保留自己的冷卻當雙保險
+ * ========================================================================== */
+(function (global) {
+  'use strict';
+  var providers = global.ADS_PROVIDERS = global.ADS_PROVIDERS || {};
+
+  var ready = null;          // init 的 Promise
+  var loading = false;       // loadingStart 是否已送出（避免重複）
+  var started = false;
+
+  function sdk() {
+    return (global.CrazyGames && global.CrazyGames.SDK) ? global.CrazyGames.SDK : null;
+  }
+  function has() { return !!sdk(); }
+  function env() {
+    var s = sdk();
+    try { return (s && s.environment) || 'unknown'; } catch (e) { return 'unknown'; }
+  }
+
+  /* v3 規定：必須先 await SDK.init() 才能呼叫其他 API（loadingStart 也算）。
+     所以 init 完才送 loadingStart，並把任何 rejection 吃掉，避免 unhandled rejection。 */
+  function ensure() {
+    if (ready) return ready;
+    var s = sdk();
+    if (!s) {
+      ready = Promise.reject(new Error('no-sdk'));
+      ready.catch(function () {});
+      return ready;
+    }
+    ready = Promise.resolve(s.init ? s.init() : null).then(function () {
+      try {
+        if (s.game && s.game.loadingStart) { s.game.loadingStart(); loading = true; }
+      } catch (e) { /* 舊版沒有就算了 */ }
+      return true;
+    }, function () { return false; });
+    return ready;
+  }
+
+  function ad(type) {
+    return ensure().then(function () {
+      return new Promise(function (resolve) {
+        var s = sdk();
+        if (!s || !s.ad || !s.ad.requestAd) return resolve({ success: false, message: 'no-sdk' });
+        var done = false;
+        var finish = function (ok, msg) {
+          if (done) return;
+          done = true;
+          resolve(ok ? { success: true } : { success: false, message: msg || 'ad-failed' });
+        };
+        try {
+          s.ad.requestAd(type, {
+            adStarted: function () { global.ADS.setPaused(true); },
+            adError: function (err) {
+              global.ADS.setPaused(false);
+              finish(false, 'ad-error:' + (err && err.code ? err.code : err));
+            },
+            adFinished: function () {
+              global.ADS.setPaused(false);
+              finish(true);
+            },
+          });
+        } catch (e) {
+          finish(false, 'request-threw');
+        }
+      });
+    }, function () { return { success: false, message: 'no-sdk' }; });
+  }
+
+  providers.crazy = {
+    id: 'crazy',
+    hasSdk: has,
+
+    adsAllowed: function () {
+      if (!has()) return false;
+      var e = env();
+      return e !== 'disabled';
+    },
+
+    init: function () { ensure().catch(function () {}); },
+
+    loading: function () { /* CrazyGames 沒有百分比 API，只在 init 時打 loadingStart */ },
+
+    loaded: function () {
+      return ensure().then(function () {
+        var s = sdk();
+        if (loading && s && s.game && s.game.loadingStop) {
+          try { s.game.loadingStop(); loading = false; } catch (e) {}
+        }
+      }, function () {});
+    },
+
+    gameStart: function () {
+      ensure().then(function () {
+        if (started) return;
+        started = true;
+        var s = sdk();
+        if (s && s.game && s.game.gameplayStart) { try { s.game.gameplayStart(); } catch (e) {} }
+      }, function () {});
+    },
+
+    interstitial: function () { return ad('midgame'); },
+    reward: function () { return ad('rewarded'); },
+
+    happy: function () {
+      var s = sdk();
+      if (s && s.game && s.game.happytime) { try { s.game.happytime(); } catch (e) {} }
+    },
+    sad: function () { /* CrazyGames 沒有 sadMoment 對應 */ },
+
+    /* 進選單／切分頁要告訴 SDK 遊戲暫停（requirements 要求），回戰鬥再 gameplayStart */
+    paused: function (v) {
+      if (!started) return;
+      ensure().then(function () {
+        var s = sdk();
+        if (!s || !s.game) return;
+        try {
+          if (v && s.game.gameplayStop) s.game.gameplayStop();
+          else if (!v && s.game.gameplayStart) s.game.gameplayStart();
+        } catch (e) {}
+      }, function () {});
+    },
+  };
+})(window);
+
+</script>
+<script>
+/* ==========================================================================
+ * sfx.js — 極簡音效（WebAudio 合成，零素材、零外部請求）
+ *
+ * 原則：
+ *  - 全部用 oscillator 合成，不載任何檔案（GitHub Pages / GamePix 都不需要資源）
+ *  - 第一次使用者互動才建立 AudioContext（瀏覽器自動播放政策）
+ *  - 廣告 / 分頁切換時 suspend()，回來 resume()
+ *  - 可整體關閉（存 localStorage，跟語系一樣是裝置偏好）
+ * ========================================================================== */
+(function (global) {
+  'use strict';
+
+  var KEY = 'soulring.sfx';
+  var enabled = true;
+  try { enabled = localStorage.getItem(KEY) !== 'off'; } catch (e) { enabled = true; }
+
+  var ctx = null;
+  var lastHit = 0;
+
+  function ac() {
+    if (!ctx) {
+      var C = global.AudioContext || global.webkitAudioContext;
+      if (!C) return null;
+      try { ctx = new C(); } catch (e) { ctx = null; }
+    }
+    return ctx;
+  }
+
+  function blip(freq, dur, type, gain, when) {
+    if (!enabled) return;
+    var c = ac();
+    if (!c || c.state === 'suspended') return;
+    var t0 = c.currentTime + (when || 0);
+    var osc = c.createOscillator();
+    var g = c.createGain();
+    osc.type = type || 'square';
+    osc.frequency.setValueAtTime(freq, t0);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(gain || 0.03, t0 + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(g); g.connect(c.destination);
+    osc.start(t0); osc.stop(t0 + dur + 0.02);
+  }
+
+  function hit() {
+    var now = Date.now();
+    if (now - lastHit < 70) return;      // 多段傷害時不要糊成一片
+    lastHit = now;
+    blip(440 + Math.random() * 120, 0.05, 'square', 0.018);
+  }
+  function kill() { blip(300, 0.12, 'triangle', 0.03); blip(180, 0.18, 'triangle', 0.022, 0.05); }
+  function levelup() { blip(523, 0.1, 'sine', 0.035); blip(784, 0.16, 'sine', 0.032, 0.09); }
+  function clear() { blip(392, 0.09, 'sine', 0.03); blip(587, 0.12, 'sine', 0.03, 0.08); blip(784, 0.18, 'sine', 0.028, 0.16); }
+  function boss() { blip(110, 0.25, 'sawtooth', 0.03); }
+  function unlock() { blip(659, 0.1, 'sine', 0.032); blip(988, 0.18, 'sine', 0.03, 0.1); }
+  function tap() { blip(600, 0.03, 'sine', 0.02); }
+
+  function unlockAudio() {
+    // 第一次點擊時把 AudioContext 叫醒（iOS 需要）
+    var c = ac();
+    if (c && c.state === 'suspended') c.resume();
+  }
+
+  function suspend() { if (ctx && ctx.state === 'running') { try { ctx.suspend(); } catch (e) {} } }
+  function resume() { if (ctx && ctx.state === 'suspended') { try { ctx.resume(); } catch (e) {} } }
+
+  function setEnabled(v) {
+    enabled = !!v;
+    try { localStorage.setItem(KEY, enabled ? 'on' : 'off'); } catch (e) {}
+  }
+
+  global.SFX = {
+    hit: hit, kill: kill, levelup: levelup, clear: clear, boss: boss,
+    unlock: unlock, tap: tap, unlockAudio: unlockAudio,
+    suspend: suspend, resume: resume,
+    setEnabled: setEnabled,
+    get enabled() { return enabled; },
+  };
+
+  document.addEventListener('gp:pause', suspend);
+  document.addEventListener('gp:resume', resume);
+  document.addEventListener('pointerdown', unlockAudio, { once: true });
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) suspend(); else resume();
+  });
+})(window);
+
+</script>
+<script>
+/* ==========================================================================
+ * config.js — 數值設定表（靈印／靈獸／靈環／關卡／兌換碼）
+ * 全部純資料，改這裡就能調平衡，不需要動邏輯。
+ * ========================================================================== */
+(function (global) {
+  'use strict';
+
+  /* ---------- 靈環年份：加成與顏色 ---------- */
+  const RING_TIERS = [
+    { key: 'white',  name: '白靈環',   color: '#f2f2f2', mult: 0.10, minLevel: 10,  atk: 0.10, hp: 0.10, css: 't-white'  },
+    { key: 'yellow', name: '黃靈環',   color: '#ffd93d', mult: 0.25, minLevel: 20,  atk: 0.25, hp: 0.25, css: 't-yellow' },
+    { key: 'violet', name: '紫靈環',   color: '#b06bff', mult: 0.60, minLevel: 30,  atk: 0.60, hp: 0.60, css: 't-violet' },
+    { key: 'black',  name: '黑靈環',   color: '#3a3a46', mult: 1.50, minLevel: 40,  atk: 1.50, hp: 1.50, css: 't-black'  },
+    { key: 'red',    name: '紅靈環', color: '#ff4d5e', mult: 4.00, minLevel: 50,  atk: 4.00, hp: 4.00, css: 't-red'    },
+  ];
+  const TIER_BY_KEY = Object.fromEntries(RING_TIERS.map((t) => [t.key, t]));
+
+  /* ---------- 靈印（角色）----------
+   * role：atk 強攻 / ctrl 控制 / def 防禦 / sup 輔助
+   * skill 由 battle.js 依 role 實作，這裡只給倍率與描述
+   */
+  const SOULS = [
+    { id: 'haotian',  name: '巨靈槌',     emoji: '🔨', role: 'atk',  star: 3, atk: 16, hp: 130, def: 6,  spd: 92,  skillName: '巨靈九式',   skillText: '對全體敵人造成 200% 攻擊傷害' },
+    { id: 'phoenix',  name: '赤焰鳶',   emoji: '🔥', role: 'atk',  star: 4, atk: 17, hp: 105, def: 5,  spd: 104, skillName: '焰羽燎原',   skillText: '對單體造成 200% 傷害並灼燒' },
+    { id: 'bluemoss', name: '青藤',     emoji: '🌿', role: 'ctrl', star: 3, atk: 10, hp: 140, def: 8,  spd: 96,  skillName: '藤蔓纏繞',   skillText: '單體 60% 傷害，40% 機率暈眩 1 回合' },
+    { id: 'fox',      name: '惑心狐',   emoji: '🦊', role: 'ctrl', star: 4, atk: 11, hp: 118, def: 6,  spd: 112, skillName: '惑心領域',   skillText: '全體 45% 傷害，命中者減速 30%' },
+    { id: 'turtle',   name: '玄甲龜',     emoji: '🐢', role: 'def',  star: 4, atk: 8,  hp: 240, def: 16, spd: 78,  skillName: '甲冑真身',   skillText: '嘲諷 1 回合，全隊獲得護盾' },
+    { id: 'bear',     name: '鐵背熊', emoji: '🐻', role: 'def',  star: 3, atk: 12, hp: 210, def: 13, spd: 82,  skillName: '震山咆哮',   skillText: '嘲諷並降低敵方攻擊 20%' },
+    { id: 'tower',    name: '琉璃塔', emoji: '🗼', role: 'sup',  star: 5, atk: 9,  hp: 130, def: 7,  spd: 108, skillName: '琉璃灌頂',   skillText: '全隊攻擊 +40%、回復 25% 生命' },
+    { id: 'sausage',  name: '甘露囊',   emoji: '🌭', role: 'sup',  star: 2, atk: 7,  hp: 110, def: 5,  spd: 100, skillName: '甘露回春', skillText: '回復生命最低的隊友 40% 生命' },
+    { id: 'nether',   name: '幽影貓',   emoji: '🐈', role: 'atk',  star: 4, atk: 19, hp: 96,  def: 4,  spd: 118, skillName: '影襲爪',     skillText: '對單體造成 230% 傷害' },
+    { id: 'seagod',   name: '怒潮戟', emoji: '🔱', role: 'atk',  star: 5, atk: 22, hp: 150, def: 9,  spd: 110, skillName: '怒潮席捲',   skillText: '全體 110% 傷害，無視 30% 防禦' },
+  ];
+  const SOUL_BY_ID = Object.fromEntries(SOULS.map((s) => [s.id, s]));
+
+  // 加「型」是為了跟屬性「防禦（DEF）」區分：i18n 字典用同一個中文字會被覆蓋
+  const ROLE_LABEL = { atk: '強攻型', ctrl: '控制型', def: '防禦型', sup: '輔助型' };
+  const ROLE_COLOR = { atk: '#ff8a5b', ctrl: '#b06bff', def: '#6ea8ff', sup: '#57d98b' };
+
+  /* ---------- 靈獸（獵靈場）----------
+   * tier 決定掉落的靈環年份；reqLevel 是建議等級（低於會被勸退）
+   */
+  const BEASTS = [
+    { id: 'baboon', name: '嘯風猿',     emoji: '🐒', tier: 'white',  year: '十年',   element: 'wind',   hp: 220,  atk: 12,  reqLevel: 10, cdSec: 18 },
+    { id: 'mandala', name: '纏魂藤蛇',  emoji: '🐍', tier: 'yellow', year: '百年',   element: 'wood',   hp: 640,  atk: 26,  reqLevel: 20, cdSec: 30 },
+    { id: 'spider', name: '織影蛛',   emoji: '🕷', tier: 'violet', year: '千年',   element: 'poison', hp: 2400, atk: 62,  reqLevel: 30, cdSec: 60 },
+    { id: 'darkbear', name: '暗金裂爪熊', emoji: '🐾', tier: 'black', year: '萬年',   element: 'earth',  hp: 6200, atk: 118, reqLevel: 40, cdSec: 90 },
+    { id: 'whale',  name: '深海巨鯨',   emoji: '🐋', tier: 'red',    year: '十萬年', element: 'water',  hp: 16000, atk: 210, reqLevel: 50, cdSec: 120 },
+  ];
+  const ELEMENT_LABEL = { wind: '風', wood: '木', poison: '毒', earth: '土', water: '水' };
+  const ELEMENT_COLOR = { wind: '#5ad8ff', wood: '#57d98b', poison: '#b06bff', earth: '#e0a458', water: '#6ea8ff' };
+  const BEAST_BY_ID = Object.fromEntries(BEASTS.map((b) => [b.id, b]));
+
+  /* ---------- 關卡場景 ---------- */
+  const STAGE_AREAS = [
+    '青岩學院 · 後山', '幽篁林 · 外圍', '鐵砧城 · 競技場', '霜火雙泉',
+    '潮汐島 · 試煉之路', '靈印城 · 擂台', '斷刃之城', '深淵 · 裂隙',
+  ];
+  function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
+
+  /* ---------- 成長公式 ---------- */
+  const VERSION = '1.9.2';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const MAX_LEVEL = 100;          // GDD：百級神祇
+  const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
+  const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
+  const RING_ORDER = ['white', 'yellow', 'violet', 'black', 'red'];  // 合成階梯
+  const RING_MERGE_COUNT = 3;       // 3 個同階 → 1 個高一階
+  const BASE_KILLS_PER_STAGE = 8;           // 每關殺 8 隻小怪出 BOSS（放置遊戲不要拖）
+  const AUTO_BOSS_DELAY = 1800;            // 清完小怪後幾毫秒自動挑戰 BOSS
+  /* 橡皮筋難度：怪物數值再高也被隊伍現況夾住，避免「某關之後永遠打不死」 */
+  const BAND = {
+    waveSec: 2.5,        // 小怪血量 ≤ 隊伍 DPS × 2.5 秒
+    bossSec: 15,         // BOSS 血量 ≤ 隊伍 DPS × 15 秒
+    atkOfWeakestHp: 0.10, // 敵人單下 ≤ 最脆隊友血量的 10%（約 10 下才倒）
+    defOfTeamAtk: 0.12,  // 敵人防禦 ≤ 隊伍總攻擊的 12%（否則減傷吃光傷害）
+    bossFailStep: 0.82,  // 每次挑戰失敗，BOSS 血量上限再 ×0.82（最多 5 次）
+    bossFailMax: 5,
+    bossHealMax: 2,      // 單場最多回血 2 次，保證打得死
+    /* 深度放寬：第 100 關之後，每多 100 關，怪物上限 ×2（上限 ×4）
+       讓「關卡數字」重新等於難度，不然第 800 關和第 104 關一樣軟 */
+    widenFrom: 100,
+    widenPerStage: 150,
+    widenMax: 1.4,
+    /* 戰力換速度：實際 DPS 超過該關所需 DPS 時，戰鬥時間可縮到 60%
+       （變強 1.67 倍以內換得到速度；再往上只影響能不能打更深的關） */
+    speedFloor: 0.6,
+  };
+  const AUTO_HUNT_DELAY = 2500;            // 卡等時幾毫秒自動去獵靈
+  const PULL_COST_TICKET = 1;
+  const PULL_COST_DIAMOND = 100;
+  const PULL10_COST_TICKET = 10;
+  const PULL10_COST_DIAMOND = 900;
+
+  function expNeed(level) { return Math.round(8 * Math.pow(level, 1.3) + 6 * level); }
+  /* 等級上限改成固定 100（GDD 模型）；靈環不再解鎖等級，而是每 10 級開一格 */
+  function levelCap() { return MAX_LEVEL; }
+  function ringSlots(level) { return Math.min(MAX_RING_SLOTS, Math.floor((level || 1) / RING_SLOTS_PER_LEVEL)); }
+
+  /* ---------- 靈環技能（依年份）----------
+   * 十年/百年：純屬性（被動）
+   * 千年：群體 120% / 萬年：震懾 150%（50% 暈眩）/ 十萬年：群體 200%
+   */
+  const RING_SKILL = {
+    white: null,
+    yellow: null,
+    violet: { type: 'aoe', mult: 1.2, label: '靈技 · 千軍' },
+    black: { type: 'stun', mult: 1.5, chance: 0.5, label: '靈技 · 震懾' },
+    red: { type: 'aoe', mult: 2.0, label: '靈技 · 神滅' },
+  };
+
+  /* 屬性共鳴：同一靈印 3 個同系靈環 → 該系靈技傷害 +25% */
+  const RESONANCE = { need: 3, mult: 1.25 };
+
+  /* 靈印真身：同一靈印 3/6/9 個萬年以上靈環 → 全屬性 +15%/35%/60% */
+  const TRUE_BODY = [
+    { need: 3, mult: 0.15 },
+    { need: 6, mult: 0.35 },
+    { need: 9, mult: 0.60 },
+  ];
+
+  /* 無限關卡的難度曲線：前 60 關指數（1.16），之後轉慢速（1.06）
+     → 深關不會變成 1e27 這種天文數字，轉生才有意義 */
+  function stageMul(stage, fast, slow, pivot) {
+    const f = Math.min(stage, pivot);
+    const rest = Math.max(0, stage - pivot);
+    return Math.pow(fast, f - 1) * Math.pow(slow, rest);
+  }
+
+  function enemyStats(stage, isBoss) {
+    const mul = stageMul(stage, 1.16, 1.06, 60);
+    return {
+      hp: Math.round(42 * mul * (isBoss ? 3.0 : 1)),
+      atk: Math.round(7 * mul * (isBoss ? 1.0 : 1)),
+      def: Math.round(2 * mul * (isBoss ? 1.5 : 1)),
+      spd: 70 + Math.min(50, stage),
+      name: isBoss
+        ? (typeof I18N !== 'undefined' && I18N.lang === 'en' ? `Stage ${stage} Boss` : `第 ${stage} 關守關靈獸`)
+        : (typeof I18N !== 'undefined' && I18N.lang === 'en' ? 'Wild beast' : '野生靈獸'),
+      emoji: isBoss ? '👹' : '🦟',
+      boss: !!isBoss,
+    };
+  }
+  function killReward(stage) {
+    return { coins: Math.round(5 * Math.pow(stage, 1.12)), exp: Math.round(12 * Math.pow(stage, 0.95)) };
+  }
+  function offlinePerMinute(stage) {
+    const r = killReward(stage);
+    return { coins: Math.round(r.coins * 5), exp: Math.round(r.exp * 5) };
+  }
+
+  /* ---------- 抽卡池 ---------- */
+  const PULL_POOL = SOULS.map((s) => ({ id: s.id, star: s.star, weight: s.star === 5 ? 3 : s.star === 4 ? 12 : 35 }));
+  /* ---------- 靈骨（可裝備，裝備者 100%、同隊其他靈印 30% 光環）---------- */
+  const BONES = [
+    { id: 'wind',  name: '外附靈骨 · 疾風', slot: 'speed', atk: 0.00, hp: 0.00, def: 0.00, spd: 0.12, css: 'bone-cyan',  desc: '速度 +12%' },
+    { id: 'giant', name: '靈骨 · 巨力',     slot: 'atk',   atk: 0.14, hp: 0.00, def: 0.00, spd: 0.00, css: 'bone-red',   desc: '攻擊 +14%' },
+    { id: 'life',  name: '靈骨 · 生命',     slot: 'hp',    atk: 0.00, hp: 0.18, def: 0.00, spd: 0.00, css: 'bone-green', desc: '生命 +18%' },
+    { id: 'armor', name: '靈骨 · 堅甲',     slot: 'def',   atk: 0.00, hp: 0.00, def: 0.20, spd: 0.00, css: 'bone-blue',  desc: '防禦 +20%' },
+    { id: 'king',  name: '靈骨 · 王者',     slot: 'all',   atk: 0.08, hp: 0.08, def: 0.08, spd: 0.04, css: 'bone-gold',  desc: '全屬性 +8%（速度 +4%）' },
+  ];
+  const BONE_BY_ID = Object.fromEntries(BONES.map((b) => [b.id, b]));
+  const BONE_AURA = 0.3;          // 光環：給同隊其他靈印的比例
+  const PULL_BONES = BONES;       // 抽卡池：15% 出靈骨（state.rollOne 會讀這個）
+  const STAR_COIN = [0, 0, 0, 0, 0, 0];   // 佔位，實際成本用 starUpCoin()
+
+  function bonePullWeight() { return 3; }   // 每種靈骨的抽卡權重
+
+  /* ---------- 靈幣抽靈骨（靈幣的唯一出口）----------
+   * 成本隨「已用靈幣抽過幾次」成長，越抽越貴 → 天然上限，不會變成無限印鈔。
+   * 每次必得 1 塊（不是機率），但王者比較稀有。 */
+  /* ---------- 戰鬥常數（速度曲線 / 防禦減傷）---------- */
+  const COMBAT = {
+    spdK: 617,        // 速度半飽和點：原本速度 617 就撞到 tick 上限
+    defK: 300,        // 減傷常數：def / (def + 300 × 等級)
+    defCap: 0.35,     // 單邊最多減傷 35%
+    critBase: 0.10,   // 基礎爆擊 10%（命印再加）
+    critMult: 1.8,
+  };
+
+  const COIN_PULL = {
+    base: 2000,
+    growth: 1.35,
+    weights: { wind: 26, giant: 26, life: 22, armor: 20, king: 6 },
+  };
+  function coinPullCost(pulls) {
+    return Math.round(COIN_PULL.base * Math.pow(COIN_PULL.growth, Math.max(0, pulls | 0)));
+  }
+  function starUpBones(star) { return Math.max(1, star - 2); }            // 3→4:1、4→5:2
+  function starUpCoin(star) { return star <= 3 ? 1200 : 6000; }
+
+  /* ---------- 靈印獨立等級（靈幣升級，可超越玩家等級 10 級）---------- */
+  const SOUL_LV = { maxAhead: 20, max: 150, base: 300, pow: 1.9 };
+  function soulLevelCost(level) {
+    return Math.round(SOUL_LV.base * Math.pow(Math.max(1, level), SOUL_LV.pow));
+  }
+
+  /* ---------- 成就（永久加成，每項 +0.5% 全屬性）---------- */
+  const ACH_BONUS = 0.005;
+  const ACHIEVEMENTS = [
+    { id: 'stage20',  name: '初入魂道',   desc: '推進到第 20 關',      test: (s) => s.bestStage >= 20 },
+    { id: 'stage50',  name: '站穩腳跟',   desc: '推進到第 50 關',      test: (s) => s.bestStage >= 50 },
+    { id: 'stage100', name: '百關之志',   desc: '推進到第 100 關',     test: (s) => s.bestStage >= 100 },
+    { id: 'stage200', name: '深淵行者',   desc: '推進到第 200 關',     test: (s) => s.bestStage >= 200 },
+    { id: 'stage500', name: '無盡之路',   desc: '推進到第 500 關',     test: (s) => s.bestStage >= 500 },
+    { id: 'reb1',     name: '第一次轉生', desc: '完成 1 次轉生',        test: (s) => (s.rebirths || 0) >= 1 },
+    { id: 'reb10',    name: '輪迴十次',   desc: '完成 10 次轉生',       test: (s) => (s.rebirths || 0) >= 10 },
+    { id: 'marks100', name: '命印百枚',   desc: '累積 100 枚命印',      test: (s) => (s.marks || 0) >= 100 },
+    { id: 'souls5',   name: '五人小隊',   desc: '上陣 5 名靈印',        test: (s) => (s.team || []).length >= 5 },
+    { id: 'star5',    name: '五星圓滿',   desc: '任一靈印升到 5★',      test: (s) => s.souls.some((x) => x.star >= 5) },
+    { id: 'bones5',   name: '靈骨收藏家', desc: '持有 5 塊靈骨',        test: (s) => (s.bones || []).length >= 5 },
+    { id: 'rings45',  name: '環滿全身',   desc: '全隊裝備 45 個靈環',   test: (s) => s.souls.reduce((a, x) => a + (x.rings || []).length, 0) >= 45 },
+  ];
+
+  /* ---------- 里程碑獎勵（每 50 關給十萬年環）---------- */
+  const MILESTONE = { every: 50, tier: 'red' };
+
+  /* ---------- 每日任務（每天 3 條，領鑽石）---------- */
+  const DAILY = [
+    { id: 'idle',  need: 10, label: '掛機 10 分鐘',  unit: '分', reward: { diamonds: 60 } },
+    { id: 'hunt',  need: 3,  label: '獵靈 3 次',     unit: '次', reward: { diamonds: 60 } },
+    { id: 'merge', need: 3,  label: '合成靈環 3 次', unit: '次', reward: { diamonds: 80 } },
+  ];
+
+  /* ---------- 每日簽到（7 天一輪，連續簽到 streak 會保留）---------- */
+  const CHECKIN = [
+    { day: 1, kind: 'coins',    amount: 3000,  label: '靈幣 3000',        emoji: '🪙' },
+    { day: 2, kind: 'diamonds', amount: 120,   label: '鑽石 120',         emoji: '💎' },
+    { day: 3, kind: 'tickets',  amount: 2,     label: '覺醒券 2',         emoji: '🎟️' },
+    { day: 4, kind: 'coins',    amount: 12000, label: '靈幣 12000',       emoji: '🪙' },
+    { day: 5, kind: 'ring',     tier: 'yellow', label: '黃靈環',        emoji: '🟡' },
+    { day: 6, kind: 'diamonds', amount: 500,   label: '鑽石 500',         emoji: '💎' },
+    { day: 7, kind: 'gift',     ring: 'black', tickets: 3, diamonds: 888, label: '黑靈環＋888💎', emoji: '🎁' },
+  ];
+
+  /* ---------- 轉生（命印）----------
+   * 條件：歷史最高關卡 ≥ 20
+   * 收益：floor(bestStage/5) + floor(level/10) 點命印
+   * 每點命印：全屬性 +6%（速度 +2%）、靈幣與經驗 +4%
+   */
+  const REBIRTH = {
+    minStage: 20,
+    perMark: { atk: 0.06, hp: 0.06, def: 0.06, spd: 0.02, income: 0.04 },
+    startLevelPerRebirth: 5,   // 每次轉生後起始等級 +5（重跑會越來越快）
+    startLevelMax: 60,
+    /* 命印不再加速度（速度有硬上限，加了也是白加），改成爆擊率 */
+    critPerMark: 0.0015,       // 每點 +0.15% 爆擊
+    critMax: 0.40,             // 上限 +40%
+  };
+
+  /* 轉生收益只看「本輪推進深度」，不看歷史最高：
+     以前用 bestStage，因為它不會降 → 每次轉生固定 +30，等於按鈕產幣。
+     現在必須刷新紀錄（bestStage > lastRebirthBest）才能轉，deep 才是獎勵來源。 */
+  function rebirthGain(bestStage, level, lastBest) {
+    if (!bestStage || bestStage < REBIRTH.minStage) return 0;
+    const deep = Math.max(0, bestStage - (lastBest || 0));
+    if (deep < 1) return 0;                       // 沒刷新紀錄不給轉
+    return Math.floor(deep / 5) + Math.floor((level || 1) / 20);
+  }
+
+  /* ---------- 兌換碼 ---------- */
+  const CODES = {
+    VIP666:    { diamonds: 8888,  tickets: 5,  msg: '鑽石 8888、覺醒券 5' },
+    DOULUO888: { diamonds: 18888, ring: 'black', msg: '鑽石 18888、黑靈環 ×1' },
+    TANG3:     { coins: 88888, exp: 6000, msg: '靈幣 88888、經驗 6000' },
+  };
+
+  global.CFG = {
+    RING_TIERS, TIER_BY_KEY, SOULS, SOUL_BY_ID, ROLE_LABEL, ROLE_COLOR,
+    BEASTS, BEAST_BY_ID, STAGE_AREAS, areaFor,
+    VERSION, MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
+    RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR,
+    RING_ORDER, RING_MERGE_COUNT,
+    BASE_KILLS_PER_STAGE, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND,
+    REBIRTH, rebirthGain, stageMul,
+    PULL_COST_TICKET, PULL_COST_DIAMOND, PULL10_COST_TICKET, PULL10_COST_DIAMOND,
+    expNeed, levelCap, ringSlots, enemyStats, killReward, offlinePerMinute,
+    PULL_POOL, PULL_BONES, BONES, BONE_BY_ID, BONE_AURA, bonePullWeight,
+    starUpBones, starUpCoin, CHECKIN, CODES, COIN_PULL, coinPullCost, COMBAT, SOUL_LV, soulLevelCost, DAILY, ACHIEVEMENTS, ACH_BONUS, MILESTONE,
+  };
+})(window);
+
+</script>
+<script>
+/* ==========================================================================
+ * state.js — 存檔、衍生數值、離線收益、存檔碼匯出／匯入
+ * 純資料層：不碰 DOM，方便測試與日後搬到後端。
+ * ========================================================================== */
+(function (global) {
+  'use strict';
+
+  const KEY = 'soulring.save.v1';
+  const BAK = KEY + '.bak';       // 上一份可用的存檔（主檔壞掉時的唯一退路）
+  const TMP = KEY + '.tmp';       // 寫入暫存：先寫這裡、驗證過才換上去
+  const SAVE_VERSION = 1;         // 存檔格式版本，每次改 schema 加 1 並補遷移
+  const SAVE_EVERY_MS = 10000;
+  const OFFLINE_CAP_H = 12;
+
+  /* ---------- 建立新檔 ---------- */
+  function newSave() {
+    const starter = {
+      id: 'haotian', star: CFG.SOUL_BY_ID.haotian.star, level: 1, rings: [], bone: null,
+    };
+    return {
+      v: 1,
+      name: T('無名靈師'),
+      level: 1,
+      exp: 0,
+      coins: 120,
+      diamonds: 300,
+      tickets: 3,
+      stage: 1,
+      bestStage: 1,
+      lastRebirthBest: 0,
+      kills: 0,              // 本關已擊殺小怪
+      slots: 1,              // 上陣人數
+      souls: [starter],
+      team: ['haotian'],
+      ringBag: [],           // 未裝備的靈環
+      bones: [],             // [{uid, id}] 未裝備的靈骨
+      bonePulls: 0,          // 靈幣抽靈骨次數（成本會遞增）
+      daily: { day: '', idle: 0, hunt: 0, merge: 0, claimed: [] },   // 每日任務進度
+      ach: { unlocked: {} },   // 成就（id -> true），每項永久 +0.5% 全屬性
+      cd: {},                // 靈獸 id -> 下次可獵時間
+      codes: [],
+      checkin: { lastDay: '', streak: 0, total: 0 },   // 每日簽到
+      rebirths: 0,           // 轉生次數
+      marks: 0,              // 命印：永久加成（每點全屬性 +6%）
+      settings: { autoBoss: true, autoHunt: true, autoRing: true, autoMerge: true },   // 放置用開關
+      stats: { kills: 0, hunts: 0, pulls: 0 },
+      lastSave: Date.now(),
+    };
+  }
+
+  let S = newSave();
+  let lastError = null;          // 'quota' | 'verify' | 'write' | null
+  let blocked = false;           // 讀到「比本版新」的存檔時停止寫入，避免蓋掉玩家進度
+
+  /* ---------- 存檔：原子寫入 + 回讀驗證 + .bak 備援 ---------- */
+  function readKey(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function writeKey(k, val) {
+    try { localStorage.setItem(k, val); return true; }
+    catch (e) { try { localStorage.removeItem(k); } catch (_) {} return false; }   // 配額爆掉別留半截
+  }
+
+  /* 存檔要能被自己讀回來才算數：欄位不對一律當壞檔 */
+  function validateSave(d) {
+    if (!d || typeof d !== 'object') return false;
+    if (typeof d.v !== 'number') return false;
+    if (typeof d.stage !== 'number' || d.stage < 1) return false;
+    if (!Array.isArray(d.souls) || !d.souls.length) return false;
+    if (!d.souls.every((x) => x && typeof x.id === 'string')) return false;
+    return true;
+  }
+  function parseSave(raw) {
+    if (!raw) return null;
+    try { const d = JSON.parse(raw); return validateSave(d) ? d : null; } catch (e) { return null; }
+  }
+
+  function saveNow() {
+    if (blocked) return false;
+    const json = JSON.stringify(S);
+    if (!writeKey(TMP, json)) { lastError = 'quota'; return false; }
+    // 回讀驗證：TMP 必須解析得回來、版本相符
+    let ok = false;
+    try { ok = validateSave(JSON.parse(readKey(TMP))); } catch (e) { ok = false; }
+    if (!ok) { try { localStorage.removeItem(TMP); } catch (e) {} lastError = 'verify'; return false; }
+    // 舊主檔降級成 .bak（備份失敗不阻擋本次寫入）
+    const cur = readKey(KEY);
+    if (cur) writeKey(BAK, cur);
+    if (!writeKey(KEY, json)) { lastError = 'write'; return false; }
+    try { localStorage.removeItem(TMP); } catch (e) {}
+    lastError = null;
+    return true;
+  }
+
+  /* ---------- 存取 ---------- */
+  function load() {
+    const main = readKey(KEY);
+    const bak = readKey(BAK);
+    let d = parseSave(main);
+    let from = 'main';
+    if (!d) { d = parseSave(bak); from = d ? 'bak' : 'none'; }
+
+    if (!d) {
+      // 兩份都不能用：把現場留下來（不覆蓋），再開新檔
+      const stamp = Date.now();
+      if (main) writeKey(KEY + '.corrupt.' + stamp, main);
+      if (bak) writeKey(KEY + '.corrupt.' + stamp + '.bak', bak);
+      S = newSave();
+      return { fresh: true, corrupted: !!(main || bak), from };
+    }
+    if (d.v > SAVE_VERSION) {
+      // 未來版本的存檔：不覆蓋、不強制遷移
+      blocked = true;
+      S = newSave();
+      return { newer: true, from };
+    }
+
+    S = migrate(d);
+    if (from === 'bak') { writeKey(KEY, JSON.stringify(S)); }   // 備份救回來就立刻補回主檔
+    const gap = offlineGain(S);
+    return { fresh: false, offline: gap, restored: from === 'bak' };
+  }
+
+  function migrate(d) {
+    const base = newSave();
+    const out = Object.assign({}, base, d || {});
+    out.stats = Object.assign({}, base.stats, (d && d.stats) || {});
+    out.souls = Array.isArray(d && d.souls) && d.souls.length ? d.souls : base.souls;
+    out.team = Array.isArray(d && d.team) && d.team.length ? d.team : [out.souls[0].id];
+    out.ringBag = Array.isArray(d && d.ringBag) ? d.ringBag : [];
+    out.cd = (d && d.cd) || {};
+    out.codes = Array.isArray(d && d.codes) ? d.codes : [];
+    out.checkin = Object.assign({ lastDay: '', streak: 0, total: 0 }, (d && d.checkin) || {});
+    out.rebirths = Math.max(0, out.rebirths | 0);
+    out.marks = Math.max(0, out.marks | 0);
+    // 舊存檔：把「上次轉生時的最高關卡」補成現在的 bestStage，
+    // 避免一升級就直接白拿一大筆（要再推更深才有）
+    out.lastRebirthBest = typeof d.lastRebirthBest === 'number'
+      ? d.lastRebirthBest : Math.max(0, out.bestStage | 0);
+    out.settings = Object.assign({ autoBoss: true, autoHunt: true, autoRing: true, autoMerge: true }, (d && d.settings) || {});
+    out.slots = Math.max(1, Math.min(5, out.slots | 0 || 1));
+    out.team = out.team.filter((id) => out.souls.some((s) => s.id === id)).slice(0, out.slots);
+    out.souls.forEach((s) => {
+      if (!Array.isArray(s.rings)) s.rings = [];
+      if (s.bone === undefined) s.bone = null;
+    });
+    // 舊版靈骨只存 id 字串 → 轉成 {uid, id}
+    // 舊版裝備靈環時會從背包移除物件 → 補回（年份已遺失，以白色處理）
+    const bagUids = new Set(out.ringBag.map((r) => r.uid));
+    out.souls.forEach((soul) => {
+      (soul.rings || []).forEach((uid) => {
+        if (!bagUids.has(uid)) {
+          out.ringBag.push({ uid, tier: 'white', name: T('白靈環'), equipped: soul.id });
+          bagUids.add(uid);
+        }
+      });
+    });
+    out.ringBag.forEach((r) => {
+      if (!r.element) r.element = 'wind';
+      if (r.equipped && !out.souls.some((x) => x.id === r.equipped)) r.equipped = null;
+    });
+
+    out.bones = (Array.isArray(d && d.bones) ? d.bones : []).map((b, i) => {
+      if (typeof b === 'string') return { uid: 'bo_mig' + i, id: b };
+      if (b && b.id) return { uid: b.uid || ('bo_' + i), id: b.id };
+      return null;
+    }).filter(Boolean);
+    return out;
+  }
+
+  let saveTimer = 0;
+  function save(force) {
+    if (!S.stats) S.stats = {};
+    try {
+      const _p = power();
+      if (!S.stats.bestPower || _p > S.stats.bestPower) S.stats.bestPower = _p;
+    } catch (e) { /* 存檔不能因戰力計算失敗而中斷 */ }
+    S.lastSave = Date.now();
+    if (!force && saveTimer) return;
+    saveNow();
+    if (!force) {
+      saveTimer = setTimeout(() => { saveTimer = 0; }, SAVE_EVERY_MS);
+    }
+  }
+  function reset() {
+    blocked = false;
+    S = newSave();
+    save(true);
+    return S;
+  }
+
+  /* ---------- 存檔狀態 / 還原備份（設定頁用）---------- */
+  function saveStatus() {
+    const main = readKey(KEY);
+    const bak = readKey(BAK);
+    const okMain = !!parseSave(main);
+    const okBak = !!parseSave(bak);
+    let bakTime = 0;
+    try { bakTime = okBak ? (JSON.parse(bak).lastSave || 0) : 0; } catch (e) {}
+    return {
+      main: okMain ? 'ok' : (main ? 'corrupt' : 'missing'),
+      bak: okBak ? 'ok' : (bak ? 'corrupt' : 'missing'),
+      bakTime, lastError, blocked,
+    };
+  }
+  function restoreBackup() {
+    const bak = readKey(BAK);
+    const d = parseSave(bak);
+    if (!d) return { ok: false, reason: 'no-bak' };
+    if (!writeKey(KEY, bak)) return { ok: false, reason: 'write' };
+    blocked = false;
+    S = migrate(d);
+    save(true);
+    return { ok: true, stage: S.stage, bestStage: S.bestStage, level: S.level };
+  }
+
+  /* ---------- 離線收益（上限 12 小時）---------- */
+  function offlineGain(s) {
+    const now = Date.now();
+    const last = Number(s.lastSave) || now;
+    const ms = Math.max(0, now - last);
+    const capped = Math.min(ms, OFFLINE_CAP_H * 3600 * 1000);
+    const minutes = Math.floor(capped / 60000);
+    if (minutes < 1) return null;
+    const rate = CFG.offlinePerMinute(s.stage);
+    const mul = 1 + CFG.REBIRTH.perMark.income * s.marks;
+    const coins = Math.round(rate.coins * minutes * mul);
+    const exp = Math.round(rate.exp * minutes * mul);
+    s.coins += coins;
+    addExp(s, exp, { silent: true });
+    s.lastSave = now;
+    return { minutes, capped: ms > capped, coins, exp, rate };
+  }
+
+  /* ---------- 衍生數值 ---------- */
+  function ringBonus(soul) {
+    let atk = 0, hp = 0;
+    for (const uid of soul.rings) {
+      const r = S.ringBag.find((x) => x.uid === uid);
+      if (!r) continue;
+      const t = CFG.TIER_BY_KEY[r.tier];
+      if (!t) continue;
+      atk += t.atk; hp += t.hp;
+    }
+    return { atk, hp };
+  }
+
+  /* ---------- 靈骨 ---------- */
+  function boneOf(soul) {
+    if (!soul || !soul.bone) return null;
+    const item = S.bones.find((b) => b.uid === soul.bone);
+    return item ? CFG.BONE_BY_ID[item.id] : null;
+  }
+  function freeBones() { return S.bones.filter((b) => !S.souls.some((s) => s.bone === b.uid)); }
+  function equippedBones() { return S.souls.filter((s) => s.bone).length; }
+
+  /* 光環：同隊其他靈印的靈骨，按 BONE_AURA 比例加成（裝備者自己吃 100%） */
+  function teamAura(excludeSoulId) {
+    const acc = { atk: 0, hp: 0, def: 0, spd: 0 };
+    for (const soul of teamSouls()) {
+      if (soul.id === excludeSoulId) continue;
+      const b = boneOf(soul);
+      if (!b) continue;
+      acc.atk += b.atk * CFG.BONE_AURA;
+      acc.hp += b.hp * CFG.BONE_AURA;
+      acc.def += b.def * CFG.BONE_AURA;
+      acc.spd += b.spd * CFG.BONE_AURA;
+    }
+    return acc;
+  }
+
+  function soulStats(soul) {
+    const base = CFG.SOUL_BY_ID[soul.id] || CFG.SOULS[0];
+    const starMul = 1 + 0.35 * (soul.star - 3);
+    const lvMul = 1 + 0.10 * ((soul.level || 1) - 1);
+    const rb = ringBonus(soul);
+    const own = boneOf(soul) || { atk: 0, hp: 0, def: 0, spd: 0 };
+    const aura = teamAura(soul.id);
+    const pm = CFG.REBIRTH.perMark;
+    const tbMul = (1 + trueBodyOf(soul).bonus) * achMul();   // 真身 × 成就，都乘算
+    /* 三種加成各自乘算，不能全部倒進同一個括號：
+       靈環後期 +3600%，若命印（+6%/點）與靈骨（+14~20%）也加在同一個括號裡，
+       25 點命印只讓戰力多 5%，玩家會覺得「轉生沒用、戰力卡死」。
+       靈環（加法）→ 靈骨（乘）→ 命印（乘）→ 真身（乘） */
+    const boneAtk = 1 + own.atk + aura.atk;
+    const boneHp = 1 + own.hp + aura.hp;
+    const boneDef = 1 + own.def + aura.def;
+    const boneSpd = 1 + own.spd + aura.spd;
+    const markAtk = 1 + pm.atk * S.marks;
+    const markHp = 1 + pm.hp * S.marks;
+    const markDef = 1 + pm.def * S.marks;
+    const markSpd = 1;   // 命印不再加速度（速度有物理上限），改在 critChance() 給爆擊
+    return {
+      atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk) * boneAtk * markAtk * tbMul),
+      hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp) * boneHp * markHp * tbMul),
+      def: Math.round(base.def * starMul * lvMul * boneDef * markDef * tbMul),
+      spd: Math.round(base.spd * boneSpd * markSpd * tbMul),
+      role: base.role,
+      name: base.name,
+      emoji: base.emoji,
+    };
+  }
+
+  function teamSouls() {
+    return S.team.map((id) => S.souls.find((s) => s.id === id)).filter(Boolean);
+  }
+  function teamStats() {
+    const list = teamSouls().map(soulStats);
+    return {
+      atk: list.reduce((a, x) => a + x.atk, 0),
+      hp: list.reduce((a, x) => a + x.hp, 0),
+      def: list.reduce((a, x) => a + x.def, 0),
+      spd: list.length ? Math.round(list.reduce((a, x) => a + x.spd, 0) / list.length) : 0,
+      list,
+    };
+  }
+  /* 爆擊率：基礎 10% + 命印每點 0.15%（上限 +40%） */
+  function critChance() {
+    const c = CFG.COMBAT.critBase + Math.min(CFG.REBIRTH.critMax,
+      (S.marks || 0) * CFG.REBIRTH.critPerMark);
+    return Math.min(0.5, c);
+  }
+
+  function power() {
+    const t = teamStats();
+    return Math.round(t.atk * 2.2 + t.hp * 0.35 + t.def * 2.5 + t.spd * 0.6);
+  }
+
+  /* ---------- 靈環合成：3 個同階 → 1 個高一階 ---------- */
+  function mergeInfo() {
+    const free = freeRings();
+    const out = {};
+    CFG.RING_ORDER.forEach((tier) => {
+      const n = free.filter((r) => r.tier === tier).length;
+      out[tier] = { count: n, can: tiersMergeable(tier) && n >= CFG.RING_MERGE_COUNT };
+    });
+    return out;
+  }
+  function tiersMergeable(tier) {
+    const i = CFG.RING_ORDER.indexOf(tier);
+    return i >= 0 && i < CFG.RING_ORDER.length - 1;
+  }
+  /* 合成一次（指定階）；回傳新靈環 */
+  function mergeRings(tier) {
+    if (!tiersMergeable(tier)) return { ok: false, msg: T('紅靈環已是最高階') };
+    const pool = freeRings().filter((r) => r.tier === tier);
+    if (pool.length < CFG.RING_MERGE_COUNT) {
+      return { ok: false, msg: T(`需要 ${CFG.RING_MERGE_COUNT} 個同階靈環（目前 ${pool.length}）`) };
+    }
+    const take = pool.slice(0, CFG.RING_MERGE_COUNT);
+    const counts = {};
+    take.forEach((r) => { const el = r.element || 'wind'; counts[el] = (counts[el] || 0) + 1; });
+    const element = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+    const uids = new Set(take.map((r) => r.uid));
+    S.ringBag = S.ringBag.filter((r) => !uids.has(r.uid));
+    const nextTier = CFG.RING_ORDER[CFG.RING_ORDER.indexOf(tier) + 1];
+    const ring = newRing(nextTier, element);
+    S.ringBag.push(ring);
+    dailyAdd('merge', 1);
+    return { ok: true, ring, nextTier, element };
+  }
+  /* 一鍵合成：由低到高，合到不能再合 */
+  function mergeAll() {
+    let made = 0;
+    const gained = [];
+    for (const tier of CFG.RING_ORDER) {
+      if (!tiersMergeable(tier)) continue;
+      let guard = 0;
+      while (freeRings().filter((r) => r.tier === tier).length >= CFG.RING_MERGE_COUNT && guard < 500) {
+        const r = mergeRings(tier);
+        if (!r.ok) break;
+        made++;
+        gained.push(r.nextTier);
+        guard++;
+      }
+    }
+    return { ok: made > 0, made, gained, bag: S.ringBag.length, free: freeRings().length };
+  }
+
+  /* 自動合成：只合十年/百年（保護千年以上，讓玩家自己決定要不要衝真身） */
+  function mergeLowTiers() {
+    if ((S.settings || {}).autoMerge === false) return { made: 0 };
+    let made = 0;
+    for (const tier of ['white', 'yellow']) {
+      let guard = 0;
+      while (freeRings().filter((r) => r.tier === tier).length >= CFG.RING_MERGE_COUNT && guard < 100) {
+        const r = mergeRings(tier);
+        if (!r.ok) break;
+        made++; guard++;
+      }
+    }
+    return { made };
+  }
+
+  /* ---------- 靈印真身（3/6/9 個萬年以上靈環）---------- */
+  function trueBodyOf(soul) {
+    const high = (soul.rings || []).filter((uid) => {
+      const r = S.ringBag.find((x) => x.uid === uid);
+      return r && (r.tier === 'black' || r.tier === 'red');
+    }).length;
+    let bonus = 0;
+    for (const step of CFG.TRUE_BODY) if (high >= step.need) bonus = step.mult;
+    return { high, bonus };
+  }
+
+  /* ---------- 屬性共鳴（3 個同系靈環）---------- */
+  function resonanceOf(soul) {
+    const counts = {};
+    (soul.rings || []).forEach((uid) => {
+      const r = S.ringBag.find((x) => x.uid === uid);
+      if (!r) return;
+      counts[r.element || 'wind'] = (counts[r.element || 'wind'] || 0) + 1;
+    });
+    let best = null;
+    for (const [el, n] of Object.entries(counts)) {
+      if (n >= CFG.RESONANCE.need && (!best || n > best.count)) best = { element: el, count: n };
+    }
+    return best;
+  }
+
+  /* 該靈印最強的靈環技能（千年以上才有） */
+  function ringSkillOf(soul) {
+    let best = null;
+    (soul.rings || []).forEach((uid) => {
+      const r = S.ringBag.find((x) => x.uid === uid);
+      if (!r) return;
+      const sk = CFG.RING_SKILL[r.tier];
+      if (!sk) return;
+      if (!best || sk.mult > best.mult) best = { ...sk, tier: r.tier, element: r.element || 'wind' };
+    });
+    return best;
+  }
+
+  function hasFreeRingSlot() {
+    return teamSouls().some((soul) => ringSlotsOf(soul) > 0 && soul.rings.length < ringSlotsOf(soul));
+  }
+
+  /* 命印帶來的收益倍率（靈幣/經驗） */
+  function incomeMul() { return 1 + CFG.REBIRTH.perMark.income * S.marks; }
+
+  function totalRingsEquipped() {
+    let n = 0;
+    for (const s of S.souls) n += (s.rings || []).length;
+    return n;
+  }
+  function levelCap() { return CFG.levelCap(totalRingsEquipped()); }
+  function atCap() { return S.level >= levelCap(); }
+
+  /* ---------- 成長 ---------- */
+  function addExp(s, amount, opts) {
+    const cap = CFG.levelCap(s.souls.reduce((a, x) => a + (x.rings || []).length, 0));
+    const before = s.level;
+    if (s.level >= cap) return { levelUps: 0, capped: true };
+    s.exp += amount;
+    let ups = 0;
+    while (s.level < cap) {
+      const need = CFG.expNeed(s.level);
+      if (s.exp < need) break;
+      s.exp -= need;
+      s.level++;
+      ups++;
+      // 靈印等級跟玩家等級同步成長（上限 90）
+      for (const soul of s.souls) soul.level = Math.min(90, Math.max(soul.level || 1, Math.min(s.level, 90)));
+    }
+    return { levelUps: ups, capped: s.level >= cap, before, after: s.level };
+  }
+
+  function addCoins(n) { S.coins += n; }
+  function spendCoins(n) {
+    if (S.coins < n) return false;
+    S.coins -= n; return true;
+  }
+  function addDiamonds(n) { S.diamonds += n; }
+  function spendDiamonds(n) {
+    if (S.diamonds < n) return false;
+    S.diamonds -= n; return true;
+  }
+
+  /* ---------- 靈環 ---------- */
+  let uidSeq = 0;
+  function newRing(tierKey, element) {
+    const t = CFG.TIER_BY_KEY[tierKey];
+    uidSeq++;
+    return {
+      uid: 'r' + Date.now().toString(36) + '_' + uidSeq,
+      tier: tierKey, name: t ? t.name : T('靈環'),
+      element: element || 'wind',
+      equipped: null,
+    };
+  }
+  function ringSlotsOf(soul) {
+    return CFG.ringSlots(S.level);   // 每 10 級 1 槽，最多 9
+  }
+  /* 自動裝備：找第一個還有空槽的上陣靈印 */
+  function autoEquipBestRing() {
+    if ((S.settings || {}).autoRing === false) return null;
+    if (!freeRings().length) return null;
+    for (const soul of teamSouls()) {
+      if (ringSlotsOf(soul) === 0) continue;
+      if (soul.rings.length >= ringSlotsOf(soul)) continue;
+      const best = freeRings().slice().sort((a, b) => {
+        const ta = (CFG.TIER_BY_KEY[a.tier] || {}).mult || 0;
+        const tb = (CFG.TIER_BY_KEY[b.tier] || {}).mult || 0;
+        return tb - ta;
+      })[0];
+      const r = equipRing(soul.id, best.uid);
+      if (r.ok) return { soul, ring: best };
+    }
+    return null;
+  }
+
+  function equipRing(soulId, uid) {
+    const soul = S.souls.find((s) => s.id === soulId);
+    const item = S.ringBag.find((r) => r.uid === uid);
+    if (!soul || !item) return { ok: false, msg: T('找不到靈環') };
+    if (item.equipped) return { ok: false, msg: T('這枚靈環已經裝在別人身上') };
+    if (soul.rings.length >= ringSlotsOf(soul)) return { ok: false, msg: T(`靈環槽已滿（每 10 級才開一格，目前 ${ringSlotsOf(soul)} 格）`) };
+    soul.rings.push(uid);
+    item.equipped = soulId;
+    return { ok: true };
+  }
+
+  /* 沒裝備的靈環（背包） */
+  function freeRings() { return S.ringBag.filter((r) => !r.equipped); }
+  function unequipRing(soulId, uid) {
+    const soul = S.souls.find((s) => s.id === soulId);
+    if (!soul) return { ok: false };
+    const i = soul.rings.indexOf(uid);
+    if (i < 0) return { ok: false };
+    soul.rings.splice(i, 1);
+    const item = S.ringBag.find((r) => r.uid === uid);
+    if (item) item.equipped = null;
+    return { ok: true };
+  }
+
+  function equipBone(soulId, uid) {
+    const soul = S.souls.find((s) => s.id === soulId);
+    const item = S.bones.find((b) => b.uid === uid);
+    if (!soul || !item) return { ok: false, msg: T('找不到靈骨') };
+    if (S.souls.some((s) => s.bone === uid)) return { ok: false, msg: T('這塊靈骨已裝備') };
+    soul.bone = uid;
+    return { ok: true };
+  }
+  function unequipBone(soulId) {
+    const soul = S.souls.find((s) => s.id === soulId);
+    if (!soul || !soul.bone) return { ok: false };
+    soul.bone = null;
+    return { ok: true };
+  }
+
+  /* 升星：消耗未裝備靈骨（star-2 塊）＋靈幣，上限 5★ */
+  function starUpInfo(soul) {
+    const star = soul.star || 3;
+    return {
+      maxed: star >= 5,
+      star,
+      bones: CFG.starUpBones(star),
+      coins: CFG.starUpCoin(star),
+      available: freeBones().length,
+      canAfford: star < 5 && freeBones().length >= CFG.starUpBones(star) && S.coins >= CFG.starUpCoin(star),
+    };
+  }
+  function starUp(soulId) {
+    const soul = S.souls.find((s) => s.id === soulId);
+    if (!soul) return { ok: false, msg: T('找不到靈印') };
+    const info = starUpInfo(soul);
+    if (info.maxed) return { ok: false, msg: T('已是 5 星') };
+    if (freeBones().length < info.bones) return { ok: false, msg: T(`需要 ${info.bones} 塊未裝備靈骨（目前 ${info.available}）`) };
+    if (S.coins < info.coins) return { ok: false, msg: T(`靈幣不足（需 ${info.coins}）`) };
+    // 吃掉最舊的未裝備靈骨
+    const eat = freeBones().slice(0, info.bones).map((b) => b.uid);
+    S.bones = S.bones.filter((b) => !eat.includes(b.uid));
+    S.coins -= info.coins;
+    soul.star = Math.min(5, soul.star + 1);
+    return { ok: true, star: soul.star, eaten: eat.length };
+  }
+
+  /* ---------- 陣容 ---------- */
+  const SLOT_COST = [0, 800, 5000, 26000, 120000];   // 第 2~5 位
+  const SLOT_LEVEL = [0, 5, 15, 30, 50];
+  function slotNextCost() { return SLOT_COST[S.slots] || 0; }
+  function slotNextLevel() { return SLOT_LEVEL[S.slots] || 0; }
+  function canExpand() {
+    return S.slots < 5 && S.level >= slotNextLevel() && S.coins >= slotNextCost() && S.souls.length > S.slots;
+  }
+  function expandSlot() {
+    if (S.slots >= 5) return { ok: false, msg: T('已是五人小隊') };
+    if (S.level < slotNextLevel()) return { ok: false, msg: T(`需等級 ${slotNextLevel()}`) };
+    if (S.souls.length <= S.slots) return { ok: false, msg: T('沒有可上陣的新靈印，先去覺醒抽卡') };
+    if (!spendCoins(slotNextCost())) return { ok: false, msg: T('靈幣不足') };
+    S.slots++;
+    const next = S.souls.find((s) => !S.team.includes(s.id));
+    if (next) S.team.push(next.id);
+    return { ok: true, slots: S.slots };
+  }
+  function toggleTeam(soulId) {
+    const inTeam = S.team.includes(soulId);
+    if (inTeam) {
+      if (S.team.length <= 1) return { ok: false, msg: T('至少要上陣一位靈印') };
+      S.team = S.team.filter((id) => id !== soulId);
+      return { ok: true, in: false };
+    }
+    if (S.team.length >= S.slots) return { ok: false, msg: T('陣容已滿，先擴充名額') };
+    S.team.push(soulId);
+    return { ok: true, in: true };
+  }
+
+  /* ---------- 成就（永久加成）---------- */
+  function achList() {
+    if (!S.ach) S.ach = { unlocked: {} };
+    if (!S.ach.unlocked) S.ach.unlocked = {};
+    return CFG.ACHIEVEMENTS.map((a) => ({
+      id: a.id, name: a.name, desc: a.desc,
+      unlocked: !!S.ach.unlocked[a.id],
+      done: !!a.test(S),
+    }));
+  }
+  function checkAchievements() {
+    if (!S.ach) S.ach = { unlocked: {} };
+    if (!S.ach.unlocked) S.ach.unlocked = {};
+    const fresh = [];
+    CFG.ACHIEVEMENTS.forEach((a) => {
+      if (!S.ach.unlocked[a.id] && a.test(S)) {
+        S.ach.unlocked[a.id] = true;
+        fresh.push({ id: a.id, name: a.name, desc: a.desc });
+      }
+    });
+    return fresh;
+  }
+  function achCount() {
+    return (S.ach && S.ach.unlocked) ? Object.keys(S.ach.unlocked).length : 0;
+  }
+  function achMul() {
+    return 1 + CFG.ACH_BONUS * achCount();
+  }
+
+  /* ---------- 每日任務 ---------- */
+  function todayKey(now) {
+    const d = now ? new Date(now) : new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function dailyReset() {
+    const key = todayKey();
+    if (!S.daily || S.daily.day !== key) {
+      S.daily = { day: key, idle: 0, hunt: 0, merge: 0, claimed: [] };
+      return true;
+    }
+    return false;
+  }
+  function dailyInfo() {
+    dailyReset();
+    return CFG.DAILY.map((t) => {
+      const done = Math.min(t.need, S.daily[t.id] || 0);
+      const claimed = (S.daily.claimed || []).indexOf(t.id) >= 0;
+      return { id: t.id, label: t.label, need: t.need, unit: t.unit,
+               done, reward: t.reward, claimed, can: done >= t.need && !claimed };
+    });
+  }
+  function dailyAdd(kind, amount) {
+    dailyReset();
+    if (!(kind in S.daily)) return;
+    S.daily[kind] = Math.min(9999, (S.daily[kind] || 0) + amount);
+  }
+  function dailyClaim(id) {
+    const info = dailyInfo().find((x) => x.id === id);
+    if (!info) return { ok: false, msg: T('沒有這個任務') };
+    if (info.claimed) return { ok: false, msg: T('今天已領過') };
+    if (!info.can) return { ok: false, msg: T('任務還沒完成') };
+    S.daily.claimed.push(id);
+    S.diamonds += info.reward.diamonds || 0;
+    return { ok: true, reward: info.reward };
+  }
+
+  /* ---------- 靈印獨立等級（靈幣升級，可超越玩家等級 N 級）---------- */
+  function soulLevelCap() {
+    return Math.min(CFG.SOUL_LV.max, (S.level || 1) + CFG.SOUL_LV.maxAhead);
+  }
+  function soulLevelInfo(soulId) {
+    const soul = S.souls.find((x) => x.id === soulId);
+    if (!soul) return null;
+    const lv = soul.level || 1;
+    const cap = soulLevelCap();
+    const cost = CFG.soulLevelCost(lv);
+    return { level: lv, cap, cost, can: lv < cap && S.coins >= cost, maxed: lv >= cap };
+  }
+  function soulLevelUp(soulId) {
+    const info = soulLevelInfo(soulId);
+    if (!info) return { ok: false, msg: T('沒有這個靈印') };
+    if (info.maxed) return { ok: false, msg: T('已達等級上限（玩家等級 +20）') };
+    if (S.coins < info.cost) return { ok: false, msg: T('靈幣不足'), need: info.cost };
+    S.coins -= info.cost;
+    const soul = S.souls.find((x) => x.id === soulId);
+    soul.level = (soul.level || 1) + 1;
+    return { ok: true, level: soul.level, cost: info.cost };
+  }
+
+  /* ---------- 靈幣抽靈骨 ---------- */
+  function coinBonePull(times) {
+    const n = Math.max(1, times | 0 || 1);
+    let paid = 0;
+    const got = [];
+    for (let i = 0; i < n; i++) {
+      const cost = CFG.coinPullCost(S.bonePulls || 0);
+      if (S.coins < cost) {
+        if (!got.length) return { ok: false, msg: T('靈幣不足'), cost, need: cost };
+        break;
+      }
+      S.coins -= cost;
+      paid += cost;
+      S.bonePulls = (S.bonePulls || 0) + 1;
+      const w = CFG.COIN_PULL.weights;
+      const total = Object.keys(w).reduce((a, k) => a + w[k], 0);
+      let roll = Math.random() * total, picked = 'wind';
+      for (const k of Object.keys(w)) { roll -= w[k]; if (roll <= 0) { picked = k; break; } }
+      const b = CFG.BONE_BY_ID[picked];
+      const uid = 'bo' + Date.now().toString(36) + Math.floor(Math.random() * 1000);
+      S.bones.push({ uid, id: b.id });
+      got.push({ id: b.id, name: b.name, desc: b.desc, uid });
+    }
+    return { ok: got.length > 0, got, paid, nextCost: CFG.coinPullCost(S.bonePulls || 0) };
+  }
+
+  /* ---------- 抽卡 ---------- */
+  function pullOnce(useTickets) {
+    const cost = useTickets ? CFG.PULL_COST_TICKET : CFG.PULL_COST_DIAMOND;
+    if (useTickets) { if (S.tickets < cost) return { ok: false, msg: T('覺醒券不足') }; S.tickets -= cost; }
+    else { if (!spendDiamonds(cost)) return { ok: false, msg: T('鑽石不足') }; }
+    return { ok: true, result: rollOne() };
+  }
+  function rollOne() {
+    // 15% 出靈骨，其餘出靈印
+    if (Math.random() < 0.15 && CFG.PULL_BONES.length) {
+      const b = CFG.BONES[Math.floor(Math.random() * CFG.BONES.length)];
+      const uid = 'bo' + Date.now().toString(36) + Math.floor(Math.random() * 1000);
+      S.bones.push({ uid, id: b.id });
+      return { kind: 'bone', id: b.id, name: b.name, desc: b.desc, uid };
+    }
+    const pool = CFG.PULL_POOL;
+    const total = pool.reduce((a, p) => a + p.weight, 0);
+    let roll = Math.random() * total, picked = pool[0];
+    for (const p of pool) { roll -= p.weight; if (roll <= 0) { picked = p; break; } }
+    const existing = S.souls.find((s) => s.id === picked.id);
+    if (existing) {
+      if (existing.star < 5) { existing.star++; return { kind: 'star', id: picked.id, name: CFG.SOUL_BY_ID[picked.id].name, star: existing.star }; }
+      S.diamonds += 200;
+      return { kind: 'dup', id: picked.id, name: CFG.SOUL_BY_ID[picked.id].name, diamonds: 200 };
+    }
+    S.souls.push({ id: picked.id, star: picked.star, level: S.level, rings: [] });
+    return { kind: 'new', id: picked.id, name: CFG.SOUL_BY_ID[picked.id].name, star: picked.star };
+  }
+
+  /* ---------- 轉生 ---------- */
+  function rebirthInfo() {
+    const lastBest = S.lastRebirthBest || 0;
+    const deep = Math.max(0, (S.bestStage || 0) - lastBest);
+    const gain = CFG.rebirthGain(S.bestStage, S.level, lastBest);
+    return {
+      gain,
+      deep,
+      lastBest,
+      needStage: Math.max(CFG.REBIRTH.minStage, lastBest + 1),
+      can: gain > 0 && S.bestStage > lastBest,
+      marks: S.marks,
+      rebirths: S.rebirths,
+      bestStage: S.bestStage,
+      minStage: CFG.REBIRTH.minStage,
+      bonusText: T(`全屬性 +${Math.round(CFG.REBIRTH.perMark.atk * 100 * S.marks)}% · 收益 +${Math.round(CFG.REBIRTH.perMark.income * 100 * S.marks)}%`),
+    };
+  }
+
+  /* 轉生：保留靈印/星級/靈骨/命印/簽到，重置本輪進度 */
+  function doRebirth() {
+    const info = rebirthInfo();
+    if (!info.can) return { ok: false, msg: T(`歷史最高關卡需達 ${CFG.REBIRTH.minStage} 關`) };
+    S.marks += info.gain;
+    S.rebirths += 1;
+    S.lastRebirthBest = S.bestStage;   // 本輪紀錄歸零，下次要再推更深
+    // 每次轉生後起始等級提高，重跑不必一直從 1 級爬
+    const startLv = Math.min(CFG.REBIRTH.startLevelMax || 1,
+                             1 + (CFG.REBIRTH.startLevelPerRebirth || 0) * S.rebirths);
+    S.level = startLv;
+    S.exp = 0;
+    S.stage = 1;
+    S.kills = 0;
+    S.coins = 0;
+    // 靈環保留（那是打來的資產；重置掉會讓玩家重複勞動，戰力也會瞬間掉兩個量級）
+    S.souls.forEach((soul) => { soul.level = startLv; });
+    S.cd = {};
+    S.lastSave = Date.now();
+    save(true);
+    return { ok: true, gain: info.gain, marks: S.marks, rebirths: S.rebirths };
+  }
+
+  /* ---------- 每日簽到 ---------- */
+  function dayKey(d) {
+    const x = d || new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}`;
+  }
+  function prevDayKey(d) {
+    const x = new Date((d || new Date()).getTime());
+    x.setDate(x.getDate() - 1);
+    return dayKey(x);
+  }
+  function checkinInfo(now) {
+    const c = S.checkin;
+    const today = dayKey(now);
+    const canCheck = c.lastDay !== today;
+    const continuous = c.lastDay === prevDayKey(now);
+    const nextTotal = c.total + 1;
+    const dayIndex = ((nextTotal - 1) % CFG.CHECKIN.length) + 1;
+    return {
+      canCheck,
+      today,
+      streak: canCheck ? (continuous ? c.streak + 1 : 1) : c.streak,
+      total: c.total,
+      dayIndex: canCheck ? dayIndex : (((c.total - 1) % CFG.CHECKIN.length) + 1),
+      reward: CFG.CHECKIN[dayIndex - 1],
+      continuous,
+    };
+  }
+  function grantCheckinReward(r) {
+    if (!r) return;
+    if (r.kind === 'coins') S.coins += r.amount;
+    else if (r.kind === 'diamonds') S.diamonds += r.amount;
+    else if (r.kind === 'tickets') S.tickets += r.amount;
+    else if (r.kind === 'ring') S.ringBag.push(newRing(r.tier));
+    else if (r.kind === 'gift') {
+      if (r.ring) S.ringBag.push(newRing(r.ring));
+      if (r.tickets) S.tickets += r.tickets;
+      if (r.diamonds) S.diamonds += r.diamonds;
+    }
+  }
+  function checkIn(now) {
+    const info = checkinInfo(now);
+    if (!info.canCheck) return { ok: false, msg: T('今天已經簽過了，明天再來') };
+    const c = S.checkin;
+    c.streak = info.streak;
+    c.total += 1;
+    c.lastDay = dayKey(now);
+    const idx = ((c.total - 1) % CFG.CHECKIN.length);
+    const reward = CFG.CHECKIN[idx];
+    grantCheckinReward(reward);
+    return { ok: true, reward, dayIndex: idx + 1, streak: c.streak, total: c.total };
+  }
+
+  /* ---------- 兌換碼 ---------- */
+  function redeem(code) {
+    const key = String(code || '').trim().toUpperCase();
+    if (!key) return { ok: false, msg: T('請輸入兌換碼') };
+    if (S.codes.includes(key)) return { ok: false, msg: T('這個兌換碼已用過') };
+    const c = CFG.CODES[key];
+    if (!c) return { ok: false, msg: T('兌換碼無效') };
+    S.codes.push(key);
+    if (c.diamonds) S.diamonds += c.diamonds;
+    if (c.tickets) S.tickets += c.tickets;
+    if (c.coins) S.coins += c.coins;
+    if (c.exp) addExp(S, c.exp);
+    if (c.ring) S.ringBag.push(newRing(c.ring));
+    return { ok: true, msg: c.msg };
+  }
+
+  /* ---------- 存檔碼 ---------- */
+  function exportCode() {
+    const json = JSON.stringify(S);
+    return btoa(unescape(encodeURIComponent(json)));
+  }
+  function importCode(code) {
+    try {
+      const json = decodeURIComponent(escape(atob(String(code || '').trim())));
+      const data = JSON.parse(json);
+      if (!data || !Array.isArray(data.souls)) throw new Error(T('格式錯誤'));
+      S = migrate(data);
+      S.lastSave = Date.now();
+      save(true);
+      return { ok: true, save: S };
+    } catch (e) {
+      return { ok: false, msg: T('存檔碼無法解析') };
+    }
+  }
+
+  global.State = {
+    get data() { return S; },
+    load, save, reset,
+    addExp, addCoins, spendCoins, addDiamonds, spendDiamonds,
+    soulStats, teamSouls, teamStats, power,
+    totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth, migrate, coinBonePull, critChance, soulLevelUp, soulLevelInfo, soulLevelCap, dailyInfo, dailyAdd, dailyClaim, todayKey, achList, checkAchievements, achCount, achMul,
+    trueBodyOf, resonanceOf, ringSkillOf, hasFreeRingSlot,
+    mergeInfo, mergeRings, mergeAll, mergeLowTiers,
+    newRing, ringSlotsOf, ringBonus, equipRing, unequipRing, autoEquipBestRing, freeRings,
+    boneOf, freeBones, equippedBones, teamAura, equipBone, unequipBone,
+    starUpInfo, starUp,
+    slotNextCost, slotNextLevel, canExpand, expandSlot, toggleTeam,
+    dayKey, checkinInfo, checkIn,
+    pullOnce, rollOne, redeem, exportCode, importCode,
+    offlineGain, OFFLINE_CAP_H,
+    saveStatus, restoreBackup,
+  };
+})(window);
+
+</script>
+<script>
+/* ==========================================================================
+ * battle.js — ATB 自動戰鬥、技能、關卡推進、獵靈
+ * 支援一波 1–3 隻敵人：群攻靈印（強攻系）打全體才有意義。
+ * Boss 被動：血量 ≤40% 狂暴一次、每 4 次行動回血 10%。
+ * ========================================================================== */
+(function (global) {
+  'use strict';
+
+  const TICK_MS = 120;
+  const ATB_SPEED = 1.35;         // 行動條每秒填充量 = spd/100 * ATB_SPEED（約 0.8 秒出手一次）
+  const DT = TICK_MS / 1000;
+  const SKILL_MP = 100;
+  const MP_PER_ACTION = 26;
+
+  const B = {
+    mode: 'farm',                 // farm | boss | hunt
+    running: false,
+    units: [],
+    enemies: [],
+    ticker: 0,
+    huntBeast: null,
+    pendingBoss: false,
+    autoReviveAt: 0,
+    autoAt: 0,
+    waveNo: 0,
+  };
+
+  /* 舊介面：Battle.state.enemy / snapshot().enemy 仍回傳「第一隻活著的敵人」 */
+  Object.defineProperty(B, 'enemy', {
+    get() {
+      const alive = B.enemies.filter((e) => e.alive);
+      return alive[0] || B.enemies[0] || null;
+    },
+  });
+
+  const listeners = new Set();
+  function on(fn) { listeners.add(fn); return () => listeners.delete(fn); }
+  function emit(type, data) {
+    const ev = Object.assign({ type, at: Date.now() }, data || {});
+    listeners.forEach((fn) => { try { fn(ev); } catch (e) { /* UI 不該弄死戰鬥 */ } });
+  }
+
+  /* ---------- 建立我方 ---------- */
+  function buildTeam() {
+    B.units = State.teamSouls().map((soul) => {
+      const st = State.soulStats(soul);
+      return {
+        id: soul.id, name: st.name, emoji: st.emoji, role: st.role,
+        maxHp: st.hp, hp: st.hp, atk: st.atk, def: st.def, spd: st.spd,
+        gauge: Math.random() * 0.3, mp: 0, shield: 0, alive: true,
+        buffAtk: 0, buffTurns: 0, taunt: 0,
+      };
+    });
+  }
+
+  /* ---------- 建立敵人（一波 1–3 隻）---------- */
+  function waveSize(kind) {
+    if (kind === 'boss' || kind === 'hunt') return 1;
+    const stage = State.data.stage;
+    if (stage < 3) return 1;
+    const r = Math.random();
+    if (stage < 8) return r < 0.75 ? 1 : 2;
+    return r < 0.5 ? 1 : (r < 0.85 ? 2 : 3);
+  }
+
+  function spawnWave(kind) {
+    B.waveNo++;
+    if (kind === 'hunt') {
+      const beast = B.huntBeast;
+      B.enemies = [{
+        id: beast.id, name: T(beast.name), emoji: beast.emoji,
+        maxHp: beast.hp, hp: beast.hp, atk: beast.atk, def: Math.round(beast.atk * 0.35),
+        spd: 88, gauge: 0, stun: 0, alive: true, boss: true, hunt: true, acts: 0, enraged: false,
+      }];
+      return;
+    }
+    const isBoss = kind === 'boss';
+    const st = CFG.enemyStats(State.data.stage, isBoss);
+    const n = waveSize(kind);
+    // 多隻時單隻較弱（總血量約 1.3 倍），才不會讓群攻變成唯一解
+    const hpScale = isBoss ? 1 : (n > 1 ? 0.66 : 1);
+    const atkScale = isBoss ? 1 : (n > 1 ? 0.8 : 1);
+
+    // 橡皮筋：不管關卡多深，怪物數值都不超過「隊伍現況」能處理的量
+    const band = CFG.BAND;
+    const units = B.units.filter((u) => u.maxHp > 0);
+    const weakestHp = Math.min.apply(null, units.map((u) => u.maxHp));
+    /* DPS 估算要跟實際戰鬥用同一套公式：
+       出手次數用 actsPerSec（飽和曲線）、傷害要扣掉敵人防禦的百分比減傷 */
+    let defCap = Math.round(State.teamStats().atk * band.defOfTeamAtk);
+    const defMit = 1 - mitigation(defCap, State.data.stage);
+    const dps = units.reduce((a, u) => a + u.atk * actsPerSec(u.spd) * 0.85 * defMit, 0);
+    const effDps = Math.max(1, dps);
+    const baseSec = isBoss ? band.bossSec : band.waveSec;
+    // 該關「原始血量 ÷ 基準秒數」= 打穿它所需的 DPS；超過就是變強，可以縮短戰鬥時間
+    const needDps = Math.max(1, st.hp / baseSec);
+    const speedFactor = Math.max(band.speedFloor, Math.min(1, needDps / effDps));
+    let hpCap = effDps * baseSec * speedFactor;
+    B.lastSpeed = { needDps: Math.round(needDps), dps: Math.round(effDps),
+                    factor: +speedFactor.toFixed(2), secs: +(baseSec * speedFactor).toFixed(1) };
+    if (isBoss) {
+      const fails = Math.min(band.bossFailMax, (State.data.bossFails || {})[State.data.stage] || 0);
+      hpCap *= Math.pow(band.bossFailStep, fails);   // 連續失敗會削弱 BOSS，保證推得過去
+    }
+    // 深度放寬：第 100 關之後，每多 100 關上限 ×1（最多 ×4）
+    // 讓關卡數字重新代表難度，不然橡皮筋把每一關都壓成一樣軟
+    const depth = Math.max(0, State.data.stage - band.widenFrom);
+    const widen = Math.min(band.widenMax, 1 + depth / band.widenPerStage);
+    hpCap *= widen;
+    defCap *= 1 + (widen - 1) * 0.5;   // 防禦只放寬一半，否則減傷吃掉傷害、戰鬥拖太久
+    // 深度只拉長「要打多久」，不提高「會不會被打死」：
+    // 攻擊上限不隨深度變動，否則深處 BOSS 會變成必敗（存活時間 < 需要的輸出時間）
+    const atkCap = weakestHp * band.atkOfWeakestHp;
+    st.hp = Math.max(1, Math.min(st.hp, Math.round(hpCap)));
+    st.atk = Math.max(1, Math.min(st.atk, Math.round(atkCap)));
+    st.def = Math.max(0, Math.min(st.def, Math.round(defCap)));
+    B.enemies = Array.from({ length: n }, (_, i) => {
+      const hp = Math.round(st.hp * hpScale);
+      return {
+        id: 'e' + B.waveNo + '_' + i,
+        name: T(n > 1 ? `${st.name} ${i + 1}` : st.name),
+        emoji: st.emoji,
+        maxHp: hp, hp,
+        atk: Math.round(st.atk * atkScale),
+        def: st.def,
+        spd: st.spd + i * 3,
+        gauge: Math.random() * 0.25,
+        stun: 0, alive: true, boss: !!st.boss, acts: 0, enraged: false,
+      };
+    });
+  }
+
+  function aliveEnemies() { return B.enemies.filter((e) => e.alive); }
+
+  /* 自動戰鬥聚焦：打血最少的（清怪最快） */
+  function targetEnemy() {
+    const alive = aliveEnemies();
+    if (!alive.length) return null;
+    let best = alive[0];
+    for (const e of alive) if (e.hp < best.hp) best = e;
+    return best;
+  }
+
+  /* ---------- 對外操作 ---------- */
+  function init() {
+    buildTeam();
+    B.mode = 'farm';
+    B.pendingBoss = false;
+    if (!aliveEnemies().length) spawnWave('farm');
+    start();
+  }
+
+  function start() {
+    if (B.running) return;
+    B.running = true;
+    B.ticker = setInterval(tick, TICK_MS);
+  }
+  function stop() {
+    B.running = false;
+    if (B.ticker) { clearInterval(B.ticker); B.ticker = 0; }
+  }
+
+  function refreshTeam() {
+    const old = new Map(B.units.map((u) => [u.id, u]));
+    buildTeam();
+    B.units.forEach((u) => {
+      const prev = old.get(u.id);
+      if (prev) { u.hp = Math.min(u.maxHp, Math.max(1, prev.hp / prev.maxHp * u.maxHp)); u.mp = prev.mp; }
+    });
+  }
+
+  function challengeBoss() {
+    if (!B.pendingBoss) return { ok: false, msg: T('先清掉 10 隻小怪') };
+    if (!State.teamSouls().length) return { ok: false, msg: T('沒有上陣靈印') };
+    B.mode = 'boss';
+    B.pendingBoss = false;
+    spawnWave('boss');
+    reviveTeam(false);
+    emit('bossStart', { stage: State.data.stage });
+    return { ok: true };
+  }
+
+  function hunt(beastId) {
+    const beast = CFG.BEAST_BY_ID[beastId];
+    if (!beast) return { ok: false, msg: T('找不到靈獸') };
+    if (B.mode === 'hunt') return { ok: false, msg: T('正在獵靈中') };
+    const next = State.data.cd[beastId] || 0;
+    if (Date.now() < next) return { ok: false, msg: T(`冷卻中，還要 ${Math.ceil((next - Date.now()) / 1000)} 秒`) };
+    if (State.data.level < beast.reqLevel) return { ok: false, msg: T(`需等級 ${beast.reqLevel} 才能挑戰`) };
+    B.huntBeast = beast;
+    B.mode = 'hunt';
+    spawnWave('hunt');
+    reviveTeam(true);            // 獵靈是獨立挑戰，進場回滿血
+    emit('huntStart', { beast });
+    return { ok: true };
+  }
+
+  function reviveTeam(healFull) {
+    B.units.forEach((u) => {
+      u.alive = true;
+      u.hp = healFull ? u.maxHp : Math.max(1, Math.round(u.maxHp * 0.6));
+      u.gauge = Math.random() * 0.2;
+      u.shield = 0;
+    });
+  }
+
+  function backToFarm() {
+    B.mode = 'farm';
+    B.huntBeast = null;
+    spawnWave('farm');
+  }
+
+  /* ---------- 主循環 ---------- */
+  function tick() {
+    if (B.adBreak || (typeof window !== 'undefined' && window.__gpPaused)) return;
+    if (!B.enemies.length) spawnWave(B.mode === 'hunt' ? 'hunt' : (B.mode === 'boss' ? 'boss' : 'farm'));
+
+    // 全滅 → 2 秒後自動復活（放置遊戲不要卡死）
+    if (!B.units.some((u) => u.alive)) {
+      if (!B.autoReviveAt) {
+        B.autoReviveAt = Date.now() + 2000;
+        emit('wipe', { mode: B.mode });
+      }
+      if (Date.now() >= B.autoReviveAt) {
+        B.autoReviveAt = 0;
+        reviveTeam(true);
+        if (B.mode === 'boss') {
+          const s2 = State.data;
+          s2.bossFails = s2.bossFails || {};
+          s2.bossFails[s2.stage] = Math.min(CFG.BAND.bossFailMax, (s2.bossFails[s2.stage] || 0) + 1);
+          B.pendingBoss = true;        // 復活後直接再挑戰（不用重清小怪）
+          B.mode = 'farm';
+          spawnWave('farm');
+          emit('bossFailed', { stage: s2.stage, fails: s2.bossFails[s2.stage] });
+        }
+        if (B.mode === 'hunt') {
+          const beast = B.huntBeast;
+          if (beast) State.data.cd[beast.id] = Date.now() + 15000;   // 失敗冷卻 15 秒
+          B.mode = 'farm';
+          B.huntBeast = null;
+          spawnWave('farm');
+          emit('huntLose', { beast });
+        }
+        emit('revived', {});
+      }
+      return;
+    }
+
+    // 我方行動
+    for (const u of B.units) {
+      if (!u.alive) continue;
+      u.gauge += actsPerSec(u.spd) * DT;
+      if (u.gauge < 1) continue;
+      u.gauge = 0;
+      if (!aliveEnemies().length) break;
+      unitAct(u);
+      if (!aliveEnemies().length) break;
+    }
+
+    maybeAuto();
+
+    // 敵方行動（每隻各自跑行動條）
+    for (const e of B.enemies) {
+      if (!e.alive) continue;
+      e.gauge += actsPerSec(e.spd) * DT;
+      if (e.gauge < 1) continue;
+      e.gauge = 0;
+      if (e.stun > 0) { e.stun--; emit('stun', { who: 'enemy', enemyId: e.id }); continue; }
+      if (e.boss) bossAct(e); else enemyAct(e);
+    }
+  }
+
+  /* ---------- 放置自動化：自動挑戰 BOSS、卡等自動獵靈 ---------- */
+  function maybeAuto() {
+    const now = Date.now();
+    if (now < B.autoAt) return;
+    const s = State.data;
+    const cfg = s.settings || {};
+
+    // 卡等時「獵靈」優先於「打 BOSS」：卡等打王沒有任何經驗，先拿環才有成長
+    if (cfg.autoHunt !== false && B.mode === 'farm' && State.hasFreeRingSlot()) {
+      const ready = CFG.BEASTS.filter((b) => s.level >= b.reqLevel && (s.cd[b.id] || 0) <= now);
+      const beast = ready[ready.length - 1];   // 打得到就挑最高階的
+      if (beast) {
+        B.autoAt = now + CFG.AUTO_HUNT_DELAY;
+        setTimeout(() => {
+          if (B.mode === 'farm' && State.hasFreeRingSlot()) hunt(beast.id);
+        }, CFG.AUTO_HUNT_DELAY);
+        return;
+      }
+    }
+
+    if (B.pendingBoss && cfg.autoBoss !== false && B.mode === 'farm') {
+      B.autoAt = now + CFG.AUTO_BOSS_DELAY;
+      setTimeout(() => { if (B.pendingBoss && B.mode === 'farm') challengeBoss(); }, CFG.AUTO_BOSS_DELAY);
+    }
+  }
+
+  /* ---------- 我方行動 ---------- */
+  function unitAct(u) {
+    if (u.buffTurns > 0) { u.buffTurns--; if (u.buffTurns === 0) u.buffAtk = 0; }
+    if (u.mp >= SKILL_MP) { u.mp = 0; castSkill(u); return; }
+    const t = targetEnemy();
+    if (!t) return;
+    const dmg = calcDamage(u.atk * (1 + u.buffAtk), t.def, 0.9, 1.1, State.critChance(), State.data.stage);
+    hitEnemy(t, dmg, u, false);
+    u.mp = Math.min(SKILL_MP, u.mp + MP_PER_ACTION);
+  }
+
+  function castSkill(u) {
+    const soul = State.data.souls.find((s) => s.id === u.id);
+    const ringSkill = soul ? State.ringSkillOf(soul) : null;
+    if (ringSkill) {
+      const reso = soul ? State.resonanceOf(soul) : null;
+      const resoMul = reso && reso.element === ringSkill.element ? CFG.RESONANCE.mult : 1;
+      emit('skill', {
+        unit: u, role: u.role, ring: true,
+        name: ringSkill.label,
+        element: ringSkill.element,
+        resonance: resoMul > 1,
+      });
+      const targets = aliveEnemies();
+      if (ringSkill.type === 'aoe') {
+        for (const e of targets) {
+          hitEnemy(e, calcDamage(u.atk * (1 + u.buffAtk) * ringSkill.mult * resoMul, e.def, 0.95, 1.05, State.critChance(), State.data.stage), u, true);
+        }
+        if (targets.length > 1) emit('aoe', { count: targets.length });
+      } else {
+        const t = targetEnemy();
+        if (t) {
+          hitEnemy(t, calcDamage(u.atk * (1 + u.buffAtk) * ringSkill.mult * resoMul, t.def, 0.95, 1.05, State.critChance(), State.data.stage), u, true);
+          if (Math.random() < (ringSkill.chance || 0) && t.alive) {
+            t.stun = Math.max(t.stun, 1);
+            emit('stun', { who: 'enemy', enemyId: t.id });
+          }
+        }
+      }
+      return;
+    }
+    emit('skill', { unit: u, role: u.role, name: (CFG.SOUL_BY_ID[u.id] || {}).skillName || T('靈技') });
+
+    if (u.role === 'atk') {
+      // 強攻系：全體 200%（多波時才看得出價值）
+      const targets = aliveEnemies();
+      for (const e of targets) {
+        const dmg = calcDamage(u.atk * (1 + u.buffAtk) * 2.0, e.def, 0.95, 1.05, State.critChance(), State.data.stage);
+        hitEnemy(e, dmg, u, true);
+      }
+      if (targets.length > 1) emit('aoe', { count: targets.length });
+    } else if (u.role === 'ctrl') {
+      const t = targetEnemy();
+      if (t) {
+        hitEnemy(t, calcDamage(u.atk * (1 + u.buffAtk) * 1.2, t.def, 0.95, 1.05, State.critChance(), State.data.stage), u, true);
+        if (Math.random() < 0.45 && t.alive) {
+          t.stun = Math.max(t.stun, 1);
+          emit('stun', { who: 'enemy', enemyId: t.id });
+        }
+      }
+    } else if (u.role === 'def') {
+      const shield = Math.round(u.maxHp * 0.22);
+      B.units.forEach((x) => { if (x.alive) x.shield += shield; });
+      u.taunt = 2;
+      emit('shield', { unit: u, shield });
+      const t = targetEnemy();
+      if (t) hitEnemy(t, calcDamage(u.atk * 0.8, t.def, 0.9, 1.1, State.critChance(), State.data.stage), u, false);
+    } else {
+      // 輔助：全隊回復 + 攻擊加成
+      B.units.forEach((x) => {
+        if (!x.alive) return;
+        const heal = Math.round(x.maxHp * 0.28);
+        x.hp = Math.min(x.maxHp, x.hp + heal);
+        x.buffAtk = 0.4; x.buffTurns = 3;
+        emit('heal', { unit: x, amount: heal });
+      });
+    }
+  }
+
+  function hitEnemy(enemy, dmg, u, isSkill) {
+    if (!enemy || !enemy.alive) return;
+    enemy.hp -= dmg;
+    emit('hit', {
+      side: 'enemy', enemyId: enemy.id, amount: dmg, crit: isSkill, unit: u,
+      hp: Math.max(0, enemy.hp), maxHp: enemy.maxHp,
+    });
+    if (enemy.hp <= 0) { enemy.hp = 0; enemy.alive = false; onEnemyDead(enemy); }
+  }
+
+  /* ---------- Boss 被動 ---------- */
+  function bossAct(e) {
+    e.acts++;
+    e.heals = e.heals || 0;
+    if (!e.enraged && e.hp / e.maxHp <= 0.4) {
+      e.enraged = true;
+      e.atk = Math.round(e.atk * 1.35);
+      emit('bossRage', { name: e.name, enemyId: e.id });
+    }
+    // 只在血量低於 70% 時、每 5 次行動回 8%：避免低戰力玩家被無限回血鎖死
+    if (e.acts % 5 === 0 && e.hp < e.maxHp * 0.7 && e.heals < CFG.BAND.bossHealMax) {
+      e.heals++;
+      const heal = Math.round(e.maxHp * 0.08);
+      e.hp = Math.min(e.maxHp, e.hp + heal);
+      emit('bossHeal', { name: e.name, enemyId: e.id, amount: heal, hp: e.hp, maxHp: e.maxHp });
+      return;
+    }
+    enemyAct(e);
+  }
+
+  /* ---------- 敵方行動 ---------- */
+  function enemyAct(e) {
+    const alive = B.units.filter((u) => u.alive);
+    if (!alive.length) return;
+    const taunters = alive.filter((u) => u.taunt > 0);
+    const target = taunters.length ? taunters[0] : alive[Math.floor(Math.random() * alive.length)];
+    if (target.taunt > 0) target.taunt--;
+    const dmg = calcDamage(e.atk, target.def, 0.9, 1.1, CFG.COMBAT.critBase, State.data.level);
+    let left = dmg;
+    if (target.shield > 0) {
+      const absorbed = Math.min(target.shield, left);
+      target.shield -= absorbed; left -= absorbed;
+      if (absorbed > 0) emit('absorb', { unit: target, amount: absorbed });
+    }
+    target.hp -= left;
+    if (left > 0) {
+      emit('hit', { side: 'team', unit: target, amount: left, maxHp: target.maxHp, hp: Math.max(0, target.hp) });
+    }
+    if (target.hp <= 0) {
+      target.hp = 0; target.alive = false;
+      emit('down', { unit: target });
+    }
+  }
+
+  /* ---------- 擊殺結算 ---------- */
+  function onEnemyDead(enemy) {
+    const s = State.data;
+
+    if (B.mode === 'hunt') {
+      const beast = B.huntBeast;
+      const ring = State.newRing(beast.tier, beast.element);
+      s.ringBag.push(ring);
+      s.cd[beast.id] = Date.now() + beast.cdSec * 1000;
+      s.stats.hunts++;
+      State.dailyAdd('hunt', 1);
+      emit('huntWin', { beast, ring });
+      const auto = State.autoEquipBestRing();
+      if (auto) emit('autoRing', { soul: auto.soul, ring: auto.ring });
+      const merged = State.mergeLowTiers();
+      if (merged && merged.made > 0) emit('autoMerge', { made: merged.made });
+      backToFarm();
+      return;
+    }
+
+    const isBoss = B.mode === 'boss';
+    const r = CFG.killReward(s.stage);
+    const mul = State.incomeMul();
+    const coinGain = Math.round((isBoss ? r.coins * 8 : r.coins) * mul);
+    const expGain = Math.round((isBoss ? r.exp * 8 : r.exp) * mul);
+    State.addCoins(coinGain);
+    const expRes = State.addExp(s, expGain);
+    s.stats.kills++;
+    if (!isBoss && s.kills < CFG.BASE_KILLS_PER_STAGE) s.kills++;
+
+    emit('kill', {
+      stage: s.stage, boss: isBoss, coins: coinGain, exp: expGain,
+      kills: s.kills, levelUps: expRes.levelUps || 0,
+      left: aliveEnemies().length, enemyId: enemy && enemy.id,
+    });
+    if (expRes.levelUps) emit('levelup', { level: s.level });
+
+    if (isBoss) {
+      s.stage++;
+      s.bestStage = Math.max(s.bestStage, s.stage);
+      s.kills = 0;
+      if (s.bossFails) delete s.bossFails[s.stage - 1];   // 過了就把失敗紀錄清掉
+      B.mode = 'farm';
+      emit('stageClear', { stage: s.stage });
+      // 里程碑：每 50 關送一個十萬年環
+      if (s.stage % CFG.MILESTONE.every === 0) {
+        const ring = State.newRing(CFG.MILESTONE.tier, 'water');
+        s.ringBag.push(ring);
+        emit('milestone', { stage: s.stage, ring });
+      }
+      spawnWave('farm');
+      // 插頁廣告只在關卡之間，且由 GP 自己做冷卻
+      if (typeof window !== 'undefined' && window.GP && GP.interstitial) {
+        B.adBreak = true;
+        GP.interstitial().then(function () { B.adBreak = false; },
+                               function () { B.adBreak = false; });
+      }
+      return;
+    }
+
+    // 這一波清完才出下一波；還有敵人就不重生
+    if (aliveEnemies().length) return;
+
+    if (s.kills >= CFG.BASE_KILLS_PER_STAGE && !B.pendingBoss) {
+      B.pendingBoss = true;
+      emit('bossReady', { stage: s.stage });
+    }
+    B.units.forEach((u) => {
+      if (u.alive) u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.12);
+    });
+    spawnWave('farm');
+  }
+
+  /* ---------- 傷害公式 ---------- */
+  /* 速度 → 每秒出手次數：飽和曲線（原本速度 617 之後就完全沒用）
+     acts/s = (1/DT) × (1 − e^(−spd/617))，永遠 < 8.33 但不會浪費 */
+  function actsPerSec(spd) {
+    const maxActs = 1 / DT;
+    return maxActs * (1 - Math.exp(-(spd || 0) / CFG.COMBAT.spdK));
+  }
+
+  /* 防禦 → 百分比減傷：def / (def + 300 × 等級)，單邊上限 35% */
+  function mitigation(def, level) {
+    const k = CFG.COMBAT.defK * Math.max(1, level || 1);
+    return Math.min(CFG.COMBAT.defCap, (def || 0) / ((def || 0) + k));
+  }
+
+  function calcDamage(atk, def, lo, hi, critChance, defLevel) {
+    const raw = atk * (lo + Math.random() * (hi - lo));
+    const dmg = raw * (1 - mitigation(def, defLevel));
+    const crit = Math.random() < (critChance == null ? CFG.COMBAT.critBase : critChance);
+    return Math.max(1, Math.round(dmg * (crit ? CFG.COMBAT.critMult : 1)));
+  }
+
+  function snapshot() {
+    const alive = aliveEnemies();
+    return {
+      mode: B.mode,
+      units: B.units.map((u) => ({ ...u })),
+      enemies: B.enemies.map((e) => ({ ...e })),
+      enemy: alive[0] ? { ...alive[0] } : (B.enemies[0] ? { ...B.enemies[0] } : null),
+      pendingBoss: B.pendingBoss,
+      kills: State.data.kills,
+      needed: CFG.BASE_KILLS_PER_STAGE,
+      stage: State.data.stage,
+    };
+  }
+
+  global.Battle = {
+    init, start, stop, refreshTeam, challengeBoss, hunt, backToFarm, reviveTeam,
+    on, snapshot, spawnWave, targetEnemy,
+    /* 測試用內部鉤子（不影響遊戲流程） */
+    unitAct, castSkill, hitEnemy, bossAct, enemyAct,
+    actsPerSec, mitigation, calcDamage,
+    get state() { return B; },
+  };
+})(window);
+
+</script>
+<script>
+/* ==========================================================================
+ * ui.js — 渲染、互動、飄字、靈環光效、存檔流程
+ * ========================================================================== */
+(function (global) {
+  'use strict';
+
+  const $ = (sel, root) => (root || document).querySelector(sel);
+  const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
+
+  function fmt(n) {
+    return I18N.fmt(n);   // 中文用萬/億，英文用 K/M/B
+  }
+  const roleName = (r) => CFG.ROLE_LABEL[r] || T('未知');
+
+  let tab = 'battle';
+  let lastSnapKey = '';
+  let unitEls = new Map();     // id -> element
+  let enemyEls = new Map();    // id -> element（一波可能 1–3 隻）
+  let toastTimer = 0;
+
+  /* ================= 初始化 ================= */
+  /* 載入畫面收尾：沒有 GamePix SDK 的版本（itch）也要走這條 */
+  function hideLoading() {
+    const el = document.getElementById('loading');
+    if (el) el.classList.add('hidden');
+    const bar = document.getElementById('loadingBar');
+    if (bar) bar.style.width = '100%';
+  }
+
+  function boot() {
+    if (global.GP) { GP.boot(); GP.loading(20); }
+    const res = State.load();
+    bindNav();
+    bindTop();
+    bindBattle();
+    bindSouls();
+    bindRings();
+    bindHunt();
+    bindGacha();
+
+    Battle.on(onBattleEvent);
+    Battle.init();
+    renderAll();
+    if (global.GP) {
+      GP.loading(85);
+      GP.loaded().then(function () { GP.gameStart(); });   // 開場即自動戰鬥＝gameplay 開始
+    } else {
+      hideLoading();                                        // 沒有 SDK（例：itch 版）也要關掉載入畫面
+    }
+
+    if (res.offline) showOffline(res.offline);
+    const ci = State.checkinInfo();
+    if (ci.canCheck) setTimeout(() => toast(T('今日簽到可領取 🎁')), 1400);
+    if (res.restored) toast(T('主存檔損毀，已從備份還原'));
+    if (res.newer) toast(T('存檔來自較新版本，已停止自動存檔以免覆蓋'));
+    if (res.corrupted) toast(T('存檔損毀，已建立新檔（舊檔已保留）'));
+
+    setInterval(() => {
+      State.save();
+      renderTop();
+      State.dailyAdd('idle', 5 / 60);      // 掛機分鐘（每日任務）
+      checkAch();
+    }, 5000);
+    setInterval(() => { if (tab === 'hunt') renderHunt(); }, 1000);
+    document.addEventListener('keydown', modalKeydown);
+    window.addEventListener('beforeunload', () => State.save(true));
+    document.addEventListener('visibilitychange', () => { if (document.hidden) State.save(true); });
+
+    requestAnimationFrame(loop);
+    global.__game = {
+      get ready() { return true; },
+      State, Battle, CFG,
+      switchTab, openModal, closeModal, renderAll,
+      checkinInfo: () => State.checkinInfo(),
+      get tab() { return tab; },
+    };
+  }
+
+  /* ================= 導覽 ================= */
+  function bindNav() {
+    $$('.nav-btn').forEach((b) => {
+      b.addEventListener('click', () => switchTab(b.dataset.tab));
+    });
+  }
+  function switchTab(name) {
+    tab = name;
+    $$('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
+    $$('.view').forEach((v) => v.classList.toggle('active', v.dataset.view === name));
+    renderAll();
+  }
+
+  function bindTop() {
+    $('#btnMenu').addEventListener('click', showMenu);
+  }
+
+  /* ================= 戰鬥畫面 ================= */
+  function bindBattle() {
+    $('#bossBtn').addEventListener('click', () => {
+      const r = Battle.challengeBoss();
+      if (!r.ok) toast(r.msg);
+    });
+  }
+
+  function renderBattle() {
+    const snap = Battle.snapshot();
+    $('#stageName').textContent = T(CFG.areaFor(snap.stage)) + (snap.mode === 'boss' ? ' · BOSS' : '');
+    const lbl = $('#stageLabel');
+    if (lbl) {
+      lbl.innerHTML = I18N.lang === 'en'
+        ? `Stage <b id="stageNum">${snap.stage}</b>`
+        : `第 <b id="stageNum">${snap.stage}</b> 關`;
+    } else {
+      $('#stageNum').textContent = snap.stage;
+    }
+    $('#progText').textContent = `${Math.min(snap.kills, snap.needed)} / ${snap.needed}`;
+    $('#progBar').style.width = Math.min(100, (snap.kills / snap.needed) * 100) + '%';
+
+    const rate = CFG.offlinePerMinute(snap.stage);
+    $('#rateText').textContent = I18N.lang === 'en'
+      ? `${fmt(rate.coins)} coins/min · ${fmt(rate.exp)} EXP/min`
+      : T(`靈幣 ${fmt(rate.coins)}/分 · 經驗 ${fmt(rate.exp)}/分`);
+
+    const capped = State.atCap();
+    const bossBtn = $('#bossBtn');
+    bossBtn.disabled = !snap.pendingBoss;
+    bossBtn.textContent = snap.pendingBoss
+      ? T(`挑戰 BOSS（${Math.round((CFG.AUTO_BOSS_DELAY || 1800) / 1000)} 秒後自動）`)
+      : capped ? T(`關卡清完 · 去打靈環`) : T(`清怪 ${snap.kills}/${snap.needed}`);
+
+    renderTeam(snap.units);
+    renderEnemies(snap.enemies || [], snap.mode);
+  }
+
+  function renderTeam(units) {
+    const row = $('#teamRow');
+    // 以 id 建立／更新，避免每幀重建造成 CSS 動畫被打斷
+    const ids = units.map((u) => u.id).join(',');
+    if (row.dataset.ids !== ids) {
+      row.innerHTML = '';
+      unitEls.clear();
+      row.dataset.ids = ids;
+      units.forEach((u) => {
+        const el = document.createElement('div');
+        el.className = 'unit';
+        el.innerHTML = `
+          <div class="bars">
+            <div class="bar hp"><i></i></div>
+            <div class="bar mp"><i></i></div>
+          </div>
+          <div class="body">${u.emoji}</div>
+          <div class="name">${T(u.name)}</div>`;
+        row.appendChild(el);
+        unitEls.set(u.id, el);
+      });
+    }
+    units.forEach((u) => {
+      const el = unitEls.get(u.id);
+      if (!el) return;
+      el.classList.toggle('dead', !u.alive);
+      $('.bar.hp > i', el).style.width = Math.max(0, (u.hp / u.maxHp) * 100) + '%';
+      $('.bar.mp > i', el).style.width = Math.min(100, (u.mp / 100) * 100) + '%';
+    });
+  }
+
+  function renderEnemies(list, mode) {
+    const row = $('#enemyRow');
+    const key = list.map((e) => e.id).join(',');
+    if (row.dataset.ids !== key) {
+      row.innerHTML = '';
+      enemyEls.clear();
+      row.dataset.ids = key;
+      list.forEach((e) => {
+        const el = document.createElement('div');
+        el.className = 'unit enemy' + (mode === 'boss' || e.boss ? ' bossUnit' : '');
+        el.dataset.id = e.id;
+        el.innerHTML = `
+          <div class="name" style="font-size:9px">${T(e.name)}</div>
+          <div class="body">${e.emoji}</div>
+          <div class="bars"><div class="bar hp"><i></i></div></div>`;
+        row.appendChild(el);
+        enemyEls.set(e.id, el);
+      });
+    }
+    list.forEach((e) => {
+      const el = enemyEls.get(e.id);
+      if (!el) return;
+      $('.bar.hp > i', el).style.width = Math.max(0, (e.hp / e.maxHp) * 100) + '%';
+      el.classList.toggle('dead', !e.alive);
+    });
+  }
+
+  /* ================= 靈印 ================= */
+  function bindSouls() {
+    $('#btnExpandSlot').addEventListener('click', () => {
+      const r = State.expandSlot();
+      if (!r.ok) return toast(r.msg);
+      Battle.refreshTeam();
+      State.save(true);
+      toast(T(`陣容擴充到 ${r.slots} 人`));
+      renderAll();
+    });
+  }
+
+  function renderSouls() {
+    const s = State.data;
+    $('#slotInfo').textContent = T(`上陣 ${s.team.length} / ${s.slots}`);
+    const list = $('#soulList');
+    list.innerHTML = s.souls.map((soul) => {
+      const base = CFG.SOUL_BY_ID[soul.id] || {};
+      const st = State.soulStats(soul);
+      const inTeam = s.team.includes(soul.id);
+      const slots = State.ringSlotsOf(soul);
+      const bone = State.boneOf(soul);
+      const info = State.starUpInfo(soul);
+      const tb = State.trueBodyOf(soul);
+      const reso = State.resonanceOf(soul);
+      const lvInfo = State.soulLevelInfo(soul.id);
+      const rings = soul.rings.map((uid) => {
+        const r = s.ringBag.find((x) => x.uid === uid);
+        const t = r ? CFG.TIER_BY_KEY[r.tier] : null;
+        return `<span class="ring-dot ${t ? t.css : 't-white'}"></span>`;
+      }).join('') || `<span class="hint">${T('無靈環')}</span>`;
+      return T(`<div class="card" data-soul="${soul.id}">
+        <div class="row1">
+          <span style="font-size:20px">${base.emoji || '❔'}</span>
+          <b>${base.name || soul.id}</b>
+          <span class="hint">Lv.${soul.level || 1}</span>
+          <span class="star">${'★'.repeat(soul.star || 3)}</span>
+          <span class="tag" style="color:${CFG.ROLE_COLOR[base.role]}">${roleName(base.role)}</span>
+          <span class="tag ${inTeam ? 'on' : ''}">${inTeam ? T('上陣中') : T('待命')}</span>
+        </div>
+        <div class="stats">
+          <span>攻擊 <b>${fmt(st.atk)}</b></span>
+          <span>生命 <b>${fmt(st.hp)}</b></span>
+          <span>防禦 <b>${fmt(st.def)}</b></span>
+        </div>
+        <div class="row1" style="margin-top:6px;font-size:11px;color:var(--muted)">
+          靈環槽 ${soul.rings.length}/${slots} ${rings}
+          ${tb.bonus ? T(`<span class="tag on">真身 +${Math.round(tb.bonus * 100)}%</span>`) : ''}
+          ${reso ? `<span class="tag on">${T('共鳴')} ${T(CFG.ELEMENT_LABEL[reso.element])}×${reso.count}</span>` : ''}
+        </div>
+        <div class="row1" style="margin-top:4px;font-size:11px;color:var(--muted)">
+          ${bone ? `<span class="bone ${bone.css}"></span> ${T(bone.name)}（${T(bone.desc)}）` : T('靈骨：無')}
+        </div>
+        <div class="acts">
+          <button class="mini-btn ${inTeam ? 'ghost' : 'primary'}" data-act="team" data-id="${soul.id}">
+            ${inTeam ? T('下陣') : T('上陣')}
+          </button>
+          <button class="mini-btn" data-act="ring" data-id="${soul.id}">裝備靈環</button>
+          <button class="mini-btn ${info.canAfford ? 'primary' : ''}" data-act="star" data-id="${soul.id}"
+            ${info.maxed || !info.canAfford ? 'disabled' : ''}>
+            ${info.maxed ? T('★5 滿星') : T(`升星（${info.bones} 靈骨・${fmt(info.coins)}）`)}
+          </button>
+          <button class="mini-btn ${lvInfo.can ? 'primary' : ''}" data-act="lvup" data-id="${soul.id}"
+            ${lvInfo.can ? '' : 'disabled'}>
+            ${lvInfo.maxed ? T(`Lv.${lvInfo.level} 已滿`) : T(`升級 Lv.${lvInfo.level}（${fmt(lvInfo.cost)}）`)}
+          </button>
+          <button class="mini-btn ghost" data-act="bone" data-id="${soul.id}">${bone ? T('換靈骨') : T('裝靈骨')}</button>
+        </div>
+      </div>`);
+    }).join('');
+
+    $$('#soulList [data-act="team"]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = State.toggleTeam(b.dataset.id);
+        if (!r.ok) return toast(r.msg);
+        Battle.refreshTeam();
+        State.save(true);
+        renderAll();
+      });
+    });
+    $$('#soulList [data-act="ring"]').forEach((b) => {
+      b.addEventListener('click', () => pickRingFor(b.dataset.id));
+    });
+    $$('#soulList [data-act="star"]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = State.starUp(b.dataset.id);
+        if (!r.ok) return toast(r.msg);
+        State.save(true);
+        Battle.refreshTeam();
+        renderAll();
+        toast(T(`升星成功 → ★${r.star}（消耗 ${r.eaten} 塊靈骨）`));
+      });
+    });
+    $$('#soulList [data-act="lvup"]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = State.soulLevelUp(b.dataset.id);
+        if (!r.ok) return toast(r.msg);
+        State.save(true);
+        Battle.refreshTeam();
+        renderAll();
+      });
+    });
+    $$('#soulList [data-act="bone"]').forEach((b) => {
+      b.addEventListener('click', () => pickBoneFor(b.dataset.id));
+    });
+
+    const btn = $('#btnExpandSlot');
+    if (s.slots >= 5) {
+      btn.textContent = T('已達五人小隊上限');
+      btn.disabled = true;
+    } else {
+      btn.disabled = false;
+      btn.textContent = I18N.lang === 'en'
+        ? `Expand team → ${s.slots + 1} (${fmt(State.slotNextCost())} coins · Lv ${State.slotNextLevel()})`
+        : T(`擴充陣容 → ${s.slots + 1} 人（${fmt(State.slotNextCost())} 靈幣 · 等級 ${State.slotNextLevel()}）`);
+    }
+  }
+
+  function pickRingFor(soulId) {
+    const free = State.freeRings();
+    if (!free.length) return toast(T('背包沒有靈環，去獵靈取得'));
+    const body = free.map((r) => {
+      const t = CFG.TIER_BY_KEY[r.tier];
+      return T(`<div class="card compact">
+        <div class="row1"><span class="ring-dot ${t.css}"></span><b>${T(t.name)}</b>
+        <span class="hint">攻擊 +${Math.round(t.atk * 100)}% · 生命 +${Math.round(t.hp * 100)}%</span></div>
+        <div class="acts"><button class="mini-btn primary" data-uid="${r.uid}">裝上去</button></div>
+      </div>`);
+    }).join('');
+    openModal(T('選擇靈環'), body, [{ text: T('取消'), kind: '' }]);
+    $$('#modalBody [data-uid]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const res = State.equipRing(soulId, b.dataset.uid);
+        closeModal();
+        if (!res.ok) return toast(res.msg);
+        State.save(true);
+        renderAll();
+        toast(T('靈環已裝備'));
+      });
+    });
+  }
+
+  function pickBoneFor(soulId) {
+    const soul = State.data.souls.find((x) => x.id === soulId);
+    const has = soul && soul.bone;
+    const free = State.freeBones();
+    if (!has && !free.length) return toast(T('沒有可裝備的靈骨，去靈印殿抽卡'));
+    const rows = free.map((item) => {
+      const b = CFG.BONE_BY_ID[item.id];
+      return T(`<div class="card compact">
+        <div class="row1"><span class="bone ${b.css}"></span><b>${T(b.name)}</b>
+        <span class="hint">${b.desc}</span></div>
+        <div class="acts"><button class="mini-btn primary" data-bone="${item.uid}">裝備</button></div>
+      </div>`);
+    }).join('');
+    const offBtn = has ? T(`<div class="acts" style="margin-top:6px">
+        <button class="mini-btn ghost" id="btnUnequipBone">卸下目前靈骨</button></div>`) : '';
+    openModal(T('靈骨'), rows + offBtn || T('<div class="hint">沒有靈骨</div>'), [{ text: T('關閉'), kind: '' }]);
+    $$('#modalBody [data-bone]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = State.equipBone(soulId, b.dataset.bone);
+        closeModal();
+        if (!r.ok) return toast(r.msg);
+        State.save(true); Battle.refreshTeam(); renderAll();
+        toast(T('靈骨已裝備（裝備者全額、同隊 30% 光環）'));
+      });
+    });
+    const off = $('#btnUnequipBone');
+    if (off) off.addEventListener('click', () => {
+      State.unequipBone(soulId); closeModal();
+      State.save(true); Battle.refreshTeam(); renderAll();
+    });
+  }
+
+  function renderBones() {
+    const s = State.data;
+    const free = State.freeBones();
+    $('#boneCount').textContent = T(`未裝備 ${free.length} · 已裝備 ${State.equippedBones()}`);
+
+    const cost = CFG.coinPullCost(s.bonePulls || 0);
+    const cost5 = Array.from({ length: 5 }, (_, i) => CFG.coinPullCost((s.bonePulls || 0) + i))
+      .reduce((a, b) => a + b, 0);
+    const shop = `<div class="merge-box">
+      <div class="merge-head"><b>${T('靈幣抽靈骨')}</b>
+        <span class="hint">${T(`已抽 ${s.bonePulls || 0} 次 · 每次必得 1 塊`)}</span></div>
+      <div class="merge-row">
+        <span class="mr-name">${T('抽 1 次')}</span>
+        <span class="mr-count">${fmt(cost)} ${T('靈幣')}</span>
+        <button class="mini-btn" id="btnBonePull1" ${s.coins >= cost ? '' : 'disabled'}>${T('抽')}</button>
+      </div>
+      <div class="merge-row">
+        <span class="mr-name">${T('連抽 5 次（逐次計價）')}</span>
+        <span class="mr-count">${fmt(cost5)} ${T('靈幣')}</span>
+        <button class="mini-btn" id="btnBonePull5" ${s.coins >= cost5 ? '' : 'disabled'}>${T('抽')}</button>
+      </div>
+      <div class="hint" style="margin-top:6px">${T('王者靈骨（全屬性）較稀有；抽越多次單價越高。')}</div>
+    </div>`;
+
+    const bindPull = () => {
+      const run = (n) => {
+        const r = State.coinBonePull(n);
+        if (!r.ok) return toast(r.msg || T('靈幣不足'));
+        State.save(true);
+        renderAll();
+        const names = r.got.map((g) => T(g.name)).join('、');
+        toast(T(`抽到 ${r.got.length} 塊：${names}`));
+      };
+      const b1 = $('#btnBonePull1'); if (b1) b1.addEventListener('click', () => run(1));
+      const b5 = $('#btnBonePull5'); if (b5) b5.addEventListener('click', () => run(5));
+    };
+
+    if (!s.bones.length) {
+      $('#boneList').innerHTML = shop + `<div class="card"><div class="hint">${T('還沒有靈骨。用上面的靈幣抽，或到「覺醒」抽卡。')}</div></div>`;
+      bindPull();
+      return;
+    }
+    const equippedHtml = s.souls.filter((x) => x.bone).map((soul) => {
+      const b = State.boneOf(soul);
+      const base = CFG.SOUL_BY_ID[soul.id];
+      if (!b) return '';
+      return T(`<div class="card compact">
+        <div class="row1"><span class="bone ${b.css}"></span><b>${T(b.name)}</b>
+        <span class="hint">→ ${T(base.name)}（${T(b.desc)}）</span></div>
+        <div class="acts"><button class="mini-btn ghost" data-unbone="${soul.id}">卸下</button></div>
+      </div>`);
+    }).join('');
+    const freeHtml = free.map((item) => {
+      const b = CFG.BONE_BY_ID[item.id];
+      return T(`<div class="card compact">
+        <div class="row1"><span class="bone ${b.css}"></span><b>${T(b.name)}</b>
+        <span class="hint">${b.desc}</span></div>
+        <div class="acts">
+          ${s.souls.map((soul) => T(`<button class="mini-btn" data-eqbone="${item.uid}" data-soul="${soul.id}">
+            裝到 ${(CFG.SOUL_BY_ID[soul.id] || {}).name}</button>`)).join('')}
+        </div>
+      </div>`);
+    }).join('');
+    $('#boneList').innerHTML = shop + equippedHtml + freeHtml;
+    bindPull();
+    $$('#boneList [data-eqbone]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const r = State.equipBone(btn.dataset.soul, btn.dataset.eqbone);
+        if (!r.ok) return toast(r.msg);
+        State.save(true); Battle.refreshTeam(); renderAll();
+        toast(T('靈骨已裝備'));
+      });
+    });
+    $$('#boneList [data-unbone]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        State.unequipBone(btn.dataset.unbone);
+        State.save(true); Battle.refreshTeam(); renderAll();
+      });
+    });
+  }
+
+  function renderRebirthHint() {
+    const box = $('#rebirthHint');
+    if (!box) return;
+    const info = State.rebirthInfo();
+    if (!info.can || info.gain <= 0) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+    const pct = Math.round(CFG.REBIRTH.perMark.atk * 100 * info.gain);
+    box.classList.remove('hidden');
+    box.innerHTML = `<div>${T(`可轉生：+${info.gain} 命印（全屬性 +${pct}%）`)}
+      <br><span style="opacity:.8">${T('會重置等級／關卡／靈幣；靈印、星級、靈骨、靈環保留')}</span></div>
+      <button class="go" id="btnGoRebirth">${T('前往')}</button>`;
+    const go = $('#btnGoRebirth');
+    if (go) go.addEventListener('click', () => {
+      const card = $('#rebirthBox');
+      if (card) card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
+  }
+
+  function renderRebirth() {
+    const box = $('#rebirthBox');
+    if (!box) return;
+    const info = State.rebirthInfo();
+    const pm = CFG.REBIRTH.perMark;
+    box.innerHTML = `
+      <h3><span>🌀 ${T('轉生')} · ${T('命印')} <span class="rb-mark">${info.marks}</span></span>
+          <span class="hint">${T(`第 ${info.rebirths + 1} 次`)}</span></h3>
+      <div class="rb-line">${T(`歷史最高：第 ${info.bestStage} 關（需 ${info.minStage} 關）`)}</div>
+      <div class="rb-line">${T(`本輪推進：+${info.deep} 關（上次轉生在 第 ${info.lastBest || info.minStage} 關）`)}</div>
+      <div class="rb-line">${T(`目前加成：全屬性 +${Math.round(pm.atk * 100 * info.marks)}% · 收益 +${Math.round(pm.income * 100 * info.marks)}%`)}</div>
+      <div class="rb-line">${T('這次轉生可得：')}<b style="color:var(--gold)">${T(`+${info.gain} 命印`)}</b>${T('（每點全屬性 +6%、收益 +4%）')}</div>
+      <div class="rb-line" style="opacity:.75">${T('轉生會重置等級／關卡／靈幣；靈印、星級、靈骨、靈環、命印都會保留。')}</div>
+      <button id="btnRebirth" class="wide-btn ${info.can ? '' : ''}" ${info.can ? '' : 'disabled'}>
+        ${info.can ? T(`轉生（+${info.gain} 命印）`) : T(`要推進到 第 ${info.needStage} 關才能轉生`)}
+      </button>`;
+    const btn = $('#btnRebirth');
+    if (btn) btn.addEventListener('click', () => {
+      if (!info.can) return toast(T(`要推進到 第 ${info.needStage} 關才能轉生（本輪 +${info.deep} 關）`));
+      if (btn.dataset.armed === '1') { doRebirthNow(); return; }
+      btn.dataset.armed = '1';
+      btn.classList.add('armed');
+      btn.textContent = T('再按一次確認轉生（會重置本輪）');
+      clearTimeout(renderRebirth._t);
+      renderRebirth._t = setTimeout(() => {
+        if (btn.isConnected) { btn.dataset.armed = ''; btn.classList.remove('armed'); renderRebirth(); }
+      }, 4000);
+    });
+  }
+
+  function doRebirthNow() {
+    const r = State.doRebirth();
+    if (!r.ok) return toast(r.msg);
+    Battle.init();
+    renderAll();
+    banner(T('轉生'));
+    toast(T(`轉生完成：命印 +${r.gain}（累計 ${r.marks}）`));
+  }
+
+  /* ================= 靈環 ================= */
+  function bindRings() { /* 由 renderRings 綁定 */ }
+
+  function renderRings() {
+    const s = State.data;
+    const equipped = s.souls.reduce((a, x) => a + x.rings.length, 0);
+    $('#ringCount').textContent = T(`背包 ${State.freeRings().length} · 已裝備 ${equipped} · 等級上限 ${State.levelCap()}`);
+
+    if (!s.ringBag.length) {
+      $('#ringList').innerHTML = `<div class="card"><div class="hint">${T('還沒有靈環。到「獵靈」擊敗靈獸，就能吸收第一枚靈環。')}</div></div>`;
+      return;
+    }
+
+    const bagHtml = State.freeRings().map((r) => {
+      const t = CFG.TIER_BY_KEY[r.tier];
+      const sk = CFG.RING_SKILL[r.tier];
+      const el = CFG.ELEMENT_LABEL[r.element] || '';
+      return T(`<div class="card compact">
+        <div class="row1"><span class="ring-dot ${t.css}"></span><b>${T(t.name)}</b>
+        <span class="tag" style="color:${CFG.ELEMENT_COLOR[r.element] || '#fff'}">${el}系</span>
+        <span class="hint">攻擊 +${Math.round(t.atk * 100)}% · 生命 +${Math.round(t.hp * 100)}%</span></div>
+        ${sk ? T(`<div class="hint" style="margin-top:4px">${sk.label}（${sk.type === 'aoe' ? T('群體') : T('震懾')} ×${sk.mult}${sk.chance ? T(`，${Math.round(sk.chance * 100)}% 暈眩`) : ''}）</div>`) : T('<div class="hint" style="margin-top:4px">被動：純屬性增幅（無靈技）</div>')}
+        <div class="acts">
+          ${s.souls.map((soul) => {
+            const base = CFG.SOUL_BY_ID[soul.id] || { name: soul.id };
+            return T(`<button class="mini-btn" data-eq="${r.uid}" data-soul="${soul.id}">裝到 ${base.name}</button>`);
+          }).join('')}
+        </div>
+      </div>`);
+    }).join('');
+
+    const equippedHtml = s.souls.filter((x) => x.rings.length).map((soul) => {
+      const base = CFG.SOUL_BY_ID[soul.id] || { name: soul.id };
+      return T(`<div class="card">
+        <div class="row1"><b>${base.name}</b><span class="hint">已裝備 ${soul.rings.length}/${State.ringSlotsOf(soul)}</span></div>
+        <div class="acts">
+          ${soul.rings.map((uid) => {
+            const r = s.ringBag.find((x) => x.uid === uid) || { tier: 'white' };
+            const t = CFG.TIER_BY_KEY[r.tier] || CFG.RING_TIERS[0];
+            return T(`<button class="mini-btn" data-un="${uid}" data-soul="${soul.id}">
+              <span class="ring-dot ${t.css}" style="display:inline-block;vertical-align:-1px"></span> ${t.name} · 卸下</button>`);
+          }).join('')}
+        </div>
+      </div>`);
+    }).join('');
+
+    const info = State.mergeInfo();
+    const mergeRows = CFG.RING_ORDER.slice(0, -1).map((tier) => {
+      const t = CFG.TIER_BY_KEY[tier];
+      const m = info[tier];
+      return T(`<div class="merge-row">
+        <span class="ring-dot ${t.css}"></span>
+        <span class="mr-name">${t.name}</span>
+        <span class="mr-count">${m.count} / ${CFG.RING_MERGE_COUNT}</span>
+        <button class="mini-btn" data-merge="${tier}" ${m.can ? '' : 'disabled'}>合成</button>
+      </div>`);
+    }).join('');
+    const mergeBox = T(`<div class="merge-box">
+      <div class="merge-head"><b>靈環合成</b><span class="hint">3 個同階 → 1 個高一階（不會動已裝備的）</span></div>
+      ${mergeRows}
+      <button id="btnMergeAll" class="wide-btn small" style="margin-top:8px">一鍵合成（白・黃・紫・黑 全部合到不能再合）</button>
+    </div>`);
+
+    $('#ringList').innerHTML = mergeBox + (equippedHtml || '') + bagHtml;
+    $$('#ringList [data-merge]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = State.mergeRings(b.dataset.merge);
+        if (!r.ok) return toast(r.msg);
+        State.save(true);
+        renderAll();
+        toast(T(`合成成功：${CFG.TIER_BY_KEY[r.nextTier].name}`));
+      });
+    });
+    const allBtn = $('#btnMergeAll');
+    if (allBtn) allBtn.addEventListener('click', () => {
+      const r = State.mergeAll();
+      if (!r.ok) return toast(T('沒有可合成的靈環（每階需 3 個）'));
+      State.save(true);
+      renderAll();
+      toast(T(`一鍵合成：${r.made} 次，剩餘背包 ${r.free} 個`));
+    });
+
+    $$('#ringList [data-eq]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = State.equipRing(b.dataset.soul, b.dataset.eq);
+        if (!r.ok) return toast(r.msg);
+        State.save(true);
+        Battle.refreshTeam();
+        renderAll();
+        toast(T('靈環已裝備，等級上限提升'));
+      });
+    });
+    $$('#ringList [data-un]').forEach((b) => {
+      b.addEventListener('click', () => {
+        State.unequipRing(b.dataset.soul, b.dataset.un);
+        State.save(true);
+        Battle.refreshTeam();
+        renderAll();
+      });
+    });
+  }
+
+  /* ================= 獵靈 ================= */
+  function bindHunt() { /* 由 renderHunt 綁定 */ }
+
+  function renderHunt() {
+    const s = State.data;
+    const slotLine = State.teamSouls().map((x) => `${(CFG.SOUL_BY_ID[x.id] || {}).name} ${x.rings.length}/${State.ringSlotsOf(x)}`).join(' · ');
+    $('#huntHint').textContent = T(`Lv.${s.level}（每 10 級開 1 槽）｜${slotLine}`);
+    const html = CFG.BEASTS.map((b) => {
+      const t = CFG.TIER_BY_KEY[b.tier];
+      const cdLeft = Math.max(0, Math.ceil(((s.cd[b.id] || 0) - Date.now()) / 1000));
+      const locked = s.level < b.reqLevel;
+      const busy = Battle.state.mode === 'hunt';
+      return T(`<div class="card">
+        <div class="row1">
+          <span style="font-size:20px">${b.emoji}</span>
+          <b>${T(b.name)}</b>
+          <span class="ring-dot ${t.css}"></span>
+          <span class="hint">${T(b.year)}</span>
+          ${locked ? `<span class="tag">${T(`需 Lv.${b.reqLevel}`)}</span>` : ''}
+        </div>
+        <div class="stats">
+          <span>${T('生命')} <b>${fmt(b.hp)}</b></span>
+          <span>${T('攻擊')} <b>${fmt(b.atk)}</b></span>
+          <span>${T('掉落')} <b>${T(t.name)}</b></span>
+        </div>
+        <div class="acts">
+          <button class="mini-btn primary" data-hunt="${b.id}" ${locked || cdLeft > 0 || busy ? 'disabled' : ''}>
+            ${cdLeft > 0 ? T(`冷卻 ${cdLeft}s`) : busy ? T('獵靈中…') : T('進入獵殺')}
+          </button>
+        </div>
+      </div>`);
+    }).join('');
+    $('#beastList').innerHTML = html;
+    $$('#beastList [data-hunt]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const r = Battle.hunt(btn.dataset.hunt);
+        if (!r.ok) return toast(r.msg);
+        switchTab('battle');
+        toast(T('進入靈獸領域，擊敗牠即可吸收靈環'));
+      });
+    });
+  }
+
+  /* ================= 覺醒抽卡 ================= */
+  function bindGacha() {
+    const rw = $('#btnRewardAd');
+    if (rw) {
+      rw.addEventListener('click', () => {
+        if (!global.GP || !GP.reward) return;
+        rw.disabled = true;
+        const label = rw.textContent;
+        rw.textContent = T('廣告載入中…');
+        GP.reward().then((r) => {
+          rw.disabled = false;
+          rw.textContent = label;
+          if (r && r.success) {
+            State.addCoins(888);
+            State.save(true);
+            renderTop();
+            toast(T('獎勵已發放：+888 靈幣'));
+          } else {
+            toast(T('廣告未完成，沒有獎勵'));
+          }
+        }, () => { rw.disabled = false; rw.textContent = label; });
+      });
+    }
+
+    $('#btnCheckin').addEventListener('click', () => {
+      const r = State.checkIn();
+      if (!r.ok) return toast(r.msg);
+      State.save(true);
+      renderAll();
+      toast(T(`第 ${r.dayIndex} 天簽到：${r.reward.label}（連續 ${r.streak} 天）`));
+      banner(T(`連續簽到 ${r.streak} 天`));
+    });
+    $('#btnPull1').addEventListener('click', () => doPull(1));
+    $('#btnPull10').addEventListener('click', () => doPull(10));
+    $('#btnCode').addEventListener('click', () => {
+      const r = State.redeem($('#codeInput').value);
+      if (!r.ok) return toast(r.msg);
+      $('#codeInput').value = '';
+      State.save(true);
+      toast(T('兌換成功：') + r.msg);
+      renderAll();
+    });
+  }
+
+  function doPull(times) {
+    const s = State.data;
+    const useTicket = times === 10
+      ? s.tickets >= CFG.PULL10_COST_TICKET
+      : s.tickets >= CFG.PULL_COST_TICKET;
+    const results = [];
+    for (let i = 0; i < times; i++) {
+      const r = State.pullOnce(useTicket);
+      if (!r.ok) { if (i === 0) toast(r.msg); break; }
+      results.push(r.result);
+    }
+    if (!results.length) return;
+    s.stats.pulls += results.length;
+    State.save(true);
+    Battle.refreshTeam();
+    renderAll();
+    $('#pullResult').innerHTML = results.map((r) => {
+      const cls = r.star >= 5 ? 's5' : r.star >= 4 ? 's4' : '';
+      const label = r.kind === 'bone' ? T(`${r.name}（${r.desc || T('靈骨')}）`)
+        : r.kind === 'star' ? T(`${r.name} ★${r.star}（升星）`)
+        : r.kind === 'dup' ? T(`${r.name}（重複 → +${r.diamonds}💎）`)
+        : `${r.name} ★${r.star}`;
+      return `<span class="pull-chip ${cls}">${label}</span>`;
+    }).join('');
+  }
+
+  function renderCheckin() {
+    const info = State.checkinInfo();
+    const cells = CFG.CHECKIN.map((r) => {
+      const isToday = info.canCheck && r.day === info.dayIndex;
+      const done = !info.canCheck ? r.day <= info.dayIndex : r.day < info.dayIndex;
+      const big = r.day === 7 ? ' big' : '';
+      return T(`<div class="ci-cell${done ? ' done' : ''}${isToday ? ' today' : ''}${big}" title="${r.label}">
+        <div class="d">${T(`第${r.day}天`)}</div>
+        <div class="e">${r.emoji}</div>
+        <div class="l">${T(r.label.replace(/\s/g, ''))}</div>
+      </div>`);
+    }).join('');
+    $('#checkinGrid').innerHTML = cells;
+    $('#streakInfo').textContent = info.streak > 0 ? T(`連續 ${info.streak} 天`) : T('連續簽到有獎');
+    const btn = $('#btnCheckin');
+    btn.disabled = !info.canCheck;
+    btn.textContent = info.canCheck
+      ? T(`領取第 ${info.dayIndex} 天獎勵（${info.reward.label}）`)
+      : T(`今天已簽到 · 明天再來`);
+    const dot = $('#checkinDot');
+    if (dot) dot.classList.toggle('hidden', !info.canCheck);
+    return info;
+  }
+
+  /* 複製存檔碼：clipboard API → execCommand → 手動長按 */
+  function copySaveCode() {
+    const ta = $('#expArea');
+    if (!ta) return;
+    const text = ta.value;
+    const done = () => toast(T('已複製存檔碼'));
+    const fallback = () => {
+      try {
+        ta.focus();
+        ta.select();
+        ta.setSelectionRange(0, text.length);
+        if (document.execCommand && document.execCommand('copy')) return done();
+      } catch (e) { /* 繼續往下 */ }
+      toast(T('已全選，請長按文字選「拷貝」'));
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, fallback);
+      return;
+    }
+    fallback();
+  }
+
+  function renderDaily() {
+    const box = $('#dailyBox');
+    if (!box) return;
+    const tasks = State.dailyInfo();
+    const rows = tasks.map((t) => `<div class="merge-row">
+        <span class="mr-name">${T(t.label)}</span>
+        <span class="mr-count">${Math.min(t.need, t.done)} / ${t.need}</span>
+        <button class="mini-btn ${t.can ? 'primary' : ''}" data-daily="${t.id}"
+          ${t.can ? '' : 'disabled'}>
+          ${t.claimed ? T('已領') : T(`領 ${t.reward.diamonds} 💎`)}
+        </button>
+      </div>`).join('');
+    box.innerHTML = `<div class="merge-head"><b>${T('每日任務')}</b>
+        <span class="hint">${T('每天 0 點重置')}</span></div>${rows}`;
+    $$('#dailyBox [data-daily]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = State.dailyClaim(b.dataset.daily);
+        if (!r.ok) return toast(r.msg);
+        State.save(true);
+        renderAll();
+        toast(T(`任務完成：+${r.reward.diamonds} 💎`));
+      });
+    });
+  }
+
+  let achAt = 0;
+  function checkAch() {
+    const now = Date.now();
+    if (now - achAt < 3000) return;
+    achAt = now;
+    const fresh = State.checkAchievements();
+    if (fresh.length) {
+      State.save(true);
+      if (global.SFX) SFX.unlock();
+      fresh.forEach((a) => addLog(T(`成就解鎖：${a.name}（${a.desc}）`), 'c-gold'));
+      toast(T(`成就解鎖：${fresh[0].name}`));
+      renderAch();
+    }
+  }
+
+  function renderAch() {
+    const box = $('#achBox');
+    if (!box) return;
+    const list = State.achList();
+    const got = list.filter((a) => a.unlocked).length;
+    const pct = Math.round(State.achCount() * CFG.ACH_BONUS * 1000) / 10;
+    const rows = list.map((a) => `<div class="merge-row">
+        <span class="mr-name">${a.unlocked ? '✅' : '⬜'} ${T(a.name)}</span>
+        <span class="mr-count">${T(a.desc)}</span>
+      </div>`).join('');
+    box.innerHTML = `<div class="merge-head"><b>${T('成就')}</b>
+        <span class="hint">${got} / ${list.length} · ${T(`全屬性 +${pct}%`)}</span></div>${rows}`;
+  }
+
+  function renderGacha() {
+    const s = State.data;
+    renderDaily();
+    renderAch();
+    $('#ticketInfo').textContent = T(`覺醒券 ${s.tickets} · 鑽石 ${fmt(s.diamonds)}`);
+    $('#btnPull1').textContent = T(`覺醒一次（${CFG.PULL_COST_TICKET} 券 / ${CFG.PULL_COST_DIAMOND} 💎）`);
+    $('#btnPull10').textContent = T(`十連覺醒（${CFG.PULL10_COST_TICKET} 券 / ${CFG.PULL10_COST_DIAMOND} 💎）`);
+    $('#btnPull1').disabled = s.tickets < CFG.PULL_COST_TICKET && s.diamonds < CFG.PULL_COST_DIAMOND;
+    $('#btnPull10').disabled = s.tickets < CFG.PULL10_COST_TICKET && s.diamonds < CFG.PULL10_COST_DIAMOND;
+  }
+
+  /* ================= 頂部 / 全部 ================= */
+  function renderTop() {
+    const s = State.data;
+    $('#playerName').textContent = s.name;
+    $('#coins').textContent = fmt(s.coins);
+    $('#diamonds').textContent = fmt(s.diamonds);
+    const mk = $('#marks');
+    if (mk) {
+      mk.textContent = s.marks > 0 ? `🌀${s.marks}` : '';
+      mk.style.display = s.marks > 0 ? '' : 'none';
+    }
+    const p = State.power();
+    const el = $('#power');
+    if (el.textContent !== String(p)) {
+      el.textContent = fmt(p);
+      el.classList.add('bump');
+      setTimeout(() => el.classList.remove('bump'), 180);
+    }
+  }
+
+  function renderAll() {
+    renderTop();
+    renderBattle();
+    renderSouls();
+    renderBones();
+    renderRebirth();
+    renderRebirthHint();
+    renderRings();
+    renderHunt();
+    renderCheckin();
+    renderGacha();
+  }
+
+  /* ================= 戰鬥事件 → 畫面 ================= */
+  function onBattleEvent(ev) {
+    switch (ev.type) {
+      case 'hit': {
+        const target = ev.side === 'enemy'
+          ? (enemyEls.get(ev.enemyId) || $('#enemyRow .unit'))
+          : $(`#teamRow .unit:nth-child(${unitIndex(ev.unit) + 1})`);
+        if (target) {
+          target.classList.add('hit');
+          setTimeout(() => target.classList.remove('hit'), 180);
+          floatNum(target, '-' + fmt(ev.amount), ev.crit ? 'crit' : '');
+        }
+        break;
+      }
+      case 'heal':
+        floatNum($(`#teamRow .unit:nth-child(${unitIndex(ev.unit) + 1})`), '+' + fmt(ev.amount), 'heal');
+        break;
+      case 'stun':
+        if (ev.who === 'enemy') banner(T('纏繞！'));
+        break;
+      case 'aoe':
+        addLog(T(`群攻命中 ${ev.count} 隻靈獸`), 'c-purple');
+        break;
+      case 'bossRage':
+        banner(T('狂暴'));
+        addLog(T(`${ev.name} 進入狂暴（攻擊 +35%）`), 'c-bad');
+        break;
+      case 'bossHeal': {
+        const el = enemyEls.get(ev.enemyId);
+        if (el) floatNum(el, '+' + fmt(ev.amount), 'heal');
+        addLog(T(`${ev.name} 回復 10% 生命`), 'c-bad');
+        break;
+      }
+      case 'shield':
+        floatNum($(`#teamRow .unit:nth-child(${unitIndex(ev.unit) + 1})`), T('護盾'), 'skill');
+        break;
+      case 'milestone': {
+        const mt = CFG.TIER_BY_KEY[ev.ring.tier];
+        addLog(T(`里程碑：第 ${ev.stage} 關 → 獲得 ${mt.name}`), 'c-gold');
+        toast(T(`里程碑獎勵：${mt.name}`));
+        if (global.SFX) SFX.unlock();
+        break;
+      }
+      case 'skill': {
+        ringFx(ev.unit, ev.element);
+        banner(ev.resonance ? T(`${ev.name} · 共鳴`) : ev.name);
+        if (ev.ring) addLog(T(`${ev.name}${ev.resonance ? T('（屬性共鳴 +25%）') : ''}`), 'c-purple');
+        break;
+      }
+      case 'kill': {
+        if (global.SFX) SFX.kill();
+        checkAch();
+        const left = ev.left
+          ? (I18N.lang === 'en' ? ` (${ev.left} left)` : `（剩 ${ev.left} 隻）`)
+          : '';
+        addLog(T(`擊殺${ev.boss ? T('守關靈獸') : T('靈獸')}${left}：靈幣 +${fmt(ev.coins)}、經驗 +${fmt(ev.exp)}`),
+          ev.boss ? 'c-gold' : '');
+        break;
+      }
+      case 'levelup':
+        if (global.SFX) SFX.levelup();
+        banner(T('境界提升'));
+        addLog(T(`等級提升 → Lv.${ev.level}`), 'c-ok');
+        break;
+      case 'bossReady':
+        addLog(T('守關靈獸出現，可以挑戰 BOSS 了'), 'c-gold');
+        break;
+      case 'bossStart':
+        banner(T('BOSS 戰'));
+        addLog(T(`挑戰第 ${ev.stage} 關守關靈獸`), 'c-purple');
+        break;
+      case 'stageClear':
+        if (global.SFX) SFX.clear();
+        banner(T('通關'));
+        addLog(T(`第 ${ev.stage} 關開啟，掛機效率提升`), 'c-ok');
+        break;
+      case 'huntStart':
+        banner(T('獵靈'));
+        addLog(T(`進入 ${ev.beast.name} 的領域（${ev.beast.year}）`), 'c-purple');
+        break;
+      case 'autoMerge':
+        addLog(T(`自動合成 ${ev.made} 次低階靈環（3 個 → 1 個高一階）`), 'c-ok');
+        break;
+      case 'autoRing': {
+        const t = CFG.TIER_BY_KEY[ev.ring.tier];
+        addLog(T(`已自動裝備 ${t ? t.name : T('靈環')} → 等級上限 ${State.levelCap()}`), 'c-ok');
+        break;
+      }
+      case 'huntLose':
+        addLog(T(`獵靈失敗：${ev.beast ? ev.beast.name : T('靈獸')} 太強，15 秒後可再試（先去升級或補靈骨）`), 'c-bad');
+        break;
+      case 'huntWin': {
+        const t = CFG.TIER_BY_KEY[ev.ring.tier];
+        banner(T('吸收靈環'));
+        addLog(T(`擊敗 ${ev.beast.name}，吸收 ${t.name}！`), 'c-gold');
+        toast(T(`獲得 ${t.name}`));
+        State.save(true);
+        renderAll();
+        break;
+      }
+      case 'wipe':
+        banner(T('全隊倒下'));
+        addLog(T('全隊倒下，2 秒後自動重整'), 'c-bad');
+        break;
+      case 'revived':
+        addLog(T('靈印重新凝聚，繼續戰鬥'), 'c-ok');
+        break;
+      default: break;
+    }
+  }
+
+  function unitIndex(unit) {
+    if (!unit) return 0;
+    const i = Battle.state.units.findIndex((u) => u.id === unit.id);
+    return i < 0 ? 0 : i;
+  }
+
+  function floatNum(el, text, cls) {
+    if (!el) return;
+    if (typeof text === 'string' && /^[-+]?0$/.test(text)) return;   // 護盾吃滿的 0 不顯示
+    const host = $('#floaters');
+    if (!host) return;
+    while (host.children.length > 11) host.removeChild(host.firstChild);
+    const hr = host.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    const span = document.createElement('span');
+    span.className = 'float-num ' + (cls || '');
+    span.textContent = text;
+    span.style.left = (r.left - hr.left + r.width / 2 + (Math.random() * 18 - 9)) + 'px';
+    span.style.top = (r.top - hr.top - 8) + 'px';
+    host.appendChild(span);
+    setTimeout(() => span.remove(), 900);
+  }
+
+  function ringFx(unit, element) {
+    const fx = $('#ringFx');
+    if (!fx) return;
+    const role = (unit && unit.role) || 'atk';
+    const color = (element && CFG.ELEMENT_COLOR[element])
+      || (role === 'ctrl' ? '#b06bff' : role === 'def' ? '#6ea8ff' : role === 'sup' ? '#57d98b' : '#ffd93d');
+    fx.style.setProperty('--ring', color);
+    fx.classList.remove('on');
+    void fx.offsetWidth;
+    fx.classList.add('on');
+    setTimeout(() => fx.classList.remove('on'), 950);
+  }
+
+  let bannerTimer = 0;
+  function banner(text) {
+    const el = $('#battleBanner');
+    if (!el) return;
+    el.textContent = text;
+    el.classList.add('show');
+    clearTimeout(bannerTimer);
+    bannerTimer = setTimeout(() => el.classList.remove('show'), 900);
+  }
+
+  function addLog(text, cls) {
+    const log = $('#log');
+    if (!log) return;
+    const div = document.createElement('div');
+    div.className = cls || '';
+    div.textContent = text;
+    log.appendChild(div);
+    while (log.children.length > 40) log.removeChild(log.firstChild);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function toast(text) {
+    const el = $('#toast');
+    if (!el) return;
+    el.textContent = text;
+    el.classList.remove('hidden');
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      el.classList.remove('show');
+      setTimeout(() => el.classList.add('hidden'), 220);
+    }, 1600);
+  }
+
+  /* ================= 主渲染循環 ================= */
+  let lastBattleRender = 0;
+  function loop(ts) {
+    if (tab === 'battle' && ts - lastBattleRender > 90) {
+      lastBattleRender = ts;
+      renderBattle();
+      renderTop();
+    }
+    requestAnimationFrame(loop);
+  }
+
+  /* ================= 彈窗 ================= */
+  function openModal(title, bodyHtml, buttons) {
+    $('#modalTitle').textContent = title;
+    $('#modalBody').innerHTML = bodyHtml;
+    const btns = $('#modalBtns');
+    btns.innerHTML = '';
+    (buttons || [{ text: T('關閉'), kind: '' }]).forEach((b) => {
+      const el = document.createElement('button');
+      el.textContent = b.text;
+      if (b.kind === 'primary') el.className = 'primary';
+      el.addEventListener('click', () => { if (b.onClick) b.onClick(); else closeModal(); });
+      btns.appendChild(el);
+    });
+    $('#modal').classList.remove('hidden');
+    // 無障礙：開窗先把焦點放進窗內，關窗還原（鍵盤／輔助技術才走得完流程）
+    lastFocus = document.activeElement;
+    const first = $('#modalBody').querySelector('button, textarea, input') || btns.querySelector('button');
+    if (first) { try { first.focus(); } catch (e) {} }
+  }
+
+  /* Tab 鎖在彈窗內、Esc 關窗 */
+  function modalKeydown(e) {
+    const modal = $('#modal');
+    if (!modal || modal.classList.contains('hidden')) return;
+    if (e.key === 'Escape') { e.preventDefault(); closeModal(); return; }
+    if (e.key !== 'Tab') return;
+    const f = Array.from(modal.querySelectorAll('button, textarea, input, [tabindex]:not([tabindex="-1"])'))
+      .filter((el) => !el.disabled && el.offsetParent !== null);
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+  let lastFocus = null;
+  function closeModal() {
+    $('#modal').classList.add('hidden');
+    if (lastFocus && lastFocus.focus) { try { lastFocus.focus(); } catch (e) {} }
+    lastFocus = null;
+  }
+
+  function showOffline(g) {
+    const h = Math.floor(g.minutes / 60), m = g.minutes % 60;
+    openModal(T('離線收益'), T(`
+      <div>離線 <b>${h > 0 ? h + T(' 小時 ') : ''}${m} 分</b>${g.capped ? T('（已達 12 小時上限）') : ''}</div>
+      <div style="margin-top:8px">靈幣 <b class="c-gold">+${fmt(g.coins)}</b></div>
+      <div>經驗 <b class="c-ok">+${fmt(g.exp)}</b></div>
+      <div class="hint" style="margin-top:8px">掛機效率會隨關卡提升</div>`),
+      [{ text: T('領取'), kind: 'primary', onClick: () => { closeModal(); State.save(true); renderAll(); } }]);
+  }
+
+  /* 存檔狀態一行字：主檔 / 備份 / 備份時間 / 寫入錯誤 */
+  function saveStatusLine() {
+    const st = State.saveStatus();
+    const map = { ok: T('正常'), corrupt: T('損毀'), missing: T('無') };
+    let txt = `${T('主檔')} ${map[st.main]} · ${T('備份')} ${map[st.bak]}`;
+    if (st.bak === 'ok' && st.bakTime) {
+      const d = new Date(st.bakTime);
+      const p2 = (n) => ('0' + n).slice(-2);
+      txt += `（${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}）`;
+    }
+    if (st.lastError) txt += ` · ${T('寫入失敗')}`;
+    if (st.blocked) txt += ` · ${T('已停止自動存檔')}`;
+    return txt;
+  }
+
+  function showMenu() {
+    const s = State.data;
+    openModal(T('設定'), T(`
+      <div>靈師：<b>${s.name}</b></div>
+      <div>最高關卡：<b>${s.bestStage}</b> · 等級 <b>${s.level}</b> / ${State.levelCap()}</div>
+      <div>${T('版本')}：<b>v${CFG.VERSION}</b> · ${T(`環槽 ${State.ringSlotsOf(s.souls[0])} 格 / 靈印`)}</div>
+      <div style="margin-top:8px">${T('戰力明細')}：${T('攻擊')} <b>${fmt(State.teamStats().atk)}</b> ·
+        ${T('生命')} <b>${fmt(State.teamStats().hp)}</b> ·
+        ${T('防禦')} <b>${fmt(State.teamStats().def)}</b> ·
+        ${T('速度')} <b>${State.teamStats().spd}</b> ·
+        ${T('爆擊')} <b>${Math.round(State.critChance() * 100)}%</b></div>
+      <div class="hint" style="margin-top:4px">${T('加成各自乘算：靈環（加法）→ 靈骨 → 命印 → 真身；戰力停住通常代表該轉生了')}</div>
+      <div class="hint" style="margin-top:4px">${T('若靈印頁的靈環槽顯示 /3 或等級上限是 90，代表瀏覽器還在使用舊檔：請開 ?v=2 或清快取。')}</div>
+      <div style="margin-top:8px">${T('存檔會自動保存在這台裝置的瀏覽器；換裝置請用存檔碼。')}</div>
+      <div class="hint" style="margin-top:6px">${T('存檔狀態')}：${saveStatusLine()}</div>
+      ${State.saveStatus().bak === 'ok' ? `<button class="btn btn-ghost" id="btnRestoreBak" style="margin-top:6px">${T('還原備份')}</button>` : ''}
+      <div style="margin-top:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px">
+        <b style="font-size:12px;color:#c9a4ff">${T('紀錄')}</b>
+        <div class="hint" style="margin-top:4px">
+          ${T('最高關卡')} <b>${s.bestStage}</b> ·
+          ${T('最高戰力')} <b>${fmt((s.stats && s.stats.bestPower) || State.power())}</b> ·
+          ${T('轉生')} <b>${s.rebirths || 0}</b> ·
+          ${T('命印')} <b>${s.marks || 0}</b><br>
+          ${T('累計擊殺')} <b>${fmt((s.stats && s.stats.kills) || 0)}</b> ·
+          ${T('獵靈')} <b>${(s.stats && s.stats.hunts) || 0}</b> ·
+          ${T('連續簽到')} <b>${(s.checkin && s.checkin.streak) || 0}</b> ${T('天')} ·
+          ${T('成就')} <b>${State.achCount()} / ${CFG.ACHIEVEMENTS.length}</b>
+        </div>
+      </div>
+      <div class="acts" style="display:flex;gap:8px;margin-top:10px">
+        <button class="mini-btn" id="btnSfx">${T('音效')}：${(global.SFX && SFX.enabled) ? T('開') : T('關')}</button>
+      </div>
+      <div class="acts" style="display:flex;gap:8px;margin-top:8px">
+        <button class="mini-btn ${I18N.lang === 'en' ? 'primary' : ''}" id="btnLangEn">English</button>
+        <button class="mini-btn ${I18N.lang === 'zh' ? 'primary' : ''}" id="btnLangZh">中文</button>
+      </div>
+      <div class="acts" style="display:flex;gap:8px;margin-top:8px">
+        <button class="mini-btn" id="btnAutoMerge">自動合成低階環：${(s.settings.autoMerge === false) ? T('關') : T('開')}</button>
+      </div>
+      <div class="acts" style="display:flex;gap:8px;margin-top:8px">
+        <button class="mini-btn" id="btnAutoBoss">自動挑戰 BOSS：${s.settings.autoBoss === false ? T('關') : T('開')}</button>
+        <button class="mini-btn" id="btnAutoHunt">卡等自動獵靈：${s.settings.autoHunt === false ? T('關') : T('開')}</button>
+        <button class="mini-btn" id="btnAutoRing">自動裝備靈環：${s.settings.autoRing === false ? T('關') : T('開')}</button>
+      </div>
+      <div class="acts" style="display:flex;gap:8px;margin-top:8px">
+        <button class="mini-btn" id="btnExport">匯出存檔碼</button>
+        <button class="mini-btn" id="btnImport">匯入存檔碼</button>
+      </div>
+      <div class="acts" style="display:flex;gap:8px;margin-top:8px">
+        <button class="mini-btn ghost" id="btnRename">改暱稱</button>
+        <button class="mini-btn ghost" id="btnReset">重新開始</button>
+      </div>`),
+      [{ text: T('關閉'), kind: '' }]);
+
+    $('#btnSfx').addEventListener('click', () => {
+      if (!global.SFX) return;
+      SFX.setEnabled(!SFX.enabled);
+      $('#btnSfx').textContent = `${T('音效')}：${SFX.enabled ? T('開') : T('關')}`;
+      if (SFX.enabled) SFX.tap();
+    });
+    $('#btnLangEn').addEventListener('click', () => I18N.setLang('en'));
+    $('#btnLangZh').addEventListener('click', () => I18N.setLang('zh'));
+    const rb = $('#btnRestoreBak');
+    if (rb) rb.addEventListener('click', () => {
+      const r = State.restoreBackup();
+      if (r.ok) { closeModal(); toast(T(`已還原備份：第 ${r.stage} 關`)); renderAll(); }
+      else toast(T('備份無法還原'));
+    });
+
+    $('#btnAutoMerge').addEventListener('click', () => {
+      const st = State.data.settings;
+      st.autoMerge = st.autoMerge === false;
+      State.save(true);
+      $('#btnAutoMerge').textContent = T(`自動合成低階環：${st.autoMerge ? T('開') : T('關')}`);
+      toast(T(`自動合成 ${st.autoMerge ? T('已開啟（只合十年/百年）') : T('已關閉')}`));
+    });
+
+    $('#btnAutoBoss').addEventListener('click', () => {
+      const st = State.data.settings;
+      st.autoBoss = st.autoBoss === false;
+      State.save(true);
+      $('#btnAutoBoss').textContent = T(`自動挑戰 BOSS：${st.autoBoss ? T('開') : T('關')}`);
+      toast(T(`自動挑戰 BOSS ${st.autoBoss ? T('已開啟') : T('已關閉')}`));
+    });
+    $('#btnAutoHunt').addEventListener('click', () => {
+      const st = State.data.settings;
+      st.autoHunt = st.autoHunt === false;
+      State.save(true);
+      $('#btnAutoHunt').textContent = T(`卡等自動獵靈：${st.autoHunt ? T('開') : T('關')}`);
+      toast(T(`卡等自動獵靈 ${st.autoHunt ? T('已開啟') : T('已關閉')}`));
+    });
+
+    $('#btnAutoRing').addEventListener('click', () => {
+      const st = State.data.settings;
+      st.autoRing = st.autoRing === false;
+      State.save(true);
+      $('#btnAutoRing').textContent = T(`自動裝備靈環：${st.autoRing ? T('開') : T('關')}`);
+      toast(T(`自動裝備靈環 ${st.autoRing ? T('已開啟') : T('已關閉')}`));
+    });
+
+    $('#btnExport').addEventListener('click', () => {
+      const code = State.exportCode();
+      openModal(T('匯出存檔碼'), T(`
+        <div class="hint">${T('按「複製」後貼到新裝置的「匯入存檔碼」；若沒反應，長按框內文字全選再複製。')}</div>
+        <textarea id="expArea" readonly rows="6">${code}</textarea>`),
+        [{ text: T('關閉'), kind: '' }, { text: T('複製'), kind: 'primary', onClick: () => copySaveCode() }]);
+      const ta = $('#expArea');
+      if (ta) { ta.focus(); try { ta.select(); } catch (e) {} }
+    });
+
+    $('#btnImport').addEventListener('click', () => {
+      openModal(T('匯入存檔碼'), T(`
+        <div class="hint">貼上存檔碼，會覆蓋目前進度。</div>
+        <textarea id="impArea" placeholder="貼上存檔碼"></textarea>`),
+        [{ text: T('取消'), kind: '' }, { text: T('匯入'), kind: 'primary', onClick: () => {
+          const r = State.importCode($('#impArea').value);
+          if (!r.ok) return toast(r.msg);
+          closeModal(); Battle.init(); renderAll(); toast(T('存檔已匯入'));
+        } }]);
+    });
+
+    $('#btnRename').addEventListener('click', () => {
+      openModal(T('改暱稱'), `<input id="nameInput" maxlength="10" value="${s.name}" style="width:100%;padding:9px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.3);color:#fff">`,
+        [{ text: T('取消'), kind: '' }, { text: T('儲存'), kind: 'primary', onClick: () => {
+          const v = ($('#nameInput').value || '').trim().slice(0, 10);
+          if (v) { State.data.name = v; State.save(true); renderTop(); }
+          closeModal();
+        } }]);
+    });
+
+    $('#btnReset').addEventListener('click', () => {
+      openModal(T('重新開始'), T('<div>確定要清空進度嗎？此動作無法復原。</div>'), [
+        { text: T('取消'), kind: '' },
+        { text: T('確定清除'), kind: 'primary', onClick: () => {
+          State.reset(); closeModal(); Battle.init(); renderAll(); toast(T('已重新開始'));
+        } },
+      ]);
+    });
+  }
+
+  /* ================= 啟動 ================= */
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})(window);
+
+</script>
+</body>
+</html>

@@ -28,6 +28,37 @@
 重新產生：`/usr/bin/python3 tools/make_crazy_covers.py`
 （程序化畫五個環階級的同心發光環，不需要外部美術素材；標題自動縮字避免壓到主視覺。）
 
+
+## ⚠ 上傳欄位：CrazyGames 不收 ZIP
+
+後台原文錯誤訊息：
+
+```
+Archive files are not supported, please drag and drop the files directly in the upload zone.
+Make sure your upload contains an "index.html" file for the game to run.
+```
+
+三種解法（依場合選）：
+
+| 場合 | 做法 |
+|---|---|
+| 桌面（建議） | 解壓後把 `index.html`、`css/`、`js/` 一起拖進上傳區 |
+| **手機** | 用**單一 HTML 檔**：`dist/spirit-ring-idle-crazygames-single.html`（CSS/JS 全內嵌，198 KB，一次選一個檔就好） |
+| 之後更新 | 兩個指令重跑：`tools/build_crazygames.py`（資料夾版）＋ `tools/build_crazy_single.py`（單檔版） |
+
+單檔版已驗證：v1.9.2 可玩、provider = crazy、生命週期 `init → loadingStart → loadingStop → gameplayStart`、
+`reward()` 回 `{success:true}`、無 pageerror。外部只剩 `sdk.crazygames.com`。
+
+## 「Does your game save progress?」正確答案
+
+本作用 `localStorage` 存檔（含 `.bak` 備援），所以：
+
+```
+選 Yes（有存檔），若清單有「local storage」選項就選它
+不要選「No, the game does not need progress」——與事實不符
+（CrazyGames 的 Data module 是跨裝置存檔，本作還沒接，屬於進階選項）
+```
+
 ## 二、技術檢查（在送審前自己先過）
 
 | 檢查 | 本作狀態 |
