@@ -19,6 +19,14 @@
   let toastTimer = 0;
 
   /* ================= 初始化 ================= */
+  /* 載入畫面收尾：沒有 GamePix SDK 的版本（itch）也要走這條 */
+  function hideLoading() {
+    const el = document.getElementById('loading');
+    if (el) el.classList.add('hidden');
+    const bar = document.getElementById('loadingBar');
+    if (bar) bar.style.width = '100%';
+  }
+
   function boot() {
     if (global.GP) { GP.boot(); GP.loading(20); }
     const res = State.load();
@@ -36,6 +44,8 @@
     if (global.GP) {
       GP.loading(85);
       GP.loaded().then(function () { GP.gameStart(); });   // 開場即自動戰鬥＝gameplay 開始
+    } else {
+      hideLoading();                                        // 沒有 SDK（例：itch 版）也要關掉載入畫面
     }
 
     if (res.offline) showOffline(res.offline);
