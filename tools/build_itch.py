@@ -28,7 +28,7 @@ import zipfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # 與 GamePix 版相同的來源，但排除 js/gamepix.js
 INCLUDE = ['index.html', 'css/style.css', 'js/config.js', 'js/state.js',
-           'js/battle.js', 'js/ui.js', 'js/i18n.js', 'js/sfx.js']
+           'js/battle.js', 'js/ui.js', 'js/i18n.js', 'js/sfx.js']   # itch 版不含任何廣告層
 # 只擋「真的會載入 GamePix SDK」的字樣；註解提到 GamePix 不影響（CSS 註解會寫到 SDK 注入的樣式）
 FORBIDDEN = [r'\balert\s*\(', r'\bconfirm\s*\(', r'\bprompt\s*\(', r'gtag\s*\(',
              r'googletagmanager', r'google-analytics',
@@ -57,7 +57,7 @@ def transform(rel, text):
                 continue
         if 'GamePixConfig' in s or 'gamepix.sdk.js' in s:
             continue
-        if 'js/gamepix.js' in s:
+        if 'js/gamepix.js' in s or 'js/ads' in s:
             continue
         out.append(line)
     return "\n".join(out) + ("\n" if text.endswith("\n") else "")

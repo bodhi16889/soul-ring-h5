@@ -169,3 +169,14 @@ MIT
 | 版本保護 | 讀到比本版新的存檔 → 停止自動存檔並提示，不強制遷移 |
 
 設定頁會顯示「存檔狀態：主檔 正常 · 備份 正常（時間）」。
+
+## 多通路建置（同源三包）
+
+廣告／平台 SDK 已抽成 `js/ads.js` 門面 ＋ provider（見 `ADS.md`）：
+
+```bash
+python3 tools/build_gamepix.py     # dist/spirit-ring-idle-gamepix.zip
+python3 tools/build_crazygames.py   # dist/spirit-ring-idle-crazygames.zip
+python3 tools/build_itch.py        # dist/spirit-ring-idle-itch.zip（無任何 SDK）
+python3 tests/test_crazy_adapter.py # CrazyGames adapter 契約測試（mock SDK，7 項）
+```
