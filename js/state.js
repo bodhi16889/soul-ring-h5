@@ -15,7 +15,7 @@
   /* ---------- 建立新檔 ---------- */
   function newSave() {
     const starter = {
-      id: 'haotian', star: CFG.SOUL_BY_ID.haotian.star, level: 1, rings: [], bone: null,
+      id: 'haotian', star: CFG.SOUL_BY_ID.haotian.star, level: 1, rings: [], bone: null, ascend: 0,
     };
     return {
       v: 1,
@@ -38,6 +38,8 @@
       freeTenUsed: false,    // 新手免費十連是否已用（v1.10.0）
       week: { key: '', kills: 0, hunts: 0, merges: 0, claimed: [] },   // 每週任務
       codex: { souls: {}, bones: {}, rings: {}, beasts: {} },          // 圖鑑（收集表）
+      cores: 0,              // 獸核：獵靈掉落，用來把滿級靈印升「覺醒階」
+      elite: { day: '', ids: [] },   // 今日已打的精英靈獸
       pendingOffline: null,  // 這次回歸的離線收益（可看廣告加倍一次）
       daily: { day: '', idle: 0, hunt: 0, merge: 0, claimed: [] },   // 每日任務進度
       ach: { unlocked: {} },   // 成就（id -> true），每項永久 +0.5% 全屬性
@@ -141,6 +143,9 @@
     if (!Array.isArray(out.week.claimed)) out.week.claimed = [];
     out.codex = Object.assign({ souls: {}, bones: {}, rings: {}, beasts: {} }, (d && d.codex) || {});
     out.pendingOffline = (d && d.pendingOffline) || null;
+    out.cores = Math.max(0, out.cores | 0);
+    out.elite = Object.assign({ day: '', ids: [] }, (d && d.elite) || {});
+    if (!Array.isArray(out.elite.ids)) out.elite.ids = [];
     /* 圖鑑回填：舊存檔沒有 codex，用「目前持有」推回已收集，
        否則老玩家更新後會看到 0 / 25（明明身上有五個武魂）。 */
     (out.souls || []).forEach((x) => { if (x && x.id) out.codex.souls[x.id] = 1; });
@@ -158,6 +163,7 @@
     out.team = out.team.filter((id) => out.souls.some((s) => s.id === id)).slice(0, out.slots);
     out.souls.forEach((s) => {
       if (!Array.isArray(s.rings)) s.rings = [];
+      s.ascend = Math.max(0, Math.min(CFG.ASCEND.maxStage, s.ascend | 0));
       if (s.bone === undefined) s.bone = null;
     });
     // 舊版靈骨只存 id 字串 → 轉成 {uid, id}
@@ -297,6 +303,70 @@
     return { ok: true, reward: info.reward };
   }
 
+  /* ---------- 羈絆（同元素 ≥2 上陣 → 該元素 +12%；三種元素以上 → 全隊 +8%）---------- */
+  function bondInfo() {
+    const counts = {};
+    teamSouls().forEach((x) => {
+      const el = (CFG.SOUL_BY_ID[x.id] || {}).element;
+      if (el && el !== 'poison') counts[el] = (counts[el] || 0) + 1;
+    });
+    const kinds = Object.keys(counts).length;
+    const strong = Object.keys(counts).filter((el) => counts[el] >= CFG.BOND.sameNeed);
+    return { counts, kinds, strong, tri: kinds >= CFG.BOND.triKinds,
+             sameBonus: CFG.BOND.sameBonus, triBonus: CFG.BOND.triBonus };
+  }
+
+  /* ---------- 覺醒階（滿級靈印 + 獸核）---------- */
+  function ascendInfo(soulId) {
+    const soul = S.souls.find((x) => x.id === soulId);
+    if (!soul) return null;
+    const stage = soul.ascend || 0;
+    const maxed = stage >= CFG.ASCEND.maxStage;
+    const cost = maxed ? 0 : (CFG.ASCEND.cost[stage] || 0);
+    const needLevel = CFG.levelCap();
+    const levelOk = (soul.level || 1) >= needLevel;
+    return { stage, max: CFG.ASCEND.maxStage, cost, cores: S.cores, needLevel, levelOk, maxed,
+             can: !maxed && levelOk && S.cores >= cost };
+  }
+  function ascendSoul(soulId) {
+    const info = ascendInfo(soulId);
+    if (!info) return { ok: false, msg: T('沒有這個靈印') };
+    if (info.maxed) return { ok: false, msg: T('已達最高覺醒階') };
+    if (!info.levelOk) return { ok: false, msg: T(`需要滿級 ${info.needLevel}`), need: info.needLevel };
+    if (S.cores < info.cost) return { ok: false, msg: T('獸核不足'), need: info.cost };
+    S.cores -= info.cost;
+    const soul = S.souls.find((x) => x.id === soulId);
+    soul.ascend = info.stage + 1;
+    return { ok: true, stage: soul.ascend, cost: info.cost };
+  }
+  function addCores(n) { S.cores = Math.max(0, (S.cores | 0) + (n | 0)); return S.cores; }
+
+  /* ---------- 精英靈獸（每日每隻一次）---------- */
+  function eliteReset() {
+    const k = todayKey();
+    if (S.elite.day !== k) S.elite = { day: k, ids: [] };
+  }
+  function eliteInfo(beastId) {
+    eliteReset();
+    return { used: S.elite.ids.indexOf(beastId) >= 0, hpMul: CFG.ELITE.hpMul, coreMul: CFG.ELITE.coreMul };
+  }
+  function eliteMarkUsed(beastId) {
+    eliteReset();
+    if (S.elite.ids.indexOf(beastId) < 0) S.elite.ids.push(beastId);
+  }
+
+  /* ---------- 五行剋制（以隊伍主元素判斷）---------- */
+  function huntCounter(beastId) {
+    const beast = CFG.BEAST_BY_ID[beastId];
+    if (!beast) return { mult: 1, kind: 'neutral' };
+    const counts = bondInfo().counts;
+    const main = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+    if (!main) return { mult: 1, kind: 'neutral', element: null };
+    if (CFG.COUNTER[main] === beast.element) return { mult: 1.25, kind: 'strong', element: main };
+    if (CFG.COUNTER[beast.element] === main) return { mult: 0.9, kind: 'weak', element: main };
+    return { mult: 1, kind: 'neutral', element: main };
+  }
+
   /* ---------- 圖鑑 ---------- */
   function codexMark(kind, id) {
     if (!id || !S.codex || !S.codex[kind]) return false;
@@ -375,7 +445,12 @@
     const own = boneOf(soul) || { atk: 0, hp: 0, def: 0, spd: 0 };
     const aura = teamAura(soul.id);
     const pm = CFG.REBIRTH.perMark;
-    const tbMul = (1 + trueBodyOf(soul).bonus) * achMul() * codexMul();   // 真身 × 成就 × 圖鑑，都乘算
+    const el = (base && base.element) || null;
+    const bond = bondInfo();
+    const bondMul = (bond.strong.indexOf(el) >= 0 ? 1 + bond.sameBonus : 1)
+                  * (bond.tri ? 1 + bond.triBonus : 1);
+    const ascMul = 1 + CFG.ASCEND.bonusPerStage * (soul.ascend || 0);
+    const tbMul = (1 + trueBodyOf(soul).bonus) * achMul() * codexMul() * bondMul * ascMul;   // 真身 × 成就 × 圖鑑 × 羈絆 × 覺醒
     /* 三種加成各自乘算，不能全部倒進同一個括號：
        靈環後期 +3600%，若命印（+6%/點）與靈骨（+14~20%）也加在同一個括號裡，
        25 點命印只讓戰力多 5%，玩家會覺得「轉生沒用、戰力卡死」。
@@ -1001,6 +1076,7 @@
     addExp, addCoins, spendCoins, addDiamonds, spendDiamonds,
     soulStats, teamSouls, teamStats, power,
     claimOfflineDouble, weekKey, weeklyAdd, weeklyInfo, weeklyClaim, codexMark, codexSync, codexInfo, codexMul,
+    bondInfo, ascendInfo, ascendSoul, addCores, eliteInfo, eliteMarkUsed, huntCounter,
     totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth, migrate, coinBonePull, critChance, soulLevelUp, soulLevelInfo, soulLevelCap, dailyInfo, dailyAdd, dailyClaim, todayKey, achList, checkAchievements, achCount, achMul,
     trueBodyOf, resonanceOf, ringSkillOf, hasFreeRingSlot,
     mergeInfo, mergeRings, mergeAll, mergeLowTiers,

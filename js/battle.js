@@ -75,7 +75,8 @@
       const units = B.units.filter((u) => u.maxHp > 0);
       const weakest = Math.min.apply(null, units.map((u) => u.maxHp));
       const effDps = Math.max(1, units.reduce((a, u) => a + u.atk * actsPerSec(u.spd) * 0.85, 0));
-      const beastHp = Math.min(beast.hp, Math.round(effDps * 10));
+      const eliteMul = B.huntElite ? CFG.ELITE.hpMul : 1;
+      const beastHp = Math.min(beast.hp, Math.round(effDps * 10 * eliteMul));
       const beastAtk = Math.min(beast.atk, Math.max(1, Math.round(weakest * 0.06)));
       B.enemies = [{
         id: beast.id, name: T(beast.name), emoji: beast.emoji,
@@ -190,14 +191,20 @@
     return { ok: true };
   }
 
-  function hunt(beastId) {
+  function hunt(beastId, elite) {
     const beast = CFG.BEAST_BY_ID[beastId];
     if (!beast) return { ok: false, msg: T('找不到靈獸') };
     if (B.mode === 'hunt') return { ok: false, msg: T('正在獵靈中') };
+    if (elite) {
+      const ei = State.eliteInfo(beastId);
+      if (ei.used) return { ok: false, msg: T('今日精英已打過') };
+    }
     const next = State.data.cd[beastId] || 0;
     if (Date.now() < next) return { ok: false, msg: T(`冷卻中，還要 ${Math.ceil((next - Date.now()) / 1000)} 秒`) };
     if (State.data.level < beast.reqLevel) return { ok: false, msg: T(`需等級 ${beast.reqLevel} 才能挑戰`) };
     B.huntBeast = beast;
+    B.huntElite = !!elite;
+    B.huntCounter = State.huntCounter(beastId);
     State.codexMark('beasts', beast.id);
     B.mode = 'hunt';
     spawnWave('hunt');
@@ -218,6 +225,8 @@
   function backToFarm() {
     B.mode = 'farm';
     B.huntBeast = null;
+    B.huntElite = false;
+    B.huntCounter = null;
     reviveTeam(true);   // 獵靈是獨立挑戰：打完不該把傷勢帶回推關（實測會直接全滅）
     spawnWave('farm');
   }
@@ -397,6 +406,10 @@
 
   function hitEnemy(enemy, dmg, u, isSkill) {
     if (!enemy || !enemy.alive) return;
+    // 五行剋制只作用在狩獵場（主線維持原本節奏，不讓剋制變成推關卡的必要條件）
+    if (B.mode === 'hunt' && B.huntCounter && B.huntCounter.mult !== 1) {
+      dmg = Math.max(1, Math.round(dmg * B.huntCounter.mult));
+    }
     enemy.hp -= dmg;
     emit('hit', {
       side: 'enemy', enemyId: enemy.id, amount: dmg, crit: isSkill, unit: u,
@@ -459,9 +472,14 @@
       s.ringBag.push(ring);
       s.cd[beast.id] = Date.now() + beast.cdSec * 1000;
       s.stats.hunts++;
+      // 獸核：階級越高越多；精英靈獸 ×3（用來把滿級靈印升覺醒階）
+      const elite = !!B.huntElite;
+      const cores = (CFG.CORE_DROP[beast.tier] || 1) * (elite ? CFG.ELITE.coreMul : 1);
+      State.addCores(cores);
+      if (elite) State.eliteMarkUsed(beast.id);
       State.dailyAdd('hunt', 1);
       State.weeklyAdd('hunts', 1);
-      emit('huntWin', { beast, ring });
+      emit('huntWin', { beast, ring, cores, elite });
       const auto = State.autoEquipBestRing();
       if (auto) emit('autoRing', { soul: auto.soul, ring: auto.ring });
       const merged = State.mergeLowTiers();

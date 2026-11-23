@@ -48,7 +48,8 @@ def main() -> int:
         page.wait_for_function("window.__game && window.__game.ready", timeout=30000)
         time.sleep(0.8)
 
-        ok("版本 1.11.0", page.evaluate("CFG.VERSION") == "1.11.0", page.evaluate("CFG.VERSION"))
+        ver = page.evaluate("CFG.VERSION")
+        ok("版本 ≥ 1.11.0（P1 功能都在）", tuple(int(x) for x in ver.split(".")) >= (1, 11, 0), ver)
 
         # ---------- 週任務 ----------
         info = page.evaluate("State.weeklyInfo()")

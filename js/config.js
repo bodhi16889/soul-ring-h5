@@ -20,16 +20,22 @@
    * skill 由 battle.js 依 role 實作，這裡只給倍率與描述
    */
   const SOULS = [
-    { id: 'haotian',  name: '巨靈槌',     emoji: '🔨', role: 'atk',  star: 3, atk: 16, hp: 130, def: 6,  spd: 92,  skillName: '巨靈九式',   skillText: '對全體敵人造成 200% 攻擊傷害' },
-    { id: 'phoenix',  name: '赤焰鳶',   emoji: '🔥', role: 'atk',  star: 4, atk: 17, hp: 105, def: 5,  spd: 104, skillName: '焰羽燎原',   skillText: '對單體造成 200% 傷害並灼燒' },
-    { id: 'bluemoss', name: '青藤',     emoji: '🌿', role: 'ctrl', star: 3, atk: 10, hp: 140, def: 8,  spd: 96,  skillName: '藤蔓纏繞',   skillText: '單體 60% 傷害，40% 機率暈眩 1 回合' },
-    { id: 'fox',      name: '惑心狐',   emoji: '🦊', role: 'ctrl', star: 4, atk: 11, hp: 118, def: 6,  spd: 112, skillName: '惑心領域',   skillText: '全體 45% 傷害，命中者減速 30%' },
-    { id: 'turtle',   name: '玄甲龜',     emoji: '🐢', role: 'def',  star: 4, atk: 8,  hp: 240, def: 16, spd: 78,  skillName: '甲冑真身',   skillText: '嘲諷 1 回合，全隊獲得護盾' },
-    { id: 'bear',     name: '鐵背熊', emoji: '🐻', role: 'def',  star: 3, atk: 12, hp: 210, def: 13, spd: 82,  skillName: '震山咆哮',   skillText: '嘲諷並降低敵方攻擊 20%' },
-    { id: 'tower',    name: '琉璃塔', emoji: '🗼', role: 'sup',  star: 5, atk: 9,  hp: 130, def: 7,  spd: 108, skillName: '琉璃灌頂',   skillText: '全隊攻擊 +40%、回復 25% 生命' },
-    { id: 'sausage',  name: '甘露囊',   emoji: '🌭', role: 'sup',  star: 2, atk: 7,  hp: 110, def: 5,  spd: 100, skillName: '甘露回春', skillText: '回復生命最低的隊友 40% 生命' },
-    { id: 'nether',   name: '幽影貓',   emoji: '🐈', role: 'atk',  star: 4, atk: 19, hp: 96,  def: 4,  spd: 118, skillName: '影襲爪',     skillText: '對單體造成 230% 傷害' },
-    { id: 'seagod',   name: '怒潮戟', emoji: '🔱', role: 'atk',  star: 5, atk: 22, hp: 150, def: 9,  spd: 110, skillName: '怒潮席捲',   skillText: '全體 110% 傷害，無視 30% 防禦' },
+    { id: 'haotian',  name: '巨靈槌',     emoji: '🔨', role: 'atk',  star: 3, atk: 16, hp: 130, def: 6,  spd: 92, element: 'earth',  skillName: '巨靈九式',   skillText: '對全體敵人造成 200% 攻擊傷害' },
+    { id: 'phoenix',  name: '赤焰鳶',   emoji: '🔥', role: 'atk',  star: 4, atk: 17, hp: 105, def: 5,  spd: 104, element: 'fire', skillName: '焰羽燎原',   skillText: '對單體造成 200% 傷害並灼燒' },
+    { id: 'bluemoss', name: '青藤',     emoji: '🌿', role: 'ctrl', star: 3, atk: 10, hp: 140, def: 8,  spd: 96, element: 'wood',  skillName: '藤蔓纏繞',   skillText: '單體 60% 傷害，40% 機率暈眩 1 回合' },
+    { id: 'fox',      name: '惑心狐',   emoji: '🦊', role: 'ctrl', star: 4, atk: 11, hp: 118, def: 6,  spd: 112, element: 'wind', skillName: '惑心領域',   skillText: '全體 45% 傷害，命中者減速 30%' },
+    { id: 'turtle',   name: '玄甲龜',     emoji: '🐢', role: 'def',  star: 4, atk: 8,  hp: 240, def: 16, spd: 78, element: 'water',  skillName: '甲冑真身',   skillText: '嘲諷 1 回合，全隊獲得護盾' },
+    { id: 'bear',     name: '鐵背熊', emoji: '🐻', role: 'def',  star: 3, atk: 12, hp: 210, def: 13, spd: 82, element: 'earth',  skillName: '震山咆哮',   skillText: '嘲諷並降低敵方攻擊 20%' },
+    { id: 'tower',    name: '琉璃塔', emoji: '🗼', role: 'sup',  star: 5, atk: 9,  hp: 130, def: 7,  spd: 108, element: 'fire', skillName: '琉璃灌頂',   skillText: '全隊攻擊 +40%、回復 25% 生命' },
+    { id: 'sausage',  name: '甘露囊',   emoji: '🌭', role: 'sup',  star: 2, atk: 7,  hp: 110, def: 5,  spd: 100, element: 'wood', skillName: '甘露回春', skillText: '回復生命最低的隊友 40% 生命' },
+    { id: 'nether',   name: '幽影貓',   emoji: '🐈', role: 'atk',  star: 4, atk: 19, hp: 96,  def: 4,  spd: 118, element: 'wind', skillName: '影襲爪',     skillText: '對單體造成 230% 傷害' },
+    { id: 'seagod',   name: '怒潮戟', emoji: '🔱', role: 'atk',  star: 5, atk: 22, hp: 150, def: 9,  spd: 110, element: 'water', skillName: '怒潮席捲',   skillText: '全體 110% 傷害，無視 30% 防禦' },
+    /* v1.12.0：每個元素各補一隻，讓玩家有「湊羈絆」的選擇，而不是抽到誰用誰 */
+    { id: 'thunder',   name: '震雷弓', emoji: '🏹', role: 'atk', star: 4, atk: 18, hp: 110, def: 5,  element: 'wind',  spd: 116, skillName: '雷貫蒼穹', skillText: '對單體造成 240% 傷害，無視 20% 防禦' },
+    { id: 'emberpaw',  name: '焰爪獅', emoji: '🦁', role: 'atk', star: 5, atk: 23, hp: 155, def: 10, element: 'fire',  spd: 106, skillName: '炎爪裂空', skillText: '對單體造成 260% 傷害並附加燃燒' },
+    { id: 'thornking', name: '荊棘王', emoji: '🌵', role: 'def', star: 4, atk: 11, hp: 260, def: 18, element: 'wood',  spd: 76,  skillName: '千棘壁',   skillText: '嘲諷 1 回合，反彈 30% 受到的傷害' },
+    { id: 'stonelord', name: '磐岩尊', emoji: '🗿', role: 'def', star: 5, atk: 13, hp: 300, def: 22, element: 'earth', spd: 72,  skillName: '山海鎮',   skillText: '全隊減傷 30% 持續 2 回合' },
+    { id: 'frostqueen',name: '霜璃姬', emoji: '❄️', role: 'sup', star: 4, atk: 10, hp: 145, def: 9,  element: 'water', spd: 114, skillName: '霜心凝露', skillText: '全隊回復 30% 生命並解除負面狀態' },
   ];
   const SOUL_BY_ID = Object.fromEntries(SOULS.map((s) => [s.id, s]));
 
@@ -47,7 +53,16 @@
     { id: 'darkbear', name: '暗金裂爪熊', emoji: '🐾', tier: 'black', year: '萬年',   element: 'earth',  hp: 6200, atk: 118, reqLevel: 40, cdSec: 90 },
     { id: 'whale',  name: '深海巨鯨',   emoji: '🐋', tier: 'red',    year: '十萬年', element: 'water',  hp: 16000, atk: 210, reqLevel: 50, cdSec: 120 },
   ];
-  const ELEMENT_LABEL = { wind: '風', wood: '木', poison: '毒', earth: '土', water: '水' };
+  const ELEMENT_LABEL = { wind: '風', wood: '木', poison: '毒', earth: '土', water: '水', fire: '火' };
+  /* 五行相剋：前者打後者 +25%，被剋 -10%（毒不參與，保持中立） */
+  const COUNTER = { wind: 'earth', earth: 'water', water: 'fire', fire: 'wood', wood: 'wind' };
+  /* 羈絆：同元素 ≥2 隻上陣 → 該元素武魂 +12%；湊滿 3 種不同元素 → 全隊 +8%（兩者乘算） */
+  const BOND = { sameNeed: 2, sameBonus: 0.12, triKinds: 3, triBonus: 0.08 };
+  /* 覺醒階：靈印滿 100 級後用獸核升階，每階 +8% 全屬性（最多 5 階） */
+  const ASCEND = { maxStage: 5, bonusPerStage: 0.08, cost: [4, 8, 14, 22, 32] };
+  /* 獵靈掉獸核：階級越高掉越多；精英靈獸 ×3 */
+  const CORE_DROP = { white: 1, yellow: 2, violet: 3, black: 4, red: 5 };
+  const ELITE = { hpMul: 2.5, coreMul: 3, perDay: 1 };
   const ELEMENT_COLOR = { wind: '#5ad8ff', wood: '#57d98b', poison: '#b06bff', earth: '#e0a458', water: '#6ea8ff' };
   const BEAST_BY_ID = Object.fromEntries(BEASTS.map((b) => [b.id, b]));
 
@@ -59,7 +74,7 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.11.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.12.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -305,7 +320,7 @@
     RING_TIERS, TIER_BY_KEY, SOULS, SOUL_BY_ID, ROLE_LABEL, ROLE_COLOR,
     BEASTS, BEAST_BY_ID, STAGE_AREAS, areaFor,
     VERSION, MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
-    RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR,
+    RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR, COUNTER, BOND, ASCEND, CORE_DROP, ELITE,
     RING_ORDER, RING_MERGE_COUNT,
     BASE_KILLS_PER_STAGE, killsPerStage, waveSecFor, bossSecFor, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND,
     REBIRTH, rebirthGain, stageMul,

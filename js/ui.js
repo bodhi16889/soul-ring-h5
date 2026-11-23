@@ -209,7 +209,14 @@
 
   function renderSouls() {
     const s = State.data;
-    $('#slotInfo').textContent = T(`上陣 ${s.team.length} / ${s.slots}`);
+    const bond = State.bondInfo();
+    const bondBits = [];
+    if (bond.strong.length) bondBits.push(bond.strong.map((el) => `${T(CFG.ELEMENT_LABEL[el])}×${bond.counts[el]}`).join(' '));
+    if (bond.tri) bondBits.push(T('三元素'));
+    const bondTxt = bondBits.length
+      ? ` · ${T('羈絆')} ${bondBits.join(' / ')}${bond.tri ? ` +${Math.round(bond.triBonus * 100)}%` : ''}`
+      : '';
+    $('#slotInfo').textContent = T(`上陣 ${s.team.length} / ${s.slots}`) + bondTxt;
     const list = $('#soulList');
     list.innerHTML = s.souls.map((soul) => {
       const base = CFG.SOUL_BY_ID[soul.id] || {};
@@ -233,6 +240,7 @@
           <span class="hint">Lv.${soul.level || 1}</span>
           <span class="star">${'★'.repeat(soul.star || 3)}</span>
           <span class="tag" style="color:${CFG.ROLE_COLOR[base.role]}">${roleName(base.role)}</span>
+          <span class="tag" style="color:${CFG.ELEMENT_COLOR[base.element] || '#aaa'}">${base.element ? T(CFG.ELEMENT_LABEL[base.element]) : ''}</span>
           <span class="tag ${inTeam ? 'on' : ''}">${inTeam ? T('上陣中') : T('待命')}</span>
         </div>
         <div class="stats">
@@ -244,6 +252,7 @@
           靈環槽 ${soul.rings.length}/${slots} ${rings}
           ${tb.bonus ? T(`<span class="tag on">真身 +${Math.round(tb.bonus * 100)}%</span>`) : ''}
           ${reso ? `<span class="tag on">${T('共鳴')} ${T(CFG.ELEMENT_LABEL[reso.element])}×${reso.count}</span>` : ''}
+          ${(soul.ascend || 0) > 0 ? `<span class="tag on">${T('覺醒階')} ${soul.ascend}</span>` : ''}
         </div>
         <div class="row1" style="margin-top:4px;font-size:11px;color:var(--muted)">
           ${bone ? `<span class="bone ${bone.css}"></span> ${T(bone.name)}（${T(bone.desc)}）` : T('靈骨：無')}
@@ -257,6 +266,14 @@
             ${info.maxed || !info.canAfford ? 'disabled' : ''}>
             ${info.maxed ? T('★5 滿星') : T(`升星（${info.bones} 靈骨・${fmt(info.coins)}）`)}
           </button>
+          ${(() => {
+            const ai = State.ascendInfo(soul.id);
+            if (!ai) return '';
+            const label = ai.maxed ? T('覺醒滿階')
+              : T(`覺醒 ${ai.stage}→${ai.stage + 1}（${ai.cost} 核）`);
+            return `<button class="mini-btn ${ai.can ? 'primary' : ''}" data-act="ascend" data-id="${soul.id}"
+              ${ai.can ? '' : 'disabled'}>${label}</button>`;
+          })()}
           <button class="mini-btn ${lvInfo.can ? 'primary' : ''}" data-act="lvup" data-id="${soul.id}"
             ${lvInfo.can ? '' : 'disabled'}>
             ${lvInfo.maxed ? T(`Lv.${lvInfo.level} 已滿`) : T(`升級 Lv.${lvInfo.level}（${fmt(lvInfo.cost)}）`)}
@@ -299,6 +316,17 @@
     });
     $$('#soulList [data-act="bone"]').forEach((b) => {
       b.addEventListener('click', () => pickBoneFor(b.dataset.id));
+    });
+    $$('#soulList [data-act="ascend"]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = State.ascendSoul(b.dataset.id);
+        if (!r.ok) return toast(r.msg);
+        State.save(true);
+        Battle.refreshTeam();
+        renderAll();
+        toast(T(`覺醒成功 → 第 ${r.stage} 階`));
+        if (global.SFX) SFX.clear();
+      });
     });
 
     const btn = $('#btnExpandSlot');
@@ -613,34 +641,56 @@
 
   function renderHunt() {
     const s = State.data;
-    const slotLine = State.teamSouls().map((x) => `${(CFG.SOUL_BY_ID[x.id] || {}).name} ${x.rings.length}/${State.ringSlotsOf(x)}`).join(' · ');
-    $('#huntHint').textContent = T(`Lv.${s.level}（每 10 級開 1 槽）｜${slotLine}`);
+    const slotLine = State.teamSouls()
+      .map((x) => `${T((CFG.SOUL_BY_ID[x.id] || {}).name || x.id)} ${x.rings.length}/${State.ringSlotsOf(x)}`).join(' · ');
+    $('#huntHint').textContent = 'Lv.' + s.level + ' · ' + T('每 10 級開 1 槽') + ' · ' + slotLine
+      + ' · ' + T('獸核') + ' ' + (s.cores || 0);
     const html = CFG.BEASTS.map((b) => {
       const t = CFG.TIER_BY_KEY[b.tier];
       const cdLeft = Math.max(0, Math.ceil(((s.cd[b.id] || 0) - Date.now()) / 1000));
       const locked = s.level < b.reqLevel;
       const busy = Battle.state.mode === 'hunt';
+      const cnt = State.huntCounter(b.id);
+      const elKey = b.element;
+      const cntTag = cnt.kind === 'strong' ? `<span class="tag on">${T('剋制 +25%')}</span>`
+        : cnt.kind === 'weak' ? `<span class="tag">${T('被剋 -10%')}</span>` : '';
+      const ei = State.eliteInfo(b.id);
       return T(`<div class="card">
         <div class="row1">
           <span style="font-size:20px">${b.emoji}</span>
           <b>${T(b.name)}</b>
           <span class="ring-dot ${t.css}"></span>
           <span class="hint">${T(b.year)}</span>
+          <span class="tag" style="color:${CFG.ELEMENT_COLOR[elKey] || '#aaa'}">${T(CFG.ELEMENT_LABEL[elKey] || '')}</span>
+          ${cntTag}
           ${locked ? `<span class="tag">${T(`需 Lv.${b.reqLevel}`)}</span>` : ''}
         </div>
         <div class="stats">
           <span>${T('生命')} <b>${fmt(b.hp)}</b></span>
           <span>${T('攻擊')} <b>${fmt(b.atk)}</b></span>
           <span>${T('掉落')} <b>${T(t.name)}</b></span>
+          <span>${T('獸核')} <b>+${CFG.CORE_DROP[b.tier] || 1}</b></span>
         </div>
         <div class="acts">
           <button class="mini-btn primary" data-hunt="${b.id}" ${locked || cdLeft > 0 || busy ? 'disabled' : ''}>
             ${cdLeft > 0 ? T(`冷卻 ${cdLeft}s`) : busy ? T('獵靈中…') : T('進入獵殺')}
           </button>
+          <button class="mini-btn ${(!ei.used && !locked && cdLeft === 0 && !busy) ? 'primary' : ''}" data-elite="${b.id}"
+            ${(!ei.used && !locked && cdLeft === 0 && !busy) ? '' : 'disabled'}>
+            ${ei.used ? T('今日精英已打') : T(`精英（×${ei.coreMul} 核）`)}
+          </button>
         </div>
       </div>`);
     }).join('');
     $('#beastList').innerHTML = html;
+    $$('#beastList [data-elite]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const r = Battle.hunt(btn.dataset.elite, true);
+        if (!r.ok) return toast(r.msg);
+        switchTab('battle');
+        toast(T('精英靈獸出現，獸核與靈環加倍'));
+      });
+    });
     $$('#beastList [data-hunt]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const r = Battle.hunt(btn.dataset.hunt);
