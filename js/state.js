@@ -138,6 +138,12 @@
     if (!Array.isArray(out.week.claimed)) out.week.claimed = [];
     out.codex = Object.assign({ souls: {}, bones: {}, rings: {}, beasts: {} }, (d && d.codex) || {});
     out.pendingOffline = (d && d.pendingOffline) || null;
+    /* 圖鑑回填：舊存檔沒有 codex，用「目前持有」推回已收集，
+       否則老玩家更新後會看到 0 / 25（明明身上有五個武魂）。 */
+    (out.souls || []).forEach((x) => { if (x && x.id) out.codex.souls[x.id] = 1; });
+    (out.bones || []).forEach((x) => { if (x && x.id) out.codex.bones[x.id] = 1; });
+    (out.ringBag || []).forEach((x) => { if (x && x.tier) out.codex.rings[x.tier] = 1; });
+    Object.keys(out.cd || {}).forEach((id) => { out.codex.beasts[id] = 1; });   // 打過才有冷卻
     out.rebirths = Math.max(0, out.rebirths | 0);
     out.marks = Math.max(0, out.marks | 0);
     // 舊存檔：把「上次轉生時的最高關卡」補成現在的 bestStage，
