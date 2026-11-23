@@ -514,3 +514,28 @@ textarea, input,
   touch-action: pan-y !important;
 }
 .modal-card textarea { line-height: 1.45; word-break: break-all; }
+
+/* ---------- 圖鑑（v1.11.0）---------- */
+.codex-group { margin-top: 10px; }
+.codex-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin-top: 6px;
+}
+.codex-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 2px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  min-height: 56px;
+}
+.codex-cell i { font-style: normal; font-size: 18px; line-height: 1; opacity: 0.45; }
+.codex-cell b { font-size: 11px; font-weight: 500; color: #b9b2cc; text-align: center; line-height: 1.15; }
+.codex-cell.on { background: rgba(168, 117, 255, 0.14); border-color: rgba(168, 117, 255, 0.45); }
+.codex-cell.on i { opacity: 1; }
+.codex-cell.on b { color: #efe9ff; }

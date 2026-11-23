@@ -31,6 +31,7 @@
     if (global.GP) { GP.boot(); GP.loading(20); }
     const res = State.load();
     bindNav();
+    bindCodex();
     bindTop();
     bindBattle();
     bindSouls();
@@ -77,6 +78,11 @@
   }
 
   /* ================= 導覽 ================= */
+  function bindCodex() {
+    const b = $('#btnCodex');
+    if (b) b.addEventListener('click', showCodex);
+  }
+
   function bindNav() {
     $$('.nav-btn').forEach((b) => {
       b.addEventListener('click', () => switchTab(b.dataset.tab));
@@ -866,6 +872,52 @@
     }
   }
 
+  function renderWeekly() {
+    const box = $('#weeklyBox');
+    if (!box) return;
+    const tasks = State.weeklyInfo();
+    const rows = tasks.map((t) => `<div class="merge-row">
+        <span class="mr-name">${T(t.label)}</span>
+        <span class="mr-count">${Math.min(t.need, t.done)} / ${t.need}</span>
+        <button class="mini-btn ${t.can ? 'primary' : ''}" data-weekly="${t.id}"
+          ${t.can ? '' : 'disabled'}>
+          ${t.claimed ? T('已領') : T(`領 ${t.reward.diamonds} 💎`)}
+        </button>
+      </div>`).join('');
+    box.innerHTML = `<div class="merge-head"><b>${T('每週任務')}</b>
+        <span class="hint">${T('週一 0 點重置')}</span></div>${rows}`;
+    $$('#weeklyBox [data-weekly]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = State.weeklyClaim(b.dataset.weekly);
+        if (!r.ok) return toast(r.msg);
+        State.save(true);
+        renderAll();
+        toast(T(`任務完成：+${r.reward.diamonds} 💎`));
+        if (global.SFX) SFX.unlock();
+      });
+    });
+  }
+
+  function renderCodex() {
+    const el = $('#codexInfo');
+    if (!el) return;
+    const info = State.codexInfo();
+    el.textContent = `${info.owned} / ${info.total} · +${(info.bonus * 100).toFixed(1)}%`;
+  }
+
+  function showCodex() {
+    const info = State.codexInfo();
+    const blocks = info.groups.map((g) => `<div class="codex-group">
+        <div class="merge-head"><b>${T(g.label)}</b><span class="hint">${g.got} / ${g.all}</span></div>
+        <div class="codex-grid">${g.items.map((it) => `<span class="codex-cell ${it.owned ? 'on' : ''}">
+            <i>${it.owned ? it.emoji : '❔'}</i><b>${it.owned ? T(it.name) : T('未解鎖')}</b></span>`).join('')}</div>
+      </div>`).join('');
+    openModal(T('圖鑑'), T(`
+      <div class="hint">${T('已收集')} ${info.owned} / ${info.total} · ${T('全屬性')} +${(info.bonus * 100).toFixed(1)}%</div>
+      ${blocks}`),
+      [{ text: T('關閉'), kind: 'primary' }]);
+  }
+
   function renderAll() {
     renderTop();
     renderBattle();
@@ -877,6 +929,8 @@
     renderHunt();
     renderCheckin();
     renderGacha();
+    renderWeekly();
+    renderCodex();
   }
 
   /* ================= 戰鬥事件 → 畫面 ================= */
@@ -934,7 +988,7 @@
         const left = ev.left
           ? (I18N.lang === 'en' ? ` (${ev.left} left)` : `（剩 ${ev.left} 隻）`)
           : '';
-        addLog(T(`擊殺${ev.boss ? T('守關靈獸') : T('靈獸')}${left}：靈幣 +${fmt(ev.coins)}、經驗 +${fmt(ev.exp)}`),
+        addLog(`${T('擊殺')}${ev.boss ? T('守關靈獸') : T('靈獸')}${left} · ${T('靈幣')} +${fmt(ev.coins)} · ${T('經驗')} +${fmt(ev.exp)}`,
           ev.boss ? 'c-gold' : '');
         break;
       }
@@ -1118,7 +1172,20 @@
       <div style="margin-top:8px">靈幣 <b class="c-gold">+${fmt(g.coins)}</b></div>
       <div>經驗 <b class="c-ok">+${fmt(g.exp)}</b></div>
       <div class="hint" style="margin-top:8px">掛機效率會隨關卡提升</div>`),
-      [{ text: T('領取'), kind: 'primary', onClick: () => { closeModal(); State.save(true); renderAll(); } }]);
+      [
+        { text: T('看廣告 ×2'), kind: '', onClick: () => {
+          if (!global.GP || !GP.reward) { toast(T('這裡沒有廣告可用')); return; }
+          GP.reward().then((r) => {
+            if (!r || !r.success) { toast(T('廣告未完成')); return; }
+            const d = State.claimOfflineDouble();
+            if (!d.ok) { toast(d.msg); return; }
+            State.save(true);
+            renderAll();
+            toast(`${T('離線收益加倍')}：+${fmt(d.coins)} ${T('靈幣')}`);
+          }, () => toast(T('廣告未完成')));
+        } },
+        { text: T('領取'), kind: 'primary', onClick: () => { closeModal(); State.save(true); renderAll(); } },
+      ]);
   }
 
   /* 存檔狀態一行字：主檔 / 備份 / 備份時間 / 寫入錯誤 */
@@ -1167,6 +1234,7 @@
       </div>
       <div class="acts" style="display:flex;gap:8px;margin-top:10px">
         <button class="mini-btn" id="btnSfx">${T('音效')}：${(global.SFX && SFX.enabled) ? T('開') : T('關')}</button>
+        <button class="mini-btn" id="btnBgm">${T('音樂')}：${(global.SFX && SFX.bgm) ? T('開') : T('關')}</button>
       </div>
       <div class="acts" style="display:flex;gap:8px;margin-top:8px">
         <button class="mini-btn ${I18N.lang === 'en' ? 'primary' : ''}" id="btnLangEn">English</button>
@@ -1195,6 +1263,12 @@
       SFX.setEnabled(!SFX.enabled);
       $('#btnSfx').textContent = `${T('音效')}：${SFX.enabled ? T('開') : T('關')}`;
       if (SFX.enabled) SFX.tap();
+    });
+    const bgmBtn = $('#btnBgm');
+    if (bgmBtn) bgmBtn.addEventListener('click', () => {
+      if (!global.SFX) return;
+      SFX.bgmSet(!SFX.bgm);
+      bgmBtn.textContent = `${T('音樂')}：${SFX.bgm ? T('開') : T('關')}`;
     });
     $('#btnLangEn').addEventListener('click', () => I18N.setLang('en'));
     $('#btnLangZh').addEventListener('click', () => I18N.setLang('zh'));

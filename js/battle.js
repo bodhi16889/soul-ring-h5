@@ -198,6 +198,7 @@
     if (Date.now() < next) return { ok: false, msg: T(`冷卻中，還要 ${Math.ceil((next - Date.now()) / 1000)} 秒`) };
     if (State.data.level < beast.reqLevel) return { ok: false, msg: T(`需等級 ${beast.reqLevel} 才能挑戰`) };
     B.huntBeast = beast;
+    State.codexMark('beasts', beast.id);
     B.mode = 'hunt';
     spawnWave('hunt');
     reviveTeam(true);            // 獵靈是獨立挑戰，進場回滿血
@@ -459,6 +460,7 @@
       s.cd[beast.id] = Date.now() + beast.cdSec * 1000;
       s.stats.hunts++;
       State.dailyAdd('hunt', 1);
+      State.weeklyAdd('hunts', 1);
       emit('huntWin', { beast, ring });
       const auto = State.autoEquipBestRing();
       if (auto) emit('autoRing', { soul: auto.soul, ring: auto.ring });
@@ -476,6 +478,7 @@
     State.addCoins(coinGain);
     const expRes = State.addExp(s, expGain);
     s.stats.kills++;
+    if (!isBoss) State.weeklyAdd('kills', 1);
     if (!isBoss && s.kills < CFG.killsPerStage(s.stage)) s.kills++;
 
     emit('kill', {

@@ -524,6 +524,31 @@ textarea, input,
 }
 .modal-card textarea { line-height: 1.45; word-break: break-all; }
 
+/* ---------- 圖鑑（v1.11.0）---------- */
+.codex-group { margin-top: 10px; }
+.codex-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin-top: 6px;
+}
+.codex-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 2px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  min-height: 56px;
+}
+.codex-cell i { font-style: normal; font-size: 18px; line-height: 1; opacity: 0.45; }
+.codex-cell b { font-size: 11px; font-weight: 500; color: #b9b2cc; text-align: center; line-height: 1.15; }
+.codex-cell.on { background: rgba(168, 117, 255, 0.14); border-color: rgba(168, 117, 255, 0.45); }
+.codex-cell.on i { opacity: 1; }
+.codex-cell.on b { color: #efe9ff; }
+
 </style>
 <!-- CrazyGames SDK v3：必須早於遊戲任何 JS，且要 await SDK.init() -->
 <script>window.ADS_PROVIDER = 'crazy';</script>
@@ -619,6 +644,11 @@ textarea, input,
     <section class="view" data-view="gacha">
       <div class="panel-head"><h2 data-i18n="靈印殿">靈印殿</h2><span id="ticketInfo" class="hint"></span></div>
       <div class="checkin-box" id="dailyBox"></div>
+      <div class="checkin-box" id="weeklyBox"></div>
+      <div class="checkin-box">
+        <div class="checkin-head"><span data-i18n="圖鑑">圖鑑</span><span id="codexInfo" class="hint"></span></div>
+        <button id="btnCodex" class="wide-btn small" data-i18n="查看圖鑑">查看圖鑑</button>
+      </div>
       <div class="checkin-box" id="achBox"></div>
       <div class="checkin-box">
         <div class="checkin-head"><span data-i18n="每日簽到">每日簽到</span><span id="streakInfo" class="hint"></span></div>
@@ -860,6 +890,18 @@ textarea, input,
     '任一靈印升到 5★': 'Get any spirit to 5★', '持有 5 塊靈骨': 'Hold 5 soul bones',
     '全隊裝備 45 個靈環': 'Equip 45 rings', '每日任務': 'Daily tasks', '每天 0 點重置': 'Resets at midnight',
     '已領': 'Claimed', '沒有這個任務': 'No such task', '今天已領過': 'Already claimed today',
+    /* v1.11.0：每週任務 / 圖鑑 / 離線加倍 / BGM */
+    '每週任務': 'Weekly quests', '週一 0 點重置': 'Resets Monday 00:00',
+    '本週擊殺 300 隻': 'Kill 300 this week',
+    '本週獵靈 15 次': 'Hunt 15 times this week',
+    '本週合成 20 次': 'Fuse 20 rings this week',
+    '本週已領過': 'Already claimed this week',
+    '圖鑑': 'Codex', '查看圖鑑': 'Open codex', '未解鎖': 'Locked', '已收集': 'Collected',
+    '武魂': 'Spirits', '靈獸': 'Beasts', '擊殺': 'Kill', '守關靈獸': 'Stage boss',
+    '看廣告 ×2': 'Watch ad ×2', '這裡沒有廣告可用': 'No ads available here',
+    '廣告未完成': 'Ad not completed', '離線收益加倍': 'Offline reward doubled',
+    '沒有可加倍的離線收益': 'Nothing to double',
+    '音樂': 'Music',
     '任務還沒完成': 'Task not finished', '掛機 10 分鐘': 'Idle for 10 minutes',
     '獵靈 3 次': 'Hunt 3 times', '合成靈環 3 次': 'Fuse rings 3 times', '已達等級上限（玩家等級 +20）': 'Level cap reached (player Lv +20)',
     '沒有這個靈印': 'No such spirit', '爆擊': 'Crit',
@@ -1356,6 +1398,43 @@ textarea, input,
   var ctx = null;
   var lastHit = 0;
 
+  /* BGM：8 小節五聲音階琶音循環，全部用 oscillator 合成（零素材）。
+     預設關閉——平台上自動播放音樂會被審查挑，玩家想聽再自己開。 */
+  var BGM_KEY = 'soulring.bgm';
+  var bgmOn = false;
+  var bgmTimer = null;
+  var bgmStep = 0;
+  var BGM_SCALE = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25];
+  try { bgmOn = localStorage.getItem(BGM_KEY) === 'on'; } catch (e) { bgmOn = false; }
+
+  function bgmTick() {
+    if (!bgmOn || !enabled) return;
+    var c = ac();
+    if (!c || c.state === 'suspended') return;
+    var t0 = c.currentTime;
+    var note = BGM_SCALE[(bgmStep * 3) % BGM_SCALE.length];
+    var bass = BGM_SCALE[(bgmStep * 5) % 4] / 2;
+    [[note, 0.9, 'sine', 0.012], [bass, 1.6, 'triangle', 0.010]].forEach(function (n) {
+      var osc = c.createOscillator();
+      var g = c.createGain();
+      osc.type = n[2];
+      osc.frequency.setValueAtTime(n[0], t0);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(n[3], t0 + 0.12);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + n[1]);
+      osc.connect(g); g.connect(c.destination);
+      osc.start(t0); osc.stop(t0 + n[1] + 0.05);
+    });
+    bgmStep = (bgmStep + 1) % 16;
+  }
+
+  function bgmSet(v) {
+    bgmOn = !!v;
+    try { localStorage.setItem(BGM_KEY, bgmOn ? 'on' : 'off'); } catch (e) {}
+    if (bgmTimer) { clearInterval(bgmTimer); bgmTimer = null; }
+    if (bgmOn) { unlockAudio(); bgmTick(); bgmTimer = setInterval(bgmTick, 620); }
+  }
+
   function ac() {
     if (!ctx) {
       var C = global.AudioContext || global.webkitAudioContext;
@@ -1413,6 +1492,8 @@ textarea, input,
     unlock: unlock, tap: tap, unlockAudio: unlockAudio,
     suspend: suspend, resume: resume,
     setEnabled: setEnabled,
+    bgmSet: bgmSet,
+    get bgm() { return bgmOn; },
     get enabled() { return enabled; },
   };
 
@@ -1487,7 +1568,7 @@ textarea, input,
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.10.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.11.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -1652,6 +1733,14 @@ textarea, input,
   }
 
   /* ---------- 成就（永久加成，每項 +0.5% 全屬性）---------- */
+  /* 圖鑑：每收集 1 項 +0.2% 全屬性（10 武魂 + 5 靈骨 + 5 環階 + 5 靈獸 = 25 項，全滿 +5%） */
+  const CODEX = { bonusPer: 0.002 };
+  /* 每週任務（週一 0 點換週，獎勵比每日大，給回訪理由）*/
+  const WEEKLY = [
+    { id: 'kills',  need: 300, label: '本週擊殺 300 隻', reward: { diamonds: 300 } },
+    { id: 'hunts',  need: 15,  label: '本週獵靈 15 次',  reward: { diamonds: 260 } },
+    { id: 'merges', need: 20,  label: '本週合成 20 次',  reward: { diamonds: 320 } },
+  ];
   const ACH_BONUS = 0.005;
   const ACHIEVEMENTS = [
     { id: 'stage20',  name: '初入魂道',   desc: '推進到第 20 關',      test: (s) => s.bestStage >= 20 },
@@ -1729,7 +1818,7 @@ textarea, input,
     RING_ORDER, RING_MERGE_COUNT,
     BASE_KILLS_PER_STAGE, killsPerStage, waveSecFor, bossSecFor, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND,
     REBIRTH, rebirthGain, stageMul,
-    PULL_COST_TICKET, PULL_COST_DIAMOND, PULL10_COST_TICKET, PULL10_COST_DIAMOND,
+    PULL_COST_TICKET, PULL_COST_DIAMOND, PULL10_COST_TICKET, PULL10_COST_DIAMOND, CODEX, WEEKLY,
     expNeed, levelCap, ringSlots, enemyStats, killReward, offlinePerMinute,
     PULL_POOL, PULL_BONES, BONES, BONE_BY_ID, BONE_AURA, bonePullWeight,
     starUpBones, starUpCoin, CHECKIN, CODES, COIN_PULL, coinPullCost, COMBAT, SOUL_LV, soulLevelCost, DAILY, ACHIEVEMENTS, ACH_BONUS, MILESTONE,
@@ -1776,6 +1865,9 @@ textarea, input,
       bones: [],             // [{uid, id}] 未裝備的靈骨
       bonePulls: 0,          // 靈幣抽靈骨次數（成本會遞增）
       freeTenUsed: false,    // 新手免費十連是否已用（v1.10.0）
+      week: { key: '', kills: 0, hunts: 0, merges: 0, claimed: [] },   // 每週任務
+      codex: { souls: {}, bones: {}, rings: {}, beasts: {} },          // 圖鑑（收集表）
+      pendingOffline: null,  // 這次回歸的離線收益（可看廣告加倍一次）
       daily: { day: '', idle: 0, hunt: 0, merge: 0, claimed: [] },   // 每日任務進度
       ach: { unlocked: {} },   // 成就（id -> true），每項永久 +0.5% 全屬性
       cd: {},                // 靈獸 id -> 下次可獵時間
@@ -1871,6 +1963,10 @@ textarea, input,
     out.codes = Array.isArray(d && d.codes) ? d.codes : [];
     out.checkin = Object.assign({ lastDay: '', streak: 0, total: 0 }, (d && d.checkin) || {});
     out.freeTenUsed = !!(d && d.freeTenUsed);
+    out.week = Object.assign({ key: '', kills: 0, hunts: 0, merges: 0, claimed: [] }, (d && d.week) || {});
+    if (!Array.isArray(out.week.claimed)) out.week.claimed = [];
+    out.codex = Object.assign({ souls: {}, bones: {}, rings: {}, beasts: {} }, (d && d.codex) || {});
+    out.pendingOffline = (d && d.pendingOffline) || null;
     out.rebirths = Math.max(0, out.rebirths | 0);
     out.marks = Math.max(0, out.marks | 0);
     // 舊存檔：把「上次轉生時的最高關卡」補成現在的 bestStage，
@@ -1969,8 +2065,82 @@ textarea, input,
     s.coins += coins;
     addExp(s, exp, { silent: true });
     s.lastSave = now;
+    s.pendingOffline = { minutes, coins, exp, doubled: false, at: now };
     return { minutes, capped: ms > capped, coins, exp, rate };
   }
+
+  /* 離線收益加倍：廣告看完才能用，一次回歸只能用一次（不覆蓋原本已入帳的那份） */
+  function claimOfflineDouble() {
+    const p = S.pendingOffline;
+    if (!p || p.doubled) return { ok: false, msg: T('沒有可加倍的離線收益') };
+    p.doubled = true;
+    S.coins += p.coins;
+    addExp(S, p.exp, { silent: true });
+    return { ok: true, coins: p.coins, exp: p.exp };
+  }
+
+  /* ---------- 每週任務（週一 0 點換週）---------- */
+  function weekKey(d) {
+    const t = d ? new Date(d) : new Date();
+    const jan1 = new Date(t.getFullYear(), 0, 1);
+    const days = Math.floor((t - jan1) / 86400000);
+    const week = Math.ceil((days + jan1.getDay() + 1) / 7);
+    return t.getFullYear() + '-W' + (week < 10 ? '0' + week : week);
+  }
+  function weekReset() {
+    const k = weekKey();
+    if (S.week.key === k) return false;
+    S.week = { key: k, kills: 0, hunts: 0, merges: 0, claimed: [] };
+    return true;
+  }
+  function weeklyAdd(kind, amount) {
+    weekReset();
+    if (!(kind in S.week)) return;
+    S.week[kind] = Math.min(999999, (S.week[kind] || 0) + amount);
+  }
+  function weeklyInfo() {
+    weekReset();
+    return CFG.WEEKLY.map((t) => {
+      const done = (S.week[t.id] || 0) | 0;
+      const claimed = S.week.claimed.indexOf(t.id) >= 0;
+      return { id: t.id, label: t.label, need: t.need, done,
+               reward: t.reward, claimed, can: !claimed && done >= t.need };
+    });
+  }
+  function weeklyClaim(id) {
+    const info = weeklyInfo().find((x) => x.id === id);
+    if (!info) return { ok: false, msg: T('沒有這個任務') };
+    if (info.claimed) return { ok: false, msg: T('本週已領過') };
+    if (!info.can) return { ok: false, msg: T('任務還沒完成') };
+    S.week.claimed.push(id);
+    S.diamonds += info.reward.diamonds || 0;
+    return { ok: true, reward: info.reward };
+  }
+
+  /* ---------- 圖鑑 ---------- */
+  function codexMark(kind, id) {
+    if (!id || !S.codex || !S.codex[kind]) return false;
+    if (S.codex[kind][id]) return false;
+    S.codex[kind][id] = 1;
+    return true;
+  }
+  function codexInfo() {
+    const groups = [
+      { key: 'souls',  label: '武魂',  items: CFG.SOULS.map((x) => ({ id: x.id, name: x.name, emoji: x.emoji })) },
+      { key: 'bones',  label: '靈骨',  items: CFG.BONES.map((x) => ({ id: x.id, name: x.name, emoji: '🦴' })) },
+      { key: 'rings',  label: '靈環',  items: (CFG.RING_TIERS || []).map((x) => ({ id: x.key, name: x.name, emoji: '💠' })) },
+      { key: 'beasts', label: '靈獸',  items: CFG.BEASTS.map((x) => ({ id: x.id, name: x.name, emoji: x.emoji })) },
+    ];
+    let total = 0, owned = 0;
+    const out = groups.map((g) => {
+      const items = g.items.map((it) => ({ ...it, owned: !!S.codex[g.key][it.id] }));
+      const got = items.filter((x) => x.owned).length;
+      total += items.length; owned += got;
+      return { key: g.key, label: g.label, items, got, all: items.length };
+    });
+    return { groups: out, owned, total, bonus: CFG.CODEX.bonusPer * owned };
+  }
+  function codexMul() { return 1 + CFG.CODEX.bonusPer * codexInfo().owned; }
 
   /* ---------- 衍生數值 ---------- */
   function ringBonus(soul) {
@@ -2017,7 +2187,7 @@ textarea, input,
     const own = boneOf(soul) || { atk: 0, hp: 0, def: 0, spd: 0 };
     const aura = teamAura(soul.id);
     const pm = CFG.REBIRTH.perMark;
-    const tbMul = (1 + trueBodyOf(soul).bonus) * achMul();   // 真身 × 成就，都乘算
+    const tbMul = (1 + trueBodyOf(soul).bonus) * achMul() * codexMul();   // 真身 × 成就 × 圖鑑，都乘算
     /* 三種加成各自乘算，不能全部倒進同一個括號：
        靈環後期 +3600%，若命印（+6%/點）與靈骨（+14~20%）也加在同一個括號裡，
        25 點命印只讓戰力多 5%，玩家會覺得「轉生沒用、戰力卡死」。
@@ -2096,7 +2266,9 @@ textarea, input,
     const nextTier = CFG.RING_ORDER[CFG.RING_ORDER.indexOf(tier) + 1];
     const ring = newRing(nextTier, element);
     S.ringBag.push(ring);
+    codexMark('rings', nextTier);
     dailyAdd('merge', 1);
+    weeklyAdd('merges', 1);
     return { ok: true, ring, nextTier, element };
   }
   /* 一鍵合成：由低到高，合到不能再合 */
@@ -2220,6 +2392,7 @@ textarea, input,
   let uidSeq = 0;
   function newRing(tierKey, element) {
     const t = CFG.TIER_BY_KEY[tierKey];
+    codexMark('rings', tierKey);
     uidSeq++;
     return {
       uid: 'r' + Date.now().toString(36) + '_' + uidSeq,
@@ -2455,6 +2628,7 @@ textarea, input,
       const b = CFG.BONE_BY_ID[picked];
       const uid = 'bo' + Date.now().toString(36) + Math.floor(Math.random() * 1000);
       S.bones.push({ uid, id: b.id });
+      codexMark('bones', b.id);
       got.push({ id: b.id, name: b.name, desc: b.desc, uid });
     }
     return { ok: got.length > 0, got, paid, nextCost: CFG.coinPullCost(S.bonePulls || 0) };
@@ -2484,6 +2658,7 @@ textarea, input,
       const b = CFG.BONES[Math.floor(Math.random() * CFG.BONES.length)];
       const uid = 'bo' + Date.now().toString(36) + Math.floor(Math.random() * 1000);
       S.bones.push({ uid, id: b.id });
+      codexMark('bones', b.id);
       return { kind: 'bone', id: b.id, name: b.name, desc: b.desc, uid };
     }
     const pool = CFG.PULL_POOL;
@@ -2492,10 +2667,12 @@ textarea, input,
     for (const p of pool) { roll -= p.weight; if (roll <= 0) { picked = p; break; } }
     const existing = S.souls.find((s) => s.id === picked.id);
     if (existing) {
+      codexMark('souls', picked.id);
       if (existing.star < 5) { existing.star++; return { kind: 'star', id: picked.id, name: CFG.SOUL_BY_ID[picked.id].name, star: existing.star }; }
       S.diamonds += 200;
       return { kind: 'dup', id: picked.id, name: CFG.SOUL_BY_ID[picked.id].name, diamonds: 200 };
     }
+    codexMark('souls', picked.id);
     S.souls.push({ id: picked.id, star: picked.star, level: S.level, rings: [] });
     return { kind: 'new', id: picked.id, name: CFG.SOUL_BY_ID[picked.id].name, star: picked.star };
   }
@@ -2635,6 +2812,7 @@ textarea, input,
     load, save, reset,
     addExp, addCoins, spendCoins, addDiamonds, spendDiamonds,
     soulStats, teamSouls, teamStats, power,
+    claimOfflineDouble, weekKey, weeklyAdd, weeklyInfo, weeklyClaim, codexMark, codexInfo, codexMul,
     totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth, migrate, coinBonePull, critChance, soulLevelUp, soulLevelInfo, soulLevelCap, dailyInfo, dailyAdd, dailyClaim, todayKey, achList, checkAchievements, achCount, achMul,
     trueBodyOf, resonanceOf, ringSkillOf, hasFreeRingSlot,
     mergeInfo, mergeRings, mergeAll, mergeLowTiers,
@@ -2851,6 +3029,7 @@ textarea, input,
     if (Date.now() < next) return { ok: false, msg: T(`冷卻中，還要 ${Math.ceil((next - Date.now()) / 1000)} 秒`) };
     if (State.data.level < beast.reqLevel) return { ok: false, msg: T(`需等級 ${beast.reqLevel} 才能挑戰`) };
     B.huntBeast = beast;
+    State.codexMark('beasts', beast.id);
     B.mode = 'hunt';
     spawnWave('hunt');
     reviveTeam(true);            // 獵靈是獨立挑戰，進場回滿血
@@ -3112,6 +3291,7 @@ textarea, input,
       s.cd[beast.id] = Date.now() + beast.cdSec * 1000;
       s.stats.hunts++;
       State.dailyAdd('hunt', 1);
+      State.weeklyAdd('hunts', 1);
       emit('huntWin', { beast, ring });
       const auto = State.autoEquipBestRing();
       if (auto) emit('autoRing', { soul: auto.soul, ring: auto.ring });
@@ -3129,6 +3309,7 @@ textarea, input,
     State.addCoins(coinGain);
     const expRes = State.addExp(s, expGain);
     s.stats.kills++;
+    if (!isBoss) State.weeklyAdd('kills', 1);
     if (!isBoss && s.kills < CFG.killsPerStage(s.stage)) s.kills++;
 
     emit('kill', {
@@ -3254,6 +3435,7 @@ textarea, input,
     if (global.GP) { GP.boot(); GP.loading(20); }
     const res = State.load();
     bindNav();
+    bindCodex();
     bindTop();
     bindBattle();
     bindSouls();
@@ -3300,6 +3482,11 @@ textarea, input,
   }
 
   /* ================= 導覽 ================= */
+  function bindCodex() {
+    const b = $('#btnCodex');
+    if (b) b.addEventListener('click', showCodex);
+  }
+
   function bindNav() {
     $$('.nav-btn').forEach((b) => {
       b.addEventListener('click', () => switchTab(b.dataset.tab));
@@ -4089,6 +4276,52 @@ textarea, input,
     }
   }
 
+  function renderWeekly() {
+    const box = $('#weeklyBox');
+    if (!box) return;
+    const tasks = State.weeklyInfo();
+    const rows = tasks.map((t) => `<div class="merge-row">
+        <span class="mr-name">${T(t.label)}</span>
+        <span class="mr-count">${Math.min(t.need, t.done)} / ${t.need}</span>
+        <button class="mini-btn ${t.can ? 'primary' : ''}" data-weekly="${t.id}"
+          ${t.can ? '' : 'disabled'}>
+          ${t.claimed ? T('已領') : T(`領 ${t.reward.diamonds} 💎`)}
+        </button>
+      </div>`).join('');
+    box.innerHTML = `<div class="merge-head"><b>${T('每週任務')}</b>
+        <span class="hint">${T('週一 0 點重置')}</span></div>${rows}`;
+    $$('#weeklyBox [data-weekly]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = State.weeklyClaim(b.dataset.weekly);
+        if (!r.ok) return toast(r.msg);
+        State.save(true);
+        renderAll();
+        toast(T(`任務完成：+${r.reward.diamonds} 💎`));
+        if (global.SFX) SFX.unlock();
+      });
+    });
+  }
+
+  function renderCodex() {
+    const el = $('#codexInfo');
+    if (!el) return;
+    const info = State.codexInfo();
+    el.textContent = `${info.owned} / ${info.total} · +${(info.bonus * 100).toFixed(1)}%`;
+  }
+
+  function showCodex() {
+    const info = State.codexInfo();
+    const blocks = info.groups.map((g) => `<div class="codex-group">
+        <div class="merge-head"><b>${T(g.label)}</b><span class="hint">${g.got} / ${g.all}</span></div>
+        <div class="codex-grid">${g.items.map((it) => `<span class="codex-cell ${it.owned ? 'on' : ''}">
+            <i>${it.owned ? it.emoji : '❔'}</i><b>${it.owned ? T(it.name) : T('未解鎖')}</b></span>`).join('')}</div>
+      </div>`).join('');
+    openModal(T('圖鑑'), T(`
+      <div class="hint">${T('已收集')} ${info.owned} / ${info.total} · ${T('全屬性')} +${(info.bonus * 100).toFixed(1)}%</div>
+      ${blocks}`),
+      [{ text: T('關閉'), kind: 'primary' }]);
+  }
+
   function renderAll() {
     renderTop();
     renderBattle();
@@ -4100,6 +4333,8 @@ textarea, input,
     renderHunt();
     renderCheckin();
     renderGacha();
+    renderWeekly();
+    renderCodex();
   }
 
   /* ================= 戰鬥事件 → 畫面 ================= */
@@ -4157,7 +4392,7 @@ textarea, input,
         const left = ev.left
           ? (I18N.lang === 'en' ? ` (${ev.left} left)` : `（剩 ${ev.left} 隻）`)
           : '';
-        addLog(T(`擊殺${ev.boss ? T('守關靈獸') : T('靈獸')}${left}：靈幣 +${fmt(ev.coins)}、經驗 +${fmt(ev.exp)}`),
+        addLog(`${T('擊殺')}${ev.boss ? T('守關靈獸') : T('靈獸')}${left} · ${T('靈幣')} +${fmt(ev.coins)} · ${T('經驗')} +${fmt(ev.exp)}`,
           ev.boss ? 'c-gold' : '');
         break;
       }
@@ -4341,7 +4576,20 @@ textarea, input,
       <div style="margin-top:8px">靈幣 <b class="c-gold">+${fmt(g.coins)}</b></div>
       <div>經驗 <b class="c-ok">+${fmt(g.exp)}</b></div>
       <div class="hint" style="margin-top:8px">掛機效率會隨關卡提升</div>`),
-      [{ text: T('領取'), kind: 'primary', onClick: () => { closeModal(); State.save(true); renderAll(); } }]);
+      [
+        { text: T('看廣告 ×2'), kind: '', onClick: () => {
+          if (!global.GP || !GP.reward) { toast(T('這裡沒有廣告可用')); return; }
+          GP.reward().then((r) => {
+            if (!r || !r.success) { toast(T('廣告未完成')); return; }
+            const d = State.claimOfflineDouble();
+            if (!d.ok) { toast(d.msg); return; }
+            State.save(true);
+            renderAll();
+            toast(`${T('離線收益加倍')}：+${fmt(d.coins)} ${T('靈幣')}`);
+          }, () => toast(T('廣告未完成')));
+        } },
+        { text: T('領取'), kind: 'primary', onClick: () => { closeModal(); State.save(true); renderAll(); } },
+      ]);
   }
 
   /* 存檔狀態一行字：主檔 / 備份 / 備份時間 / 寫入錯誤 */
@@ -4390,6 +4638,7 @@ textarea, input,
       </div>
       <div class="acts" style="display:flex;gap:8px;margin-top:10px">
         <button class="mini-btn" id="btnSfx">${T('音效')}：${(global.SFX && SFX.enabled) ? T('開') : T('關')}</button>
+        <button class="mini-btn" id="btnBgm">${T('音樂')}：${(global.SFX && SFX.bgm) ? T('開') : T('關')}</button>
       </div>
       <div class="acts" style="display:flex;gap:8px;margin-top:8px">
         <button class="mini-btn ${I18N.lang === 'en' ? 'primary' : ''}" id="btnLangEn">English</button>
@@ -4418,6 +4667,12 @@ textarea, input,
       SFX.setEnabled(!SFX.enabled);
       $('#btnSfx').textContent = `${T('音效')}：${SFX.enabled ? T('開') : T('關')}`;
       if (SFX.enabled) SFX.tap();
+    });
+    const bgmBtn = $('#btnBgm');
+    if (bgmBtn) bgmBtn.addEventListener('click', () => {
+      if (!global.SFX) return;
+      SFX.bgmSet(!SFX.bgm);
+      bgmBtn.textContent = `${T('音樂')}：${SFX.bgm ? T('開') : T('關')}`;
     });
     $('#btnLangEn').addEventListener('click', () => I18N.setLang('en'));
     $('#btnLangZh').addEventListener('click', () => I18N.setLang('zh'));

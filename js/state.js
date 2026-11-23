@@ -36,6 +36,9 @@
       bones: [],             // [{uid, id}] 未裝備的靈骨
       bonePulls: 0,          // 靈幣抽靈骨次數（成本會遞增）
       freeTenUsed: false,    // 新手免費十連是否已用（v1.10.0）
+      week: { key: '', kills: 0, hunts: 0, merges: 0, claimed: [] },   // 每週任務
+      codex: { souls: {}, bones: {}, rings: {}, beasts: {} },          // 圖鑑（收集表）
+      pendingOffline: null,  // 這次回歸的離線收益（可看廣告加倍一次）
       daily: { day: '', idle: 0, hunt: 0, merge: 0, claimed: [] },   // 每日任務進度
       ach: { unlocked: {} },   // 成就（id -> true），每項永久 +0.5% 全屬性
       cd: {},                // 靈獸 id -> 下次可獵時間
@@ -131,6 +134,10 @@
     out.codes = Array.isArray(d && d.codes) ? d.codes : [];
     out.checkin = Object.assign({ lastDay: '', streak: 0, total: 0 }, (d && d.checkin) || {});
     out.freeTenUsed = !!(d && d.freeTenUsed);
+    out.week = Object.assign({ key: '', kills: 0, hunts: 0, merges: 0, claimed: [] }, (d && d.week) || {});
+    if (!Array.isArray(out.week.claimed)) out.week.claimed = [];
+    out.codex = Object.assign({ souls: {}, bones: {}, rings: {}, beasts: {} }, (d && d.codex) || {});
+    out.pendingOffline = (d && d.pendingOffline) || null;
     out.rebirths = Math.max(0, out.rebirths | 0);
     out.marks = Math.max(0, out.marks | 0);
     // 舊存檔：把「上次轉生時的最高關卡」補成現在的 bestStage，
@@ -229,8 +236,82 @@
     s.coins += coins;
     addExp(s, exp, { silent: true });
     s.lastSave = now;
+    s.pendingOffline = { minutes, coins, exp, doubled: false, at: now };
     return { minutes, capped: ms > capped, coins, exp, rate };
   }
+
+  /* 離線收益加倍：廣告看完才能用，一次回歸只能用一次（不覆蓋原本已入帳的那份） */
+  function claimOfflineDouble() {
+    const p = S.pendingOffline;
+    if (!p || p.doubled) return { ok: false, msg: T('沒有可加倍的離線收益') };
+    p.doubled = true;
+    S.coins += p.coins;
+    addExp(S, p.exp, { silent: true });
+    return { ok: true, coins: p.coins, exp: p.exp };
+  }
+
+  /* ---------- 每週任務（週一 0 點換週）---------- */
+  function weekKey(d) {
+    const t = d ? new Date(d) : new Date();
+    const jan1 = new Date(t.getFullYear(), 0, 1);
+    const days = Math.floor((t - jan1) / 86400000);
+    const week = Math.ceil((days + jan1.getDay() + 1) / 7);
+    return t.getFullYear() + '-W' + (week < 10 ? '0' + week : week);
+  }
+  function weekReset() {
+    const k = weekKey();
+    if (S.week.key === k) return false;
+    S.week = { key: k, kills: 0, hunts: 0, merges: 0, claimed: [] };
+    return true;
+  }
+  function weeklyAdd(kind, amount) {
+    weekReset();
+    if (!(kind in S.week)) return;
+    S.week[kind] = Math.min(999999, (S.week[kind] || 0) + amount);
+  }
+  function weeklyInfo() {
+    weekReset();
+    return CFG.WEEKLY.map((t) => {
+      const done = (S.week[t.id] || 0) | 0;
+      const claimed = S.week.claimed.indexOf(t.id) >= 0;
+      return { id: t.id, label: t.label, need: t.need, done,
+               reward: t.reward, claimed, can: !claimed && done >= t.need };
+    });
+  }
+  function weeklyClaim(id) {
+    const info = weeklyInfo().find((x) => x.id === id);
+    if (!info) return { ok: false, msg: T('沒有這個任務') };
+    if (info.claimed) return { ok: false, msg: T('本週已領過') };
+    if (!info.can) return { ok: false, msg: T('任務還沒完成') };
+    S.week.claimed.push(id);
+    S.diamonds += info.reward.diamonds || 0;
+    return { ok: true, reward: info.reward };
+  }
+
+  /* ---------- 圖鑑 ---------- */
+  function codexMark(kind, id) {
+    if (!id || !S.codex || !S.codex[kind]) return false;
+    if (S.codex[kind][id]) return false;
+    S.codex[kind][id] = 1;
+    return true;
+  }
+  function codexInfo() {
+    const groups = [
+      { key: 'souls',  label: '武魂',  items: CFG.SOULS.map((x) => ({ id: x.id, name: x.name, emoji: x.emoji })) },
+      { key: 'bones',  label: '靈骨',  items: CFG.BONES.map((x) => ({ id: x.id, name: x.name, emoji: '🦴' })) },
+      { key: 'rings',  label: '靈環',  items: (CFG.RING_TIERS || []).map((x) => ({ id: x.key, name: x.name, emoji: '💠' })) },
+      { key: 'beasts', label: '靈獸',  items: CFG.BEASTS.map((x) => ({ id: x.id, name: x.name, emoji: x.emoji })) },
+    ];
+    let total = 0, owned = 0;
+    const out = groups.map((g) => {
+      const items = g.items.map((it) => ({ ...it, owned: !!S.codex[g.key][it.id] }));
+      const got = items.filter((x) => x.owned).length;
+      total += items.length; owned += got;
+      return { key: g.key, label: g.label, items, got, all: items.length };
+    });
+    return { groups: out, owned, total, bonus: CFG.CODEX.bonusPer * owned };
+  }
+  function codexMul() { return 1 + CFG.CODEX.bonusPer * codexInfo().owned; }
 
   /* ---------- 衍生數值 ---------- */
   function ringBonus(soul) {
@@ -277,7 +358,7 @@
     const own = boneOf(soul) || { atk: 0, hp: 0, def: 0, spd: 0 };
     const aura = teamAura(soul.id);
     const pm = CFG.REBIRTH.perMark;
-    const tbMul = (1 + trueBodyOf(soul).bonus) * achMul();   // 真身 × 成就，都乘算
+    const tbMul = (1 + trueBodyOf(soul).bonus) * achMul() * codexMul();   // 真身 × 成就 × 圖鑑，都乘算
     /* 三種加成各自乘算，不能全部倒進同一個括號：
        靈環後期 +3600%，若命印（+6%/點）與靈骨（+14~20%）也加在同一個括號裡，
        25 點命印只讓戰力多 5%，玩家會覺得「轉生沒用、戰力卡死」。
@@ -356,7 +437,9 @@
     const nextTier = CFG.RING_ORDER[CFG.RING_ORDER.indexOf(tier) + 1];
     const ring = newRing(nextTier, element);
     S.ringBag.push(ring);
+    codexMark('rings', nextTier);
     dailyAdd('merge', 1);
+    weeklyAdd('merges', 1);
     return { ok: true, ring, nextTier, element };
   }
   /* 一鍵合成：由低到高，合到不能再合 */
@@ -480,6 +563,7 @@
   let uidSeq = 0;
   function newRing(tierKey, element) {
     const t = CFG.TIER_BY_KEY[tierKey];
+    codexMark('rings', tierKey);
     uidSeq++;
     return {
       uid: 'r' + Date.now().toString(36) + '_' + uidSeq,
@@ -715,6 +799,7 @@
       const b = CFG.BONE_BY_ID[picked];
       const uid = 'bo' + Date.now().toString(36) + Math.floor(Math.random() * 1000);
       S.bones.push({ uid, id: b.id });
+      codexMark('bones', b.id);
       got.push({ id: b.id, name: b.name, desc: b.desc, uid });
     }
     return { ok: got.length > 0, got, paid, nextCost: CFG.coinPullCost(S.bonePulls || 0) };
@@ -744,6 +829,7 @@
       const b = CFG.BONES[Math.floor(Math.random() * CFG.BONES.length)];
       const uid = 'bo' + Date.now().toString(36) + Math.floor(Math.random() * 1000);
       S.bones.push({ uid, id: b.id });
+      codexMark('bones', b.id);
       return { kind: 'bone', id: b.id, name: b.name, desc: b.desc, uid };
     }
     const pool = CFG.PULL_POOL;
@@ -752,10 +838,12 @@
     for (const p of pool) { roll -= p.weight; if (roll <= 0) { picked = p; break; } }
     const existing = S.souls.find((s) => s.id === picked.id);
     if (existing) {
+      codexMark('souls', picked.id);
       if (existing.star < 5) { existing.star++; return { kind: 'star', id: picked.id, name: CFG.SOUL_BY_ID[picked.id].name, star: existing.star }; }
       S.diamonds += 200;
       return { kind: 'dup', id: picked.id, name: CFG.SOUL_BY_ID[picked.id].name, diamonds: 200 };
     }
+    codexMark('souls', picked.id);
     S.souls.push({ id: picked.id, star: picked.star, level: S.level, rings: [] });
     return { kind: 'new', id: picked.id, name: CFG.SOUL_BY_ID[picked.id].name, star: picked.star };
   }
@@ -895,6 +983,7 @@
     load, save, reset,
     addExp, addCoins, spendCoins, addDiamonds, spendDiamonds,
     soulStats, teamSouls, teamStats, power,
+    claimOfflineDouble, weekKey, weeklyAdd, weeklyInfo, weeklyClaim, codexMark, codexInfo, codexMul,
     totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth, migrate, coinBonePull, critChance, soulLevelUp, soulLevelInfo, soulLevelCap, dailyInfo, dailyAdd, dailyClaim, todayKey, achList, checkAchievements, achCount, achMul,
     trueBodyOf, resonanceOf, ringSkillOf, hasFreeRingSlot,
     mergeInfo, mergeRings, mergeAll, mergeLowTiers,

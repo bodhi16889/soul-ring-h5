@@ -17,6 +17,43 @@
   var ctx = null;
   var lastHit = 0;
 
+  /* BGM：8 小節五聲音階琶音循環，全部用 oscillator 合成（零素材）。
+     預設關閉——平台上自動播放音樂會被審查挑，玩家想聽再自己開。 */
+  var BGM_KEY = 'soulring.bgm';
+  var bgmOn = false;
+  var bgmTimer = null;
+  var bgmStep = 0;
+  var BGM_SCALE = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25];
+  try { bgmOn = localStorage.getItem(BGM_KEY) === 'on'; } catch (e) { bgmOn = false; }
+
+  function bgmTick() {
+    if (!bgmOn || !enabled) return;
+    var c = ac();
+    if (!c || c.state === 'suspended') return;
+    var t0 = c.currentTime;
+    var note = BGM_SCALE[(bgmStep * 3) % BGM_SCALE.length];
+    var bass = BGM_SCALE[(bgmStep * 5) % 4] / 2;
+    [[note, 0.9, 'sine', 0.012], [bass, 1.6, 'triangle', 0.010]].forEach(function (n) {
+      var osc = c.createOscillator();
+      var g = c.createGain();
+      osc.type = n[2];
+      osc.frequency.setValueAtTime(n[0], t0);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(n[3], t0 + 0.12);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + n[1]);
+      osc.connect(g); g.connect(c.destination);
+      osc.start(t0); osc.stop(t0 + n[1] + 0.05);
+    });
+    bgmStep = (bgmStep + 1) % 16;
+  }
+
+  function bgmSet(v) {
+    bgmOn = !!v;
+    try { localStorage.setItem(BGM_KEY, bgmOn ? 'on' : 'off'); } catch (e) {}
+    if (bgmTimer) { clearInterval(bgmTimer); bgmTimer = null; }
+    if (bgmOn) { unlockAudio(); bgmTick(); bgmTimer = setInterval(bgmTick, 620); }
+  }
+
   function ac() {
     if (!ctx) {
       var C = global.AudioContext || global.webkitAudioContext;
@@ -74,6 +111,8 @@
     unlock: unlock, tap: tap, unlockAudio: unlockAudio,
     suspend: suspend, resume: resume,
     setEnabled: setEnabled,
+    bgmSet: bgmSet,
+    get bgm() { return bgmOn; },
     get enabled() { return enabled; },
   };
 

@@ -59,7 +59,7 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.10.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.11.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -224,6 +224,14 @@
   }
 
   /* ---------- 成就（永久加成，每項 +0.5% 全屬性）---------- */
+  /* 圖鑑：每收集 1 項 +0.2% 全屬性（10 武魂 + 5 靈骨 + 5 環階 + 5 靈獸 = 25 項，全滿 +5%） */
+  const CODEX = { bonusPer: 0.002 };
+  /* 每週任務（週一 0 點換週，獎勵比每日大，給回訪理由）*/
+  const WEEKLY = [
+    { id: 'kills',  need: 300, label: '本週擊殺 300 隻', reward: { diamonds: 300 } },
+    { id: 'hunts',  need: 15,  label: '本週獵靈 15 次',  reward: { diamonds: 260 } },
+    { id: 'merges', need: 20,  label: '本週合成 20 次',  reward: { diamonds: 320 } },
+  ];
   const ACH_BONUS = 0.005;
   const ACHIEVEMENTS = [
     { id: 'stage20',  name: '初入魂道',   desc: '推進到第 20 關',      test: (s) => s.bestStage >= 20 },
@@ -301,7 +309,7 @@
     RING_ORDER, RING_MERGE_COUNT,
     BASE_KILLS_PER_STAGE, killsPerStage, waveSecFor, bossSecFor, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND,
     REBIRTH, rebirthGain, stageMul,
-    PULL_COST_TICKET, PULL_COST_DIAMOND, PULL10_COST_TICKET, PULL10_COST_DIAMOND,
+    PULL_COST_TICKET, PULL_COST_DIAMOND, PULL10_COST_TICKET, PULL10_COST_DIAMOND, CODEX, WEEKLY,
     expNeed, levelCap, ringSlots, enemyStats, killReward, offlinePerMinute,
     PULL_POOL, PULL_BONES, BONES, BONE_BY_ID, BONE_AURA, bonePullWeight,
     starUpBones, starUpCoin, CHECKIN, CODES, COIN_PULL, coinPullCost, COMBAT, SOUL_LV, soulLevelCost, DAILY, ACHIEVEMENTS, ACH_BONUS, MILESTONE,
