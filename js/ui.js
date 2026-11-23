@@ -1268,7 +1268,7 @@
     if (bgmBtn) bgmBtn.addEventListener('click', () => {
       if (!global.SFX) return;
       SFX.bgmSet(!SFX.bgm);
-      bgmBtn.textContent = `${T('音樂')}：${SFX.bgm ? T('開') : T('關')}`;
+      bgmBtn.textContent = `${T('音樂')}${I18N.lang === 'en' ? ': ' : '：'}${SFX.bgm ? T('開') : T('關')}`;
     });
     $('#btnLangEn').addEventListener('click', () => I18N.setLang('en'));
     $('#btnLangZh').addEventListener('click', () => I18N.setLang('zh'));
