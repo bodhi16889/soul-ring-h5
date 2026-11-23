@@ -52,6 +52,13 @@
     { id: 'spider', name: '織影蛛',   emoji: '🕷', tier: 'violet', year: '千年',   element: 'poison', hp: 2400, atk: 62,  reqLevel: 30, cdSec: 60 },
     { id: 'darkbear', name: '暗金裂爪熊', emoji: '🐾', tier: 'black', year: '萬年',   element: 'earth',  hp: 6200, atk: 118, reqLevel: 40, cdSec: 90 },
     { id: 'whale',  name: '深海巨鯨',   emoji: '🐋', tier: 'red',    year: '十萬年', element: 'water',  hp: 16000, atk: 210, reqLevel: 50, cdSec: 120 },
+    /* v1.14.0：每個階級再補一隻（元素不同），讓「打哪隻」有意義：
+       同階兩隻的血量/掉落相同，差別在元素 → 直接影響五行剋制。 */
+    { id: 'boar',   name: '石皮野豬', emoji: '🐗', tier: 'white',  year: '十年',   element: 'earth', hp: 260,  atk: 13,  reqLevel: 12, cdSec: 24 },
+    { id: 'eagle',  name: '赤羽鷹',   emoji: '🦅', tier: 'yellow', year: '百年',   element: 'fire',  hp: 720,  atk: 28,  reqLevel: 26, cdSec: 36 },
+    { id: 'golem',  name: '岩心傀儡', emoji: '🗿', tier: 'violet', year: '千年',   element: 'earth', hp: 2700, atk: 66,  reqLevel: 36, cdSec: 72 },
+    { id: 'serpent',name: '幽潭蛟',   emoji: '🐊', tier: 'black',  year: '萬年',   element: 'water', hp: 6800, atk: 124, reqLevel: 46, cdSec: 100 },
+    { id: 'ember',  name: '焚天鳳',   emoji: '🦚', tier: 'red',    year: '十萬年', element: 'fire',  hp: 17500, atk: 225, reqLevel: 60, cdSec: 150 },
   ];
   const ELEMENT_LABEL = { wind: '風', wood: '木', poison: '毒', earth: '土', water: '水', fire: '火' };
   /* 五行相剋：前者打後者 +25%，被剋 -10%（毒不參與，保持中立） */
@@ -66,7 +73,8 @@
 
   /* 傳承：把多餘的星級轉給另一隻武魂（一次一星，來源不可低於 3★）
      成本 = 獸核，避免星級被無限轉移；目標星級越高越貴 */
-  const INHERIT = { minStar: 3, costPerStar: 6, starCap: 5 };
+  const STAR_MAX = 10;   // 星級上限（v1.14.0：5 → 10）
+  const INHERIT = { minStar: 3, costPerStar: 6, starCap: STAR_MAX };
 
   /* 深林層數：同一隻靈獸連續狩獵會越打越深
      層數不影響血量（橡皮筋已夾住），只加獎勵：
@@ -93,7 +101,7 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.13.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.14.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -243,8 +251,18 @@
   function coinPullCost(pulls) {
     return Math.round(COIN_PULL.base * Math.pow(COIN_PULL.growth, Math.max(0, pulls | 0)));
   }
-  function starUpBones(star) { return Math.max(1, star - 2); }            // 3→4:1、4→5:2
-  function starUpCoin(star) { return star <= 3 ? 1200 : 6000; }
+  /* 星級上限從 5 開到 10（v1.14.0）：
+     5★ 之前很便宜（1→2 塊靈骨），之後每星需求跳一階，
+     讓「傳承」不再是終點，而是把資源集中到主力身上的長期決策。 */
+  function starUpBones(star) {
+    if (star <= 4) return star - 2;                 // 3→4:1、4→5:2
+    return 3 * (star - 4);                          // 5→6:3、6→7:6 … 9→10:15
+  }
+  function starUpCoin(star) {
+    if (star <= 3) return 1200;
+    if (star <= 5) return 6000;
+    return Math.round(6000 * Math.pow(1.9, star - 5));   // 5→6:11.4K … 9→10:78K
+  }
 
   /* ---------- 靈印獨立等級（靈幣升級，可超越玩家等級 10 級）---------- */
   const SOUL_LV = { maxAhead: 20, max: 150, base: 300, pow: 1.9 };
@@ -342,7 +360,7 @@
     RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR, COUNTER, BOND, ASCEND, CORE_DROP, ELITE,
     INHERIT, DEPTH, COMBOS,
     RING_ORDER, RING_MERGE_COUNT,
-    BASE_KILLS_PER_STAGE, killsPerStage, waveSecFor, bossSecFor, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND,
+    BASE_KILLS_PER_STAGE, killsPerStage, waveSecFor, bossSecFor, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND, STAR_MAX,
     REBIRTH, rebirthGain, stageMul,
     PULL_COST_TICKET, PULL_COST_DIAMOND, PULL10_COST_TICKET, PULL10_COST_DIAMOND, CODEX, WEEKLY,
     expNeed, levelCap, ringSlots, enemyStats, killReward, offlinePerMinute,

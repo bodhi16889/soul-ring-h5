@@ -122,6 +122,9 @@
 
     /* 靈印名稱 */
     '巨靈槌': 'Colossus Hammer', '赤焰鳶': 'Ember Kite', '青藤': 'Verdant Vine',
+    '石皮野豬': 'Stonehide Boar', '赤羽鷹': 'Crimson Eagle', '岩心傀儡': 'Rockheart Golem',
+    '幽潭蛟': 'Abyss Serpent', '焚天鳳': 'Skyfire Phoenix',
+    '已達最高星級': 'Already max stars',
     '震雷弓': 'Thunder Bow', '焰爪獅': 'Embermane Lion', '荊棘王': 'Thorn King',
     '磐岩尊': 'Boulder Lord', '霜璃姬': 'Frostglaze Maiden',
     '雷貫蒼穹': 'Sky Piercer', '炎爪裂空': 'Blazing Claw', '千棘壁': 'Thorn Wall',
@@ -275,6 +278,8 @@
     [/^成就解鎖：(.+)$/, 'Achievement unlocked: $1'],
     [/^領 (\d+) 💎$/, 'Claim $1 💎'],
     [/^(\d+) 核$/, '$1 cores'],
+    [/^★(\d+) 滿星$/, '★$1 max'],
+    [/^升星 ★(\d+)→★(\d+)（(\d+) 靈骨・(.+)）$/, 'Star up ★$1→★$2 ($3 bones, $4)'],
     [/^來源需高於 (\d+)★$/, 'Source must be above $1★'],
     [/^傳承完成：來源 (\d+)★ → 目標 (\d+)★（-(\d+) 核）$/, 'Inherited: $1★ → $2★ (-$3 cores)'],
     [/^覺醒 (\d+)→(\d+)（(\d+) 核）$/, 'Ascend $1→$2 ($3 cores)'],

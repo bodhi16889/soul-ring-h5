@@ -162,7 +162,8 @@ def main() -> int:
 
         # ---------- 圖鑑納入新武魂 ----------
         cx = page.evaluate("State.codexInfo()")
-        ok("圖鑑總數納入新武魂（30）", cx["total"] == 30, f"total={cx['total']}")
+        expect_total = page.evaluate("CFG.SOULS.length + CFG.BONES.length + CFG.RING_TIERS.length + CFG.BEASTS.length")
+        ok("圖鑑總數 = 武魂+靈骨+環階+靈獸", cx["total"] == expect_total, f"total={cx['total']} expect={expect_total}")
 
         # ---------- UI 有元素/覺醒/精英 ----------
         page.evaluate("__game.switchTab('souls')")
@@ -181,7 +182,8 @@ def main() -> int:
             hint: document.getElementById('huntHint').textContent,
             text: document.querySelector('#beastList .card').innerText.replace(/\\n/g, ' | ').slice(0, 140)
         }))()""")
-        ok("獵靈卡有精英按鈕（5 隻靈獸）", ui2["eliteBtns"] == 5, str(ui2["eliteBtns"]))
+        beasts = page.evaluate("CFG.BEASTS.length")
+        ok("獵靈卡有精英按鈕（每隻靈獸一顆）", ui2["eliteBtns"] == beasts, f"{ui2['eliteBtns']} / {beasts}")
         ok("獵靈頁顯示獸核數量", "Beast cores" in ui2["hint"] or "獸核" in ui2["hint"], ui2["hint"][-60:])
 
         # ---------- 英文無殘留 ----------

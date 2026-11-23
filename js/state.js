@@ -497,7 +497,11 @@
 
   function soulStats(soul) {
     const base = CFG.SOUL_BY_ID[soul.id] || CFG.SOULS[0];
-    const starMul = 1 + 0.35 * (soul.star - 3);
+    /* 3★→1.0、5★→1.7（每星 +35%）；
+       6★ 之後每星 +18%：10★ = 1.7 × (1+0.18×5) ≈ 3.23，
+       避免「星級上限拉高」直接變成戰力爆炸。 */
+    const starN = soul.star || 3;
+    const starMul = (1 + 0.35 * (Math.min(starN, 5) - 3)) * (1 + 0.18 * Math.max(0, starN - 5));
     const lvMul = 1 + 0.10 * ((soul.level || 1) - 1);
     const rb = ringBonus(soul);
     const own = boneOf(soul) || { atk: 0, hp: 0, def: 0, spd: 0 };
@@ -787,26 +791,26 @@
   function starUpInfo(soul) {
     const star = soul.star || 3;
     return {
-      maxed: star >= 5,
+      maxed: star >= CFG.STAR_MAX,
       star,
       bones: CFG.starUpBones(star),
       coins: CFG.starUpCoin(star),
       available: freeBones().length,
-      canAfford: star < 5 && freeBones().length >= CFG.starUpBones(star) && S.coins >= CFG.starUpCoin(star),
+      canAfford: star < CFG.STAR_MAX && freeBones().length >= CFG.starUpBones(star) && S.coins >= CFG.starUpCoin(star),
     };
   }
   function starUp(soulId) {
     const soul = S.souls.find((s) => s.id === soulId);
     if (!soul) return { ok: false, msg: T('找不到靈印') };
     const info = starUpInfo(soul);
-    if (info.maxed) return { ok: false, msg: T('已是 5 星') };
+    if (info.maxed) return { ok: false, msg: T('已達最高星級') };
     if (freeBones().length < info.bones) return { ok: false, msg: T(`需要 ${info.bones} 塊未裝備靈骨（目前 ${info.available}）`) };
     if (S.coins < info.coins) return { ok: false, msg: T(`靈幣不足（需 ${info.coins}）`) };
     // 吃掉最舊的未裝備靈骨
     const eat = freeBones().slice(0, info.bones).map((b) => b.uid);
     S.bones = S.bones.filter((b) => !eat.includes(b.uid));
     S.coins -= info.coins;
-    soul.star = Math.min(5, soul.star + 1);
+    soul.star = Math.min(CFG.STAR_MAX, soul.star + 1);
     return { ok: true, star: soul.star, eaten: eat.length };
   }
 

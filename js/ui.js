@@ -240,7 +240,7 @@
           <span style="font-size:20px">${base.emoji || '❔'}</span>
           <b>${base.name || soul.id}</b>
           <span class="hint">Lv.${soul.level || 1}</span>
-          <span class="star">${'★'.repeat(soul.star || 3)}</span>
+          <span class="star">${(soul.star || 3) > 5 ? `★×${soul.star}` : '★'.repeat(soul.star || 3)}</span>
           <span class="tag" style="color:${CFG.ROLE_COLOR[base.role]}">${roleName(base.role)}</span>
           <span class="tag" style="color:${CFG.ELEMENT_COLOR[base.element] || '#aaa'}">${base.element ? T(CFG.ELEMENT_LABEL[base.element]) : ''}</span>
           <span class="tag ${inTeam ? 'on' : ''}">${inTeam ? T('上陣中') : T('待命')}</span>
@@ -266,7 +266,7 @@
           <button class="mini-btn" data-act="ring" data-id="${soul.id}">裝備靈環</button>
           <button class="mini-btn ${info.canAfford ? 'primary' : ''}" data-act="star" data-id="${soul.id}"
             ${info.maxed || !info.canAfford ? 'disabled' : ''}>
-            ${info.maxed ? T('★5 滿星') : T(`升星（${info.bones} 靈骨・${fmt(info.coins)}）`)}
+            ${info.maxed ? T(`★${CFG.STAR_MAX} 滿星`) : T(`升星 ★${info.star}→★${info.star + 1}（${info.bones} 靈骨・${fmt(info.coins)}）`)}
           </button>
           ${(() => {
             const ai = State.ascendInfo(soul.id);

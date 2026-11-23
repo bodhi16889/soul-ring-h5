@@ -48,7 +48,8 @@ def main() -> int:
         page.wait_for_function("window.__game && window.__game.ready", timeout=30000)
         time.sleep(0.7)
 
-        ok("版本 1.13.0", page.evaluate("CFG.VERSION") == "1.13.0", page.evaluate("CFG.VERSION"))
+        _v = page.evaluate("CFG.VERSION")
+        ok("版本 ≥ 1.13.0", tuple(int(x) for x in _v.split(".")) >= (1, 13, 0), _v)
 
         # ---------- 傳承 ----------
         inh = page.evaluate("""(() => {
@@ -61,7 +62,8 @@ def main() -> int:
             const same = S.inheritInfo('seagod', 'seagod');
             const r1 = S.inheritStar('seagod', 'nether');
             const after = { from: from.star, to: to.star, cores: s.cores };
-            // 目標已滿星
+            // 目標已滿星（v1.14.0 上限是 10★，先把目標推到頂）
+            to.star = CFG.STAR_MAX;
             const capped = S.inheritInfo('seagod', 'nether');
             // 來源在 3★ 時不可再被挖
             const low = s.souls.find(x => x.id === 'sausage');   // ★2
