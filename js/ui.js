@@ -958,12 +958,12 @@
         break;
       case 'bossRage':
         banner(T('狂暴'));
-        addLog(T(`${ev.name} 進入狂暴（攻擊 +35%）`), 'c-bad');
+        addLog(`${T(ev.name)} · ${T('狂暴（攻擊 +35%）')}`, 'c-bad');
         break;
       case 'bossHeal': {
         const el = enemyEls.get(ev.enemyId);
         if (el) floatNum(el, '+' + fmt(ev.amount), 'heal');
-        addLog(T(`${ev.name} 回復 10% 生命`), 'c-bad');
+        addLog(`${T(ev.name)} · ${T('回復 10% 生命')}`, 'c-bad');
         break;
       }
       case 'shield':
@@ -971,8 +971,8 @@
         break;
       case 'milestone': {
         const mt = CFG.TIER_BY_KEY[ev.ring.tier];
-        addLog(T(`里程碑：第 ${ev.stage} 關 → 獲得 ${mt.name}`), 'c-gold');
-        toast(T(`里程碑獎勵：${mt.name}`));
+        addLog(`${T('里程碑')}：${T('第關')} ${ev.stage} · ${T('獲得')} ${T(mt.name)}`, 'c-gold');
+        toast(`${T('里程碑獎勵')}：${T(mt.name)}`);
         if (global.SFX) SFX.unlock();
         break;
       }
@@ -1007,18 +1007,18 @@
       case 'stageClear':
         if (global.SFX) SFX.clear();
         banner(T('通關'));
-        addLog(T(`第 ${ev.stage} 關開啟，掛機效率提升`), 'c-ok');
+        addLog(`${T('第關')} ${ev.stage} ${T('關開啟')} · ${T('掛機效率提升')}`, 'c-ok');
         break;
       case 'huntStart':
         banner(T('獵靈'));
-        addLog(`${T('進入')} ${T(ev.beast.name)} ${T('的領域')}${I18N.lang === 'en' ? '' : `（${ev.beast.year}）`}`, 'c-purple');
+        addLog(`${T('進入靈獸領域')}：${T(ev.beast.name)}${I18N.lang === 'en' ? '' : `（${ev.beast.year}）`}`, 'c-purple');
         break;
       case 'autoMerge':
         addLog(T(`自動合成 ${ev.made} 次低階靈環（3 個 → 1 個高一階）`), 'c-ok');
         break;
       case 'autoRing': {
         const t = CFG.TIER_BY_KEY[ev.ring.tier];
-        addLog(T(`已自動裝備 ${t ? t.name : T('靈環')} → 等級上限 ${State.levelCap()}`), 'c-ok');
+        addLog(`${T('已自動裝備')} ${t ? T(t.name) : T('靈環')} · ${T('等級上限')} ${State.levelCap()}`, 'c-ok');
         break;
       }
       case 'huntLose':
@@ -1027,8 +1027,8 @@
       case 'huntWin': {
         const t = CFG.TIER_BY_KEY[ev.ring.tier];
         banner(T('吸收靈環'));
-        addLog(T(`擊敗 ${ev.beast.name}，吸收 ${t.name}！`), 'c-gold');
-        toast(T(`獲得 ${t.name}`));
+        addLog(`${T('擊敗')} ${T(ev.beast.name)} · ${T('吸收')} ${T(t.name)}`, 'c-gold');
+        toast(`${T('獲得')} ${T(t.name)}`);
         State.save(true);
         renderAll();
         break;
@@ -1233,8 +1233,8 @@
         </div>
       </div>
       <div class="acts" style="display:flex;gap:8px;margin-top:10px">
-        <button class="mini-btn" id="btnSfx">${T('音效')}：${(global.SFX && SFX.enabled) ? T('開') : T('關')}</button>
-        <button class="mini-btn" id="btnBgm">${T('音樂')}：${(global.SFX && SFX.bgm) ? T('開') : T('關')}</button>
+        <button class="mini-btn" id="btnSfx">${T('音效')}${I18N.lang === 'en' ? ': ' : '：'}${(global.SFX && SFX.enabled) ? T('開') : T('關')}</button>
+        <button class="mini-btn" id="btnBgm">${T('音樂')}${I18N.lang === 'en' ? ': ' : '：'}${(global.SFX && SFX.bgm) ? T('開') : T('關')}</button>
       </div>
       <div class="acts" style="display:flex;gap:8px;margin-top:8px">
         <button class="mini-btn ${I18N.lang === 'en' ? 'primary' : ''}" id="btnLangEn">English</button>
