@@ -63,6 +63,25 @@
   /* 獵靈掉獸核：階級越高掉越多；精英靈獸 ×3 */
   const CORE_DROP = { white: 1, yellow: 2, violet: 3, black: 4, red: 5 };
   const ELITE = { hpMul: 2.5, coreMul: 3, perDay: 1 };
+
+  /* 傳承：把多餘的星級轉給另一隻武魂（一次一星，來源不可低於 3★）
+     成本 = 獸核，避免星級被無限轉移；目標星級越高越貴 */
+  const INHERIT = { minStar: 3, costPerStar: 6, starCap: 5 };
+
+  /* 深林層數：同一隻靈獸連續狩獵會越打越深
+     層數不影響血量（橡皮筋已夾住），只加獎勵：
+       每 3 層獸核 +1（乘算）、每 5 層保證多掉一枚「高一階」靈環 */
+  const DEPTH = { coreEvery: 3, bonusRingEvery: 5, maxBonusRing: 'violet' };
+
+  /* 元素組合羈絆（只要隊伍裡同時有這兩種元素就生效，可疊加） */
+  const COMBOS = [
+    { id: 'blaze',  pair: ['wind', 'fire'],  name: '燎原',  stat: 'spd',  bonus: 0.12 },
+    { id: 'tide',   pair: ['wind', 'water'], name: '風潮',  stat: 'hunt', bonus: 0.15 },
+    { id: 'burn',   pair: ['fire', 'wood'],  name: '焚林',  stat: 'atk',  bonus: 0.10 },
+    { id: 'valley', pair: ['earth', 'water'],name: '山澤',  stat: 'hp',   bonus: 0.15 },
+    { id: 'vine',   pair: ['wood', 'earth'], name: '藤岩',  stat: 'def',  bonus: 0.20 },
+    { id: 'steam',  pair: ['water', 'fire'], name: '蒸騰',  stat: 'core', bonus: 1 },
+  ];
   const ELEMENT_COLOR = { wind: '#5ad8ff', wood: '#57d98b', poison: '#b06bff', earth: '#e0a458', water: '#6ea8ff' };
   const BEAST_BY_ID = Object.fromEntries(BEASTS.map((b) => [b.id, b]));
 
@@ -74,7 +93,7 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.12.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.13.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -321,6 +340,7 @@
     BEASTS, BEAST_BY_ID, STAGE_AREAS, areaFor,
     VERSION, MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
     RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR, COUNTER, BOND, ASCEND, CORE_DROP, ELITE,
+    INHERIT, DEPTH, COMBOS,
     RING_ORDER, RING_MERGE_COUNT,
     BASE_KILLS_PER_STAGE, killsPerStage, waveSecFor, bossSecFor, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND,
     REBIRTH, rebirthGain, stageMul,

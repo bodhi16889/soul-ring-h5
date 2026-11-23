@@ -205,6 +205,7 @@
     B.huntBeast = beast;
     B.huntElite = !!elite;
     B.huntCounter = State.huntCounter(beastId);
+    B.huntCombo = (State.combosInfo().stat.hunt || 1);   // 風潮：風＋水 → 狩獵傷害 +15%
     State.codexMark('beasts', beast.id);
     B.mode = 'hunt';
     spawnWave('hunt');
@@ -227,6 +228,7 @@
     B.huntBeast = null;
     B.huntElite = false;
     B.huntCounter = null;
+    B.huntCombo = 1;
     reviveTeam(true);   // 獵靈是獨立挑戰：打完不該把傷勢帶回推關（實測會直接全滅）
     spawnWave('farm');
   }
@@ -407,8 +409,9 @@
   function hitEnemy(enemy, dmg, u, isSkill) {
     if (!enemy || !enemy.alive) return;
     // 五行剋制只作用在狩獵場（主線維持原本節奏，不讓剋制變成推關卡的必要條件）
-    if (B.mode === 'hunt' && B.huntCounter && B.huntCounter.mult !== 1) {
-      dmg = Math.max(1, Math.round(dmg * B.huntCounter.mult));
+    if (B.mode === 'hunt') {
+      const mul = (B.huntCounter ? B.huntCounter.mult : 1) * (B.huntCombo || 1);
+      if (mul !== 1) dmg = Math.max(1, Math.round(dmg * mul));
     }
     enemy.hp -= dmg;
     emit('hit', {
@@ -472,14 +475,29 @@
       s.ringBag.push(ring);
       s.cd[beast.id] = Date.now() + beast.cdSec * 1000;
       s.stats.hunts++;
-      // 獸核：階級越高越多；精英靈獸 ×3（用來把滿級靈印升覺醒階）
+      // 獸核：階級越高越多；精英 ×3；深林層數每 3 層再 ×2、×3…
       const elite = !!B.huntElite;
-      const cores = (CFG.CORE_DROP[beast.tier] || 1) * (elite ? CFG.ELITE.coreMul : 1);
+      const dep = State.depthInfo(beast.id);
+      let cores = (CFG.CORE_DROP[beast.tier] || 1) * (elite ? CFG.ELITE.coreMul : 1);
+      cores = Math.round(cores * dep.coreMul) + (State.combosInfo().stat.core || 0);
       State.addCores(cores);
+      // 深林每 5 層：保證多掉一枚「高一階」靈環（上限紫，避免紅環貶值）
+      let bonusRing = null;
+      if (dep.bonusRing) {
+        const idx = CFG.RING_ORDER.indexOf(beast.tier);
+        const nextKey = CFG.RING_ORDER[Math.min(idx + 1, CFG.RING_ORDER.indexOf(CFG.DEPTH.maxBonusRing))];
+        if (nextKey && nextKey !== beast.tier) {
+          bonusRing = State.newRing(nextKey, beast.element);
+          s.ringBag.push(bonusRing);
+          State.codexMark('rings', nextKey);
+          State.autoEquipBestRing();
+        }
+      }
+      const depth = State.depthPlus(beast.id);
       if (elite) State.eliteMarkUsed(beast.id);
       State.dailyAdd('hunt', 1);
       State.weeklyAdd('hunts', 1);
-      emit('huntWin', { beast, ring, cores, elite });
+      emit('huntWin', { beast, ring, cores, elite, depth, bonusRing });
       const auto = State.autoEquipBestRing();
       if (auto) emit('autoRing', { soul: auto.soul, ring: auto.ring });
       const merged = State.mergeLowTiers();

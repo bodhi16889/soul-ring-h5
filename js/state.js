@@ -40,6 +40,7 @@
       codex: { souls: {}, bones: {}, rings: {}, beasts: {} },          // 圖鑑（收集表）
       cores: 0,              // 獸核：獵靈掉落，用來把滿級靈印升「覺醒階」
       elite: { day: '', ids: [] },   // 今日已打的精英靈獸
+      depth: {},             // 深林層數：beastId -> 已連續狩獵次數
       pendingOffline: null,  // 這次回歸的離線收益（可看廣告加倍一次）
       daily: { day: '', idle: 0, hunt: 0, merge: 0, claimed: [] },   // 每日任務進度
       ach: { unlocked: {} },   // 成就（id -> true），每項永久 +0.5% 全屬性
@@ -145,6 +146,7 @@
     out.pendingOffline = (d && d.pendingOffline) || null;
     out.cores = Math.max(0, out.cores | 0);
     out.elite = Object.assign({ day: '', ids: [] }, (d && d.elite) || {});
+    out.depth = Object.assign({}, (d && d.depth) || {});
     if (!Array.isArray(out.elite.ids)) out.elite.ids = [];
     /* 圖鑑回填：舊存檔沒有 codex，用「目前持有」推回已收集，
        否則老玩家更新後會看到 0 / 25（明明身上有五個武魂）。 */
@@ -316,6 +318,62 @@
              sameBonus: CFG.BOND.sameBonus, triBonus: CFG.BOND.triBonus };
   }
 
+  /* ---------- 元素組合羈絆（例：風＋火 → 燎原 SPD +12%）---------- */
+  function combosInfo() {
+    const counts = bondInfo().counts;
+    const active = CFG.COMBOS.filter((c) => counts[c.pair[0]] > 0 && counts[c.pair[1]] > 0);
+    const stat = { atk: 1, hp: 1, def: 1, spd: 1, hunt: 1, core: 0 };
+    active.forEach((c) => {
+      if (c.stat === 'core') stat.core += c.bonus;
+      else stat[c.stat] *= (1 + c.bonus);
+    });
+    return { active, stat };
+  }
+
+  /* ---------- 深林層數（同一隻靈獸連續狩獵）---------- */
+  function depthOf(beastId) { return (S.depth && S.depth[beastId]) | 0; }
+  function depthInfo(beastId) {
+    const d = depthOf(beastId);
+    const coreMul = 1 + Math.floor(d / CFG.DEPTH.coreEvery);
+    const bonusRing = d > 0 && d % CFG.DEPTH.bonusRingEvery === 0;
+    return { depth: d, coreMul, bonusRing, next: CFG.DEPTH.bonusRingEvery - (d % CFG.DEPTH.bonusRingEvery) };
+  }
+  function depthPlus(beastId) {
+    if (!S.depth) S.depth = {};
+    S.depth[beastId] = depthOf(beastId) + 1;
+    return S.depth[beastId];
+  }
+
+  /* ---------- 傳承（把星級轉給另一隻武魂）---------- */
+  function inheritInfo(fromId, toId) {
+    const from = S.souls.find((x) => x.id === fromId);
+    const to = S.souls.find((x) => x.id === toId);
+    if (!from || !to) return { ok: false, reason: 'missing' };
+    if (fromId === toId) return { ok: false, reason: 'same' };
+    const fromStar = from.star || 3;
+    const toStar = to.star || 3;
+    if (fromStar <= CFG.INHERIT.minStar) return { ok: false, reason: 'source' };
+    if (toStar >= CFG.INHERIT.starCap) return { ok: false, reason: 'capped' };
+    const cost = CFG.INHERIT.costPerStar * toStar;
+    return { ok: true, fromStar, toStar, cost, can: S.cores >= cost };
+  }
+  function inheritStar(fromId, toId) {
+    const info = inheritInfo(fromId, toId);
+    if (!info.ok) {
+      const msg = info.reason === 'same' ? T('來源與目標不能相同')
+        : info.reason === 'source' ? T(`來源需高於 ${CFG.INHERIT.minStar}★`)
+        : info.reason === 'capped' ? T('目標已滿星') : T('沒有這個靈印');
+      return { ok: false, msg };
+    }
+    if (S.cores < info.cost) return { ok: false, msg: T('獸核不足'), need: info.cost };
+    S.cores -= info.cost;
+    const from = S.souls.find((x) => x.id === fromId);
+    const to = S.souls.find((x) => x.id === toId);
+    from.star = (from.star || 3) - 1;
+    to.star = (to.star || 3) + 1;
+    return { ok: true, fromStar: from.star, toStar: to.star, cost: info.cost };
+  }
+
   /* ---------- 覺醒階（滿級靈印 + 獸核）---------- */
   function ascendInfo(soulId) {
     const soul = S.souls.find((x) => x.id === soulId);
@@ -450,6 +508,7 @@
     const bondMul = (bond.strong.indexOf(el) >= 0 ? 1 + bond.sameBonus : 1)
                   * (bond.tri ? 1 + bond.triBonus : 1);
     const ascMul = 1 + CFG.ASCEND.bonusPerStage * (soul.ascend || 0);
+    const cb = combosInfo().stat;   // 元素組合：atk / hp / def / spd 各自乘算
     const tbMul = (1 + trueBodyOf(soul).bonus) * achMul() * codexMul() * bondMul * ascMul;   // 真身 × 成就 × 圖鑑 × 羈絆 × 覺醒
     /* 三種加成各自乘算，不能全部倒進同一個括號：
        靈環後期 +3600%，若命印（+6%/點）與靈骨（+14~20%）也加在同一個括號裡，
@@ -464,10 +523,10 @@
     const markDef = 1 + pm.def * S.marks;
     const markSpd = 1;   // 命印不再加速度（速度有物理上限），改在 critChance() 給爆擊
     return {
-      atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk) * boneAtk * markAtk * tbMul),
-      hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp) * boneHp * markHp * tbMul),
-      def: Math.round(base.def * starMul * lvMul * boneDef * markDef * tbMul),
-      spd: Math.round(base.spd * boneSpd * markSpd * tbMul),
+      atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk) * boneAtk * markAtk * tbMul * cb.atk),
+      hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp) * boneHp * markHp * tbMul * cb.hp),
+      def: Math.round(base.def * starMul * lvMul * boneDef * markDef * tbMul * cb.def),
+      spd: Math.round(base.spd * boneSpd * markSpd * tbMul * cb.spd),
       role: base.role,
       name: base.name,
       emoji: base.emoji,
@@ -1076,7 +1135,8 @@
     addExp, addCoins, spendCoins, addDiamonds, spendDiamonds,
     soulStats, teamSouls, teamStats, power,
     claimOfflineDouble, weekKey, weeklyAdd, weeklyInfo, weeklyClaim, codexMark, codexSync, codexInfo, codexMul,
-    bondInfo, ascendInfo, ascendSoul, addCores, eliteInfo, eliteMarkUsed, huntCounter,
+    bondInfo, combosInfo, depthOf, depthInfo, depthPlus, inheritInfo, inheritStar,
+    ascendInfo, ascendSoul, addCores, eliteInfo, eliteMarkUsed, huntCounter,
     totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth, migrate, coinBonePull, critChance, soulLevelUp, soulLevelInfo, soulLevelCap, dailyInfo, dailyAdd, dailyClaim, todayKey, achList, checkAchievements, achCount, achMul,
     trueBodyOf, resonanceOf, ringSkillOf, hasFreeRingSlot,
     mergeInfo, mergeRings, mergeAll, mergeLowTiers,

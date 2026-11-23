@@ -48,7 +48,8 @@ def main() -> int:
         page.wait_for_function("window.__game && window.__game.ready", timeout=30000)
         time.sleep(0.8)
 
-        ok("版本 1.12.0", page.evaluate("CFG.VERSION") == "1.12.0", page.evaluate("CFG.VERSION"))
+        _v = page.evaluate("CFG.VERSION")
+        ok("版本 ≥ 1.12.0", tuple(int(x) for x in _v.split(".")) >= (1, 12, 0), _v)
 
         # ---------- 武魂 15 隻、每隻都有元素 ----------
         souls = page.evaluate("CFG.SOULS.map(s => ({id:s.id, el:s.element, name:s.name}))")

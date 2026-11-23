@@ -213,6 +213,8 @@
     const bondBits = [];
     if (bond.strong.length) bondBits.push(bond.strong.map((el) => `${T(CFG.ELEMENT_LABEL[el])}×${bond.counts[el]}`).join(' '));
     if (bond.tri) bondBits.push(T('三元素'));
+    const combos = State.combosInfo();
+    if (combos.active.length) bondBits.push(combos.active.map((c) => T(c.name)).join(' · '));
     const bondTxt = bondBits.length
       ? ` · ${T('羈絆')} ${bondBits.join(' / ')}${bond.tri ? ` +${Math.round(bond.triBonus * 100)}%` : ''}`
       : '';
@@ -279,6 +281,9 @@
             ${lvInfo.maxed ? T(`Lv.${lvInfo.level} 已滿`) : T(`升級 Lv.${lvInfo.level}（${fmt(lvInfo.cost)}）`)}
           </button>
           <button class="mini-btn ghost" data-act="bone" data-id="${soul.id}">${bone ? T('換靈骨') : T('裝靈骨')}</button>
+          ${(soul.star || 3) > CFG.INHERIT.minStar
+            ? `<button class="mini-btn" data-act="inherit" data-id="${soul.id}">${T('傳承星級')}</button>`
+            : ''}
         </div>
       </div>`);
     }).join('');
@@ -316,6 +321,9 @@
     });
     $$('#soulList [data-act="bone"]').forEach((b) => {
       b.addEventListener('click', () => pickBoneFor(b.dataset.id));
+    });
+    $$('#soulList [data-act="inherit"]').forEach((b) => {
+      b.addEventListener('click', () => pickInheritTarget(b.dataset.id));
     });
     $$('#soulList [data-act="ascend"]').forEach((b) => {
       b.addEventListener('click', () => {
@@ -394,6 +402,39 @@
     if (off) off.addEventListener('click', () => {
       State.unequipBone(soulId); closeModal();
       State.save(true); Battle.refreshTeam(); renderAll();
+    });
+  }
+
+  /* 傳承：選一個目標把一顆星轉過去（來源不可低於 3★、目標不可超過 5★） */
+  function pickInheritTarget(fromId) {
+    const s = State.data;
+    const rows = s.souls.filter((x) => x.id !== fromId).map((x) => {
+      const base = CFG.SOUL_BY_ID[x.id] || {};
+      const info = State.inheritInfo(fromId, x.id);
+      const label = !info.ok
+        ? (info.reason === 'capped' ? T('已滿星') : T('不可傳承'))
+        : T(`${info.cost} 核`);
+      return `<button class="mini-btn ${info.ok && info.can ? 'primary' : ''}" data-inherit="${x.id}"
+        ${info.ok && info.can ? '' : 'disabled'}>
+        ${base.emoji || ''} ${T(base.name || x.id)} ★${x.star || 3} · ${label}
+      </button>`;
+    }).join('');
+    openModal(T('傳承星級'), T(`
+      <div class="hint">${T('把一顆星從這隻武魂轉給另一隻（來源不可低於 3★、目標上限 5★），消耗獸核')}</div>
+      <div class="acts" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">${rows}</div>
+      <div class="hint" style="margin-top:8px">${T('獸核')}：${s.cores || 0}</div>`),
+      [{ text: T('取消'), kind: '' }]);
+    $$('#modalBody [data-inherit]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = State.inheritStar(fromId, b.dataset.inherit);
+        if (!r.ok) return toast(r.msg);
+        State.save(true);
+        Battle.refreshTeam();
+        closeModal();
+        renderAll();
+        toast(T(`傳承完成：來源 ${r.fromStar}★ → 目標 ${r.toStar}★（-${r.cost} 核）`));
+        if (global.SFX) SFX.unlock();
+      });
     });
   }
 
@@ -655,6 +696,7 @@
       const cntTag = cnt.kind === 'strong' ? `<span class="tag on">${T('剋制 +25%')}</span>`
         : cnt.kind === 'weak' ? `<span class="tag">${T('被剋 -10%')}</span>` : '';
       const ei = State.eliteInfo(b.id);
+      const dep = State.depthInfo(b.id);
       return T(`<div class="card">
         <div class="row1">
           <span style="font-size:20px">${b.emoji}</span>
@@ -669,7 +711,8 @@
           <span>${T('生命')} <b>${fmt(b.hp)}</b></span>
           <span>${T('攻擊')} <b>${fmt(b.atk)}</b></span>
           <span>${T('掉落')} <b>${T(t.name)}</b></span>
-          <span>${T('獸核')} <b>+${CFG.CORE_DROP[b.tier] || 1}</b></span>
+          <span>${T('獸核')} <b>+${Math.round((CFG.CORE_DROP[b.tier] || 1) * dep.coreMul)}</b></span>
+          <span>${T('深林')} <b>${dep.depth} ${T('層')}</b></span>
         </div>
         <div class="acts">
           <button class="mini-btn primary" data-hunt="${b.id}" ${locked || cdLeft > 0 || busy ? 'disabled' : ''}>
@@ -1077,7 +1120,11 @@
       case 'huntWin': {
         const t = CFG.TIER_BY_KEY[ev.ring.tier];
         banner(T('吸收靈環'));
-        addLog(`${T('擊敗')} ${T(ev.beast.name)} · ${T('吸收')} ${T(t.name)}`, 'c-gold');
+        addLog(`${T('擊敗')} ${T(ev.beast.name)} · ${T('吸收')} ${T(t.name)} · ${T('獸核')} +${ev.cores || 0} · ${T('深林')} ${ev.depth || 1} ${T('層')}`, 'c-gold');
+        if (ev.bonusRing) {
+          const bt = CFG.TIER_BY_KEY[ev.bonusRing.tier];
+          addLog(`${T('深林獎勵')} · ${T('額外')} ${T(bt.name)}`, 'c-purple');
+        }
         toast(`${T('獲得')} ${T(t.name)}`);
         State.save(true);
         renderAll();

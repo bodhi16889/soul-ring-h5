@@ -918,7 +918,15 @@ textarea, input,
     '本週已領過': 'Already claimed this week',
     '圖鑑': 'Codex', '查看圖鑑': 'Open codex', '未解鎖': 'Locked', '已收集': 'Collected',
     '武魂': 'Spirits', '靈獸': 'Beasts', '擊殺': 'Kill', '守關靈獸': 'Stage boss',
-    '每 10 級開 1 槽': '1 slot per 10 levels', '羈絆': 'Bond', '待命': 'Bench', '上陣中': 'In team', '三元素': 'tri-element', '覺醒滿階': 'Max ascension',
+    '每 10 級開 1 槽': '1 slot per 10 levels', '羈絆': 'Bond', '待命': 'Bench',
+    '傳承': 'Inherit', '傳承星級': 'Inherit star', '已滿星': 'Max stars', '不可傳承': 'Cannot inherit',
+    '來源與目標不能相同': 'Source and target must differ',
+    '目標已滿星': 'Target is max star',
+    '把一顆星從這隻武魂轉給另一隻（來源不可低於 3★、目標上限 5★），消耗獸核':
+      'Move one star from this spirit to another (source keeps at least 3★, target caps at 5★) for cores',
+    '深林': 'Deep grove', '層': 'fl.', '深林獎勵': 'Deep grove bonus', '額外': 'extra',
+    '燎原': 'Wildfire', '風潮': 'Windtide', '焚林': 'Burnwood',
+    '山澤': 'Marsh', '藤岩': 'Vinerock', '蒸騰': 'Steam', '上陣中': 'In team', '三元素': 'tri-element', '覺醒滿階': 'Max ascension',
     '覺醒階': 'Ascension', '獸核': 'Beast cores', '已達最高覺醒階': 'Already max ascension',
     '獸核不足': 'Not enough cores', '剋制 +25%': 'Counter +25%', '被剋 -10%': 'Countered -10%',
     '今日精英已打': 'Elite done today', '今日精英已打過': 'Elite already done today',
@@ -960,6 +968,9 @@ textarea, input,
     [/^成就解鎖：(.+?)（(.+)）$/, 'Achievement unlocked: $1 ($2)'],
     [/^成就解鎖：(.+)$/, 'Achievement unlocked: $1'],
     [/^領 (\d+) 💎$/, 'Claim $1 💎'],
+    [/^(\d+) 核$/, '$1 cores'],
+    [/^來源需高於 (\d+)★$/, 'Source must be above $1★'],
+    [/^傳承完成：來源 (\d+)★ → 目標 (\d+)★（-(\d+) 核）$/, 'Inherited: $1★ → $2★ (-$3 cores)'],
     [/^覺醒 (\d+)→(\d+)（(\d+) 核）$/, 'Ascend $1→$2 ($3 cores)'],
     [/^需要滿級 (\d+)$/, 'Requires level $1'],
     [/^精英（×(\d+) 核）$/, 'Elite ($1 cores)'],
@@ -1602,6 +1613,25 @@ textarea, input,
   /* 獵靈掉獸核：階級越高掉越多；精英靈獸 ×3 */
   const CORE_DROP = { white: 1, yellow: 2, violet: 3, black: 4, red: 5 };
   const ELITE = { hpMul: 2.5, coreMul: 3, perDay: 1 };
+
+  /* 傳承：把多餘的星級轉給另一隻武魂（一次一星，來源不可低於 3★）
+     成本 = 獸核，避免星級被無限轉移；目標星級越高越貴 */
+  const INHERIT = { minStar: 3, costPerStar: 6, starCap: 5 };
+
+  /* 深林層數：同一隻靈獸連續狩獵會越打越深
+     層數不影響血量（橡皮筋已夾住），只加獎勵：
+       每 3 層獸核 +1（乘算）、每 5 層保證多掉一枚「高一階」靈環 */
+  const DEPTH = { coreEvery: 3, bonusRingEvery: 5, maxBonusRing: 'violet' };
+
+  /* 元素組合羈絆（只要隊伍裡同時有這兩種元素就生效，可疊加） */
+  const COMBOS = [
+    { id: 'blaze',  pair: ['wind', 'fire'],  name: '燎原',  stat: 'spd',  bonus: 0.12 },
+    { id: 'tide',   pair: ['wind', 'water'], name: '風潮',  stat: 'hunt', bonus: 0.15 },
+    { id: 'burn',   pair: ['fire', 'wood'],  name: '焚林',  stat: 'atk',  bonus: 0.10 },
+    { id: 'valley', pair: ['earth', 'water'],name: '山澤',  stat: 'hp',   bonus: 0.15 },
+    { id: 'vine',   pair: ['wood', 'earth'], name: '藤岩',  stat: 'def',  bonus: 0.20 },
+    { id: 'steam',  pair: ['water', 'fire'], name: '蒸騰',  stat: 'core', bonus: 1 },
+  ];
   const ELEMENT_COLOR = { wind: '#5ad8ff', wood: '#57d98b', poison: '#b06bff', earth: '#e0a458', water: '#6ea8ff' };
   const BEAST_BY_ID = Object.fromEntries(BEASTS.map((b) => [b.id, b]));
 
@@ -1613,7 +1643,7 @@ textarea, input,
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.12.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.13.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -1860,6 +1890,7 @@ textarea, input,
     BEASTS, BEAST_BY_ID, STAGE_AREAS, areaFor,
     VERSION, MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
     RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR, COUNTER, BOND, ASCEND, CORE_DROP, ELITE,
+    INHERIT, DEPTH, COMBOS,
     RING_ORDER, RING_MERGE_COUNT,
     BASE_KILLS_PER_STAGE, killsPerStage, waveSecFor, bossSecFor, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND,
     REBIRTH, rebirthGain, stageMul,
@@ -1914,6 +1945,7 @@ textarea, input,
       codex: { souls: {}, bones: {}, rings: {}, beasts: {} },          // 圖鑑（收集表）
       cores: 0,              // 獸核：獵靈掉落，用來把滿級靈印升「覺醒階」
       elite: { day: '', ids: [] },   // 今日已打的精英靈獸
+      depth: {},             // 深林層數：beastId -> 已連續狩獵次數
       pendingOffline: null,  // 這次回歸的離線收益（可看廣告加倍一次）
       daily: { day: '', idle: 0, hunt: 0, merge: 0, claimed: [] },   // 每日任務進度
       ach: { unlocked: {} },   // 成就（id -> true），每項永久 +0.5% 全屬性
@@ -2019,6 +2051,7 @@ textarea, input,
     out.pendingOffline = (d && d.pendingOffline) || null;
     out.cores = Math.max(0, out.cores | 0);
     out.elite = Object.assign({ day: '', ids: [] }, (d && d.elite) || {});
+    out.depth = Object.assign({}, (d && d.depth) || {});
     if (!Array.isArray(out.elite.ids)) out.elite.ids = [];
     /* 圖鑑回填：舊存檔沒有 codex，用「目前持有」推回已收集，
        否則老玩家更新後會看到 0 / 25（明明身上有五個武魂）。 */
@@ -2190,6 +2223,62 @@ textarea, input,
              sameBonus: CFG.BOND.sameBonus, triBonus: CFG.BOND.triBonus };
   }
 
+  /* ---------- 元素組合羈絆（例：風＋火 → 燎原 SPD +12%）---------- */
+  function combosInfo() {
+    const counts = bondInfo().counts;
+    const active = CFG.COMBOS.filter((c) => counts[c.pair[0]] > 0 && counts[c.pair[1]] > 0);
+    const stat = { atk: 1, hp: 1, def: 1, spd: 1, hunt: 1, core: 0 };
+    active.forEach((c) => {
+      if (c.stat === 'core') stat.core += c.bonus;
+      else stat[c.stat] *= (1 + c.bonus);
+    });
+    return { active, stat };
+  }
+
+  /* ---------- 深林層數（同一隻靈獸連續狩獵）---------- */
+  function depthOf(beastId) { return (S.depth && S.depth[beastId]) | 0; }
+  function depthInfo(beastId) {
+    const d = depthOf(beastId);
+    const coreMul = 1 + Math.floor(d / CFG.DEPTH.coreEvery);
+    const bonusRing = d > 0 && d % CFG.DEPTH.bonusRingEvery === 0;
+    return { depth: d, coreMul, bonusRing, next: CFG.DEPTH.bonusRingEvery - (d % CFG.DEPTH.bonusRingEvery) };
+  }
+  function depthPlus(beastId) {
+    if (!S.depth) S.depth = {};
+    S.depth[beastId] = depthOf(beastId) + 1;
+    return S.depth[beastId];
+  }
+
+  /* ---------- 傳承（把星級轉給另一隻武魂）---------- */
+  function inheritInfo(fromId, toId) {
+    const from = S.souls.find((x) => x.id === fromId);
+    const to = S.souls.find((x) => x.id === toId);
+    if (!from || !to) return { ok: false, reason: 'missing' };
+    if (fromId === toId) return { ok: false, reason: 'same' };
+    const fromStar = from.star || 3;
+    const toStar = to.star || 3;
+    if (fromStar <= CFG.INHERIT.minStar) return { ok: false, reason: 'source' };
+    if (toStar >= CFG.INHERIT.starCap) return { ok: false, reason: 'capped' };
+    const cost = CFG.INHERIT.costPerStar * toStar;
+    return { ok: true, fromStar, toStar, cost, can: S.cores >= cost };
+  }
+  function inheritStar(fromId, toId) {
+    const info = inheritInfo(fromId, toId);
+    if (!info.ok) {
+      const msg = info.reason === 'same' ? T('來源與目標不能相同')
+        : info.reason === 'source' ? T(`來源需高於 ${CFG.INHERIT.minStar}★`)
+        : info.reason === 'capped' ? T('目標已滿星') : T('沒有這個靈印');
+      return { ok: false, msg };
+    }
+    if (S.cores < info.cost) return { ok: false, msg: T('獸核不足'), need: info.cost };
+    S.cores -= info.cost;
+    const from = S.souls.find((x) => x.id === fromId);
+    const to = S.souls.find((x) => x.id === toId);
+    from.star = (from.star || 3) - 1;
+    to.star = (to.star || 3) + 1;
+    return { ok: true, fromStar: from.star, toStar: to.star, cost: info.cost };
+  }
+
   /* ---------- 覺醒階（滿級靈印 + 獸核）---------- */
   function ascendInfo(soulId) {
     const soul = S.souls.find((x) => x.id === soulId);
@@ -2324,6 +2413,7 @@ textarea, input,
     const bondMul = (bond.strong.indexOf(el) >= 0 ? 1 + bond.sameBonus : 1)
                   * (bond.tri ? 1 + bond.triBonus : 1);
     const ascMul = 1 + CFG.ASCEND.bonusPerStage * (soul.ascend || 0);
+    const cb = combosInfo().stat;   // 元素組合：atk / hp / def / spd 各自乘算
     const tbMul = (1 + trueBodyOf(soul).bonus) * achMul() * codexMul() * bondMul * ascMul;   // 真身 × 成就 × 圖鑑 × 羈絆 × 覺醒
     /* 三種加成各自乘算，不能全部倒進同一個括號：
        靈環後期 +3600%，若命印（+6%/點）與靈骨（+14~20%）也加在同一個括號裡，
@@ -2338,10 +2428,10 @@ textarea, input,
     const markDef = 1 + pm.def * S.marks;
     const markSpd = 1;   // 命印不再加速度（速度有物理上限），改在 critChance() 給爆擊
     return {
-      atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk) * boneAtk * markAtk * tbMul),
-      hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp) * boneHp * markHp * tbMul),
-      def: Math.round(base.def * starMul * lvMul * boneDef * markDef * tbMul),
-      spd: Math.round(base.spd * boneSpd * markSpd * tbMul),
+      atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk) * boneAtk * markAtk * tbMul * cb.atk),
+      hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp) * boneHp * markHp * tbMul * cb.hp),
+      def: Math.round(base.def * starMul * lvMul * boneDef * markDef * tbMul * cb.def),
+      spd: Math.round(base.spd * boneSpd * markSpd * tbMul * cb.spd),
       role: base.role,
       name: base.name,
       emoji: base.emoji,
@@ -2950,7 +3040,8 @@ textarea, input,
     addExp, addCoins, spendCoins, addDiamonds, spendDiamonds,
     soulStats, teamSouls, teamStats, power,
     claimOfflineDouble, weekKey, weeklyAdd, weeklyInfo, weeklyClaim, codexMark, codexSync, codexInfo, codexMul,
-    bondInfo, ascendInfo, ascendSoul, addCores, eliteInfo, eliteMarkUsed, huntCounter,
+    bondInfo, combosInfo, depthOf, depthInfo, depthPlus, inheritInfo, inheritStar,
+    ascendInfo, ascendSoul, addCores, eliteInfo, eliteMarkUsed, huntCounter,
     totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth, migrate, coinBonePull, critChance, soulLevelUp, soulLevelInfo, soulLevelCap, dailyInfo, dailyAdd, dailyClaim, todayKey, achList, checkAchievements, achCount, achMul,
     trueBodyOf, resonanceOf, ringSkillOf, hasFreeRingSlot,
     mergeInfo, mergeRings, mergeAll, mergeLowTiers,
@@ -3174,6 +3265,7 @@ textarea, input,
     B.huntBeast = beast;
     B.huntElite = !!elite;
     B.huntCounter = State.huntCounter(beastId);
+    B.huntCombo = (State.combosInfo().stat.hunt || 1);   // 風潮：風＋水 → 狩獵傷害 +15%
     State.codexMark('beasts', beast.id);
     B.mode = 'hunt';
     spawnWave('hunt');
@@ -3196,6 +3288,7 @@ textarea, input,
     B.huntBeast = null;
     B.huntElite = false;
     B.huntCounter = null;
+    B.huntCombo = 1;
     reviveTeam(true);   // 獵靈是獨立挑戰：打完不該把傷勢帶回推關（實測會直接全滅）
     spawnWave('farm');
   }
@@ -3376,8 +3469,9 @@ textarea, input,
   function hitEnemy(enemy, dmg, u, isSkill) {
     if (!enemy || !enemy.alive) return;
     // 五行剋制只作用在狩獵場（主線維持原本節奏，不讓剋制變成推關卡的必要條件）
-    if (B.mode === 'hunt' && B.huntCounter && B.huntCounter.mult !== 1) {
-      dmg = Math.max(1, Math.round(dmg * B.huntCounter.mult));
+    if (B.mode === 'hunt') {
+      const mul = (B.huntCounter ? B.huntCounter.mult : 1) * (B.huntCombo || 1);
+      if (mul !== 1) dmg = Math.max(1, Math.round(dmg * mul));
     }
     enemy.hp -= dmg;
     emit('hit', {
@@ -3441,14 +3535,29 @@ textarea, input,
       s.ringBag.push(ring);
       s.cd[beast.id] = Date.now() + beast.cdSec * 1000;
       s.stats.hunts++;
-      // 獸核：階級越高越多；精英靈獸 ×3（用來把滿級靈印升覺醒階）
+      // 獸核：階級越高越多；精英 ×3；深林層數每 3 層再 ×2、×3…
       const elite = !!B.huntElite;
-      const cores = (CFG.CORE_DROP[beast.tier] || 1) * (elite ? CFG.ELITE.coreMul : 1);
+      const dep = State.depthInfo(beast.id);
+      let cores = (CFG.CORE_DROP[beast.tier] || 1) * (elite ? CFG.ELITE.coreMul : 1);
+      cores = Math.round(cores * dep.coreMul) + (State.combosInfo().stat.core || 0);
       State.addCores(cores);
+      // 深林每 5 層：保證多掉一枚「高一階」靈環（上限紫，避免紅環貶值）
+      let bonusRing = null;
+      if (dep.bonusRing) {
+        const idx = CFG.RING_ORDER.indexOf(beast.tier);
+        const nextKey = CFG.RING_ORDER[Math.min(idx + 1, CFG.RING_ORDER.indexOf(CFG.DEPTH.maxBonusRing))];
+        if (nextKey && nextKey !== beast.tier) {
+          bonusRing = State.newRing(nextKey, beast.element);
+          s.ringBag.push(bonusRing);
+          State.codexMark('rings', nextKey);
+          State.autoEquipBestRing();
+        }
+      }
+      const depth = State.depthPlus(beast.id);
       if (elite) State.eliteMarkUsed(beast.id);
       State.dailyAdd('hunt', 1);
       State.weeklyAdd('hunts', 1);
-      emit('huntWin', { beast, ring, cores, elite });
+      emit('huntWin', { beast, ring, cores, elite, depth, bonusRing });
       const auto = State.autoEquipBestRing();
       if (auto) emit('autoRing', { soul: auto.soul, ring: auto.ring });
       const merged = State.mergeLowTiers();
@@ -3773,6 +3882,8 @@ textarea, input,
     const bondBits = [];
     if (bond.strong.length) bondBits.push(bond.strong.map((el) => `${T(CFG.ELEMENT_LABEL[el])}×${bond.counts[el]}`).join(' '));
     if (bond.tri) bondBits.push(T('三元素'));
+    const combos = State.combosInfo();
+    if (combos.active.length) bondBits.push(combos.active.map((c) => T(c.name)).join(' · '));
     const bondTxt = bondBits.length
       ? ` · ${T('羈絆')} ${bondBits.join(' / ')}${bond.tri ? ` +${Math.round(bond.triBonus * 100)}%` : ''}`
       : '';
@@ -3839,6 +3950,9 @@ textarea, input,
             ${lvInfo.maxed ? T(`Lv.${lvInfo.level} 已滿`) : T(`升級 Lv.${lvInfo.level}（${fmt(lvInfo.cost)}）`)}
           </button>
           <button class="mini-btn ghost" data-act="bone" data-id="${soul.id}">${bone ? T('換靈骨') : T('裝靈骨')}</button>
+          ${(soul.star || 3) > CFG.INHERIT.minStar
+            ? `<button class="mini-btn" data-act="inherit" data-id="${soul.id}">${T('傳承星級')}</button>`
+            : ''}
         </div>
       </div>`);
     }).join('');
@@ -3876,6 +3990,9 @@ textarea, input,
     });
     $$('#soulList [data-act="bone"]').forEach((b) => {
       b.addEventListener('click', () => pickBoneFor(b.dataset.id));
+    });
+    $$('#soulList [data-act="inherit"]').forEach((b) => {
+      b.addEventListener('click', () => pickInheritTarget(b.dataset.id));
     });
     $$('#soulList [data-act="ascend"]').forEach((b) => {
       b.addEventListener('click', () => {
@@ -3954,6 +4071,39 @@ textarea, input,
     if (off) off.addEventListener('click', () => {
       State.unequipBone(soulId); closeModal();
       State.save(true); Battle.refreshTeam(); renderAll();
+    });
+  }
+
+  /* 傳承：選一個目標把一顆星轉過去（來源不可低於 3★、目標不可超過 5★） */
+  function pickInheritTarget(fromId) {
+    const s = State.data;
+    const rows = s.souls.filter((x) => x.id !== fromId).map((x) => {
+      const base = CFG.SOUL_BY_ID[x.id] || {};
+      const info = State.inheritInfo(fromId, x.id);
+      const label = !info.ok
+        ? (info.reason === 'capped' ? T('已滿星') : T('不可傳承'))
+        : T(`${info.cost} 核`);
+      return `<button class="mini-btn ${info.ok && info.can ? 'primary' : ''}" data-inherit="${x.id}"
+        ${info.ok && info.can ? '' : 'disabled'}>
+        ${base.emoji || ''} ${T(base.name || x.id)} ★${x.star || 3} · ${label}
+      </button>`;
+    }).join('');
+    openModal(T('傳承星級'), T(`
+      <div class="hint">${T('把一顆星從這隻武魂轉給另一隻（來源不可低於 3★、目標上限 5★），消耗獸核')}</div>
+      <div class="acts" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">${rows}</div>
+      <div class="hint" style="margin-top:8px">${T('獸核')}：${s.cores || 0}</div>`),
+      [{ text: T('取消'), kind: '' }]);
+    $$('#modalBody [data-inherit]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = State.inheritStar(fromId, b.dataset.inherit);
+        if (!r.ok) return toast(r.msg);
+        State.save(true);
+        Battle.refreshTeam();
+        closeModal();
+        renderAll();
+        toast(T(`傳承完成：來源 ${r.fromStar}★ → 目標 ${r.toStar}★（-${r.cost} 核）`));
+        if (global.SFX) SFX.unlock();
+      });
     });
   }
 
@@ -4215,6 +4365,7 @@ textarea, input,
       const cntTag = cnt.kind === 'strong' ? `<span class="tag on">${T('剋制 +25%')}</span>`
         : cnt.kind === 'weak' ? `<span class="tag">${T('被剋 -10%')}</span>` : '';
       const ei = State.eliteInfo(b.id);
+      const dep = State.depthInfo(b.id);
       return T(`<div class="card">
         <div class="row1">
           <span style="font-size:20px">${b.emoji}</span>
@@ -4229,7 +4380,8 @@ textarea, input,
           <span>${T('生命')} <b>${fmt(b.hp)}</b></span>
           <span>${T('攻擊')} <b>${fmt(b.atk)}</b></span>
           <span>${T('掉落')} <b>${T(t.name)}</b></span>
-          <span>${T('獸核')} <b>+${CFG.CORE_DROP[b.tier] || 1}</b></span>
+          <span>${T('獸核')} <b>+${Math.round((CFG.CORE_DROP[b.tier] || 1) * dep.coreMul)}</b></span>
+          <span>${T('深林')} <b>${dep.depth} ${T('層')}</b></span>
         </div>
         <div class="acts">
           <button class="mini-btn primary" data-hunt="${b.id}" ${locked || cdLeft > 0 || busy ? 'disabled' : ''}>
@@ -4637,7 +4789,11 @@ textarea, input,
       case 'huntWin': {
         const t = CFG.TIER_BY_KEY[ev.ring.tier];
         banner(T('吸收靈環'));
-        addLog(`${T('擊敗')} ${T(ev.beast.name)} · ${T('吸收')} ${T(t.name)}`, 'c-gold');
+        addLog(`${T('擊敗')} ${T(ev.beast.name)} · ${T('吸收')} ${T(t.name)} · ${T('獸核')} +${ev.cores || 0} · ${T('深林')} ${ev.depth || 1} ${T('層')}`, 'c-gold');
+        if (ev.bonusRing) {
+          const bt = CFG.TIER_BY_KEY[ev.bonusRing.tier];
+          addLog(`${T('深林獎勵')} · ${T('額外')} ${T(bt.name)}`, 'c-purple');
+        }
         toast(`${T('獲得')} ${T(t.name)}`);
         State.save(true);
         renderAll();
