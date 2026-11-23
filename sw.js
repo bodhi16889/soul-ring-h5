@@ -2,12 +2,15 @@
  *
  * 策略：
  *   導航請求（開網址）→ network-first，離線時回快取的 index.html
- *   同源靜態檔     → stale-while-revalidate（先回快取、背景更新）
+ *   同源靜態檔     → **network-first**，失敗才回快取
  *   跨網域（SDK）  → 完全交給瀏覽器，不攔
+ *
+ * 為什麼不用 stale-while-revalidate：那會讓玩家「重新整理一次還是舊版」。
+ * 放置遊戲更新頻繁（平衡調整），寧可多花 100ms 抓新版，也不要讓玩家看到舊數值。
  *
  * 改版時只要改 VERSION，activate 會清掉舊快取。
  */
-const VERSION = 'v1.10.0';
+const VERSION = 'v1.14.0';
 const CACHE = 'soulring-' + VERSION;
 
 const SHELL = [
@@ -65,15 +68,12 @@ self.addEventListener('fetch', (e) => {
   }
 
   e.respondWith(
-    caches.match(req).then((hit) => {
-      const net = fetch(req)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
-          return res;
-        })
-        .catch(() => hit);
-      return hit || net;
-    })
+    fetch(req)
+      .then((res) => {
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+        return res;
+      })
+      .catch(() => caches.match(req))
   );
 });

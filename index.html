@@ -26,7 +26,16 @@
   if (location.protocol !== 'https:' && !local) return;
   if (/crazygames|gamepix|itch\.zone/i.test(location.hostname)) return;
   addEventListener('load', function () {
-    navigator.serviceWorker.register('sw.js').catch(function () {});
+    var hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('sw.js').then(function (reg) {
+      if (reg && reg.update) reg.update().catch(function () {});
+    }).catch(function () {});
+    // 新版 service worker 接手時自動重整一次（第一次安裝不重整，避免閃一下）
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (!hadController || window.__swReloaded) return;
+      window.__swReloaded = true;
+      location.reload();
+    });
   });
 })();
 </script>
