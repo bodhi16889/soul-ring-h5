@@ -165,9 +165,9 @@ A：不行，紅是最高階。重複的紅靈環請分解或留給其他靈印�
 ### 短版（約 480 字元，適合 How to Play 欄位）
 
 ```
-Spirit Ring Idle plays itself. Your job is to get stronger.
+Spirit Ring Idle plays itself. Get stronger.
 
-Tap the tabs at the bottom:
+Tap the bottom tabs:
 BATTLE - auto combat. Watch the wave counter, press CHALLENGE BOSS when it lights up.
 SPIRITS - level up your spirits with coins, unlock up to 5 team slots.
 RINGS - three rings of the same tier fuse into one higher tier.
