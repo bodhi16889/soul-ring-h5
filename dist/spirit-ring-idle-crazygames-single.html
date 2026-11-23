@@ -736,6 +736,9 @@ textarea, input,
 
     /* 戰鬥 */
     '掛機效率': 'Idle rate', '清怪': 'Cleared', '野生靈獸': 'Wild beast',
+    '掛機效率會隨關卡提升': 'Idle rate rises with stage depth',
+    '離線': 'Offline', '小時': 'h', '分': 'min',
+    '進入': 'Entering', '的領域': 'territory',
     '全隊倒下': 'Team wiped', '全隊倒下，2 秒後自動重整': 'Team wiped — regrouping in 2s',
     '境界提升': 'Level up', '靈印重新凝聚，繼續戰鬥': 'Spirits reformed — back in the fight',
     '群攻命中': 'AoE hits',
@@ -891,7 +894,7 @@ textarea, input,
     '全隊裝備 45 個靈環': 'Equip 45 rings', '每日任務': 'Daily tasks', '每天 0 點重置': 'Resets at midnight',
     '已領': 'Claimed', '沒有這個任務': 'No such task', '今天已領過': 'Already claimed today',
     /* v1.11.0：每週任務 / 圖鑑 / 離線加倍 / BGM */
-    '每週任務': 'Weekly quests', '週一 0 點重置': 'Resets Monday 00:00',
+    '離線收益': 'Offline reward', '每週任務': 'Weekly quests', '週一 0 點重置': 'Resets Monday 00:00',
     '本週擊殺 300 隻': 'Kill 300 this week',
     '本週獵靈 15 次': 'Hunt 15 times this week',
     '本週合成 20 次': 'Fuse 20 rings this week',
@@ -1937,16 +1940,19 @@ textarea, input,
       if (main) writeKey(KEY + '.corrupt.' + stamp, main);
       if (bak) writeKey(KEY + '.corrupt.' + stamp + '.bak', bak);
       S = newSave();
+      codexSync();
       return { fresh: true, corrupted: !!(main || bak), from };
     }
     if (d.v > SAVE_VERSION) {
       // 未來版本的存檔：不覆蓋、不強制遷移
       blocked = true;
       S = newSave();
+      codexSync();
       return { newer: true, from };
     }
 
     S = migrate(d);
+    codexSync();
     if (from === 'bak') { writeKey(KEY, JSON.stringify(S)); }   // 備份救回來就立刻補回主檔
     const gap = offlineGain(S);
     return { fresh: false, offline: gap, restored: from === 'bak' };
@@ -2130,6 +2136,14 @@ textarea, input,
     S.codex[kind][id] = 1;
     return true;
   }
+  /* 用「目前持有」把圖鑑補齊（新檔的起始武魂、舊檔沒 codex 欄位都靠這支） */
+  function codexSync() {
+    (S.souls || []).forEach((x) => { if (x && x.id) codexMark('souls', x.id); });
+    (S.bones || []).forEach((x) => { if (x && x.id) codexMark('bones', x.id); });
+    (S.ringBag || []).forEach((x) => { if (x && x.tier) codexMark('rings', x.tier); });
+    Object.keys(S.cd || {}).forEach((id) => { codexMark('beasts', id); });
+  }
+
   function codexInfo() {
     const groups = [
       { key: 'souls',  label: '武魂',  items: CFG.SOULS.map((x) => ({ id: x.id, name: x.name, emoji: x.emoji })) },
@@ -2818,7 +2832,7 @@ textarea, input,
     load, save, reset,
     addExp, addCoins, spendCoins, addDiamonds, spendDiamonds,
     soulStats, teamSouls, teamStats, power,
-    claimOfflineDouble, weekKey, weeklyAdd, weeklyInfo, weeklyClaim, codexMark, codexInfo, codexMul,
+    claimOfflineDouble, weekKey, weeklyAdd, weeklyInfo, weeklyClaim, codexMark, codexSync, codexInfo, codexMul,
     totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth, migrate, coinBonePull, critChance, soulLevelUp, soulLevelInfo, soulLevelCap, dailyInfo, dailyAdd, dailyClaim, todayKey, achList, checkAchievements, achCount, achMul,
     trueBodyOf, resonanceOf, ringSkillOf, hasFreeRingSlot,
     mergeInfo, mergeRings, mergeAll, mergeLowTiers,
@@ -4421,7 +4435,7 @@ textarea, input,
         break;
       case 'huntStart':
         banner(T('獵靈'));
-        addLog(T(`進入 ${ev.beast.name} 的領域（${ev.beast.year}）`), 'c-purple');
+        addLog(`${T('進入')} ${T(ev.beast.name)} ${T('的領域')}${I18N.lang === 'en' ? '' : `（${ev.beast.year}）`}`, 'c-purple');
         break;
       case 'autoMerge':
         addLog(T(`自動合成 ${ev.made} 次低階靈環（3 個 → 1 個高一階）`), 'c-ok');
@@ -4578,10 +4592,10 @@ textarea, input,
   function showOffline(g) {
     const h = Math.floor(g.minutes / 60), m = g.minutes % 60;
     openModal(T('離線收益'), T(`
-      <div>離線 <b>${h > 0 ? h + T(' 小時 ') : ''}${m} 分</b>${g.capped ? T('（已達 12 小時上限）') : ''}</div>
+      <div>${T('離線')} <b>${h > 0 ? h + ' ' + T('小時') + ' ' : ''}${m} ${T('分')}</b>${g.capped ? T('（已達 12 小時上限）') : ''}</div>
       <div style="margin-top:8px">靈幣 <b class="c-gold">+${fmt(g.coins)}</b></div>
       <div>經驗 <b class="c-ok">+${fmt(g.exp)}</b></div>
-      <div class="hint" style="margin-top:8px">掛機效率會隨關卡提升</div>`),
+      <div class="hint" style="margin-top:8px">${T('掛機效率會隨關卡提升')}</div>`),
       [
         { text: T('看廣告 ×2'), kind: '', onClick: () => {
           if (!global.GP || !GP.reward) { toast(T('這裡沒有廣告可用')); return; }

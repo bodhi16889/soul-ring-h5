@@ -1011,7 +1011,7 @@
         break;
       case 'huntStart':
         banner(T('獵靈'));
-        addLog(T(`進入 ${ev.beast.name} 的領域（${ev.beast.year}）`), 'c-purple');
+        addLog(`${T('進入')} ${T(ev.beast.name)} ${T('的領域')}${I18N.lang === 'en' ? '' : `（${ev.beast.year}）`}`, 'c-purple');
         break;
       case 'autoMerge':
         addLog(T(`自動合成 ${ev.made} 次低階靈環（3 個 → 1 個高一階）`), 'c-ok');
@@ -1168,10 +1168,10 @@
   function showOffline(g) {
     const h = Math.floor(g.minutes / 60), m = g.minutes % 60;
     openModal(T('離線收益'), T(`
-      <div>離線 <b>${h > 0 ? h + T(' 小時 ') : ''}${m} 分</b>${g.capped ? T('（已達 12 小時上限）') : ''}</div>
+      <div>${T('離線')} <b>${h > 0 ? h + ' ' + T('小時') + ' ' : ''}${m} ${T('分')}</b>${g.capped ? T('（已達 12 小時上限）') : ''}</div>
       <div style="margin-top:8px">靈幣 <b class="c-gold">+${fmt(g.coins)}</b></div>
       <div>經驗 <b class="c-ok">+${fmt(g.exp)}</b></div>
-      <div class="hint" style="margin-top:8px">掛機效率會隨關卡提升</div>`),
+      <div class="hint" style="margin-top:8px">${T('掛機效率會隨關卡提升')}</div>`),
       [
         { text: T('看廣告 ×2'), kind: '', onClick: () => {
           if (!global.GP || !GP.reward) { toast(T('這裡沒有廣告可用')); return; }

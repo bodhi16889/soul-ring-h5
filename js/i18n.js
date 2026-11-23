@@ -42,6 +42,9 @@
 
     /* 戰鬥 */
     '掛機效率': 'Idle rate', '清怪': 'Cleared', '野生靈獸': 'Wild beast',
+    '掛機效率會隨關卡提升': 'Idle rate rises with stage depth',
+    '離線': 'Offline', '小時': 'h', '分': 'min',
+    '進入': 'Entering', '的領域': 'territory',
     '全隊倒下': 'Team wiped', '全隊倒下，2 秒後自動重整': 'Team wiped — regrouping in 2s',
     '境界提升': 'Level up', '靈印重新凝聚，繼續戰鬥': 'Spirits reformed — back in the fight',
     '群攻命中': 'AoE hits',
@@ -197,7 +200,7 @@
     '全隊裝備 45 個靈環': 'Equip 45 rings', '每日任務': 'Daily tasks', '每天 0 點重置': 'Resets at midnight',
     '已領': 'Claimed', '沒有這個任務': 'No such task', '今天已領過': 'Already claimed today',
     /* v1.11.0：每週任務 / 圖鑑 / 離線加倍 / BGM */
-    '每週任務': 'Weekly quests', '週一 0 點重置': 'Resets Monday 00:00',
+    '離線收益': 'Offline reward', '每週任務': 'Weekly quests', '週一 0 點重置': 'Resets Monday 00:00',
     '本週擊殺 300 隻': 'Kill 300 this week',
     '本週獵靈 15 次': 'Hunt 15 times this week',
     '本週合成 20 次': 'Fuse 20 rings this week',

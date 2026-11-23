@@ -108,16 +108,19 @@
       if (main) writeKey(KEY + '.corrupt.' + stamp, main);
       if (bak) writeKey(KEY + '.corrupt.' + stamp + '.bak', bak);
       S = newSave();
+      codexSync();
       return { fresh: true, corrupted: !!(main || bak), from };
     }
     if (d.v > SAVE_VERSION) {
       // 未來版本的存檔：不覆蓋、不強制遷移
       blocked = true;
       S = newSave();
+      codexSync();
       return { newer: true, from };
     }
 
     S = migrate(d);
+    codexSync();
     if (from === 'bak') { writeKey(KEY, JSON.stringify(S)); }   // 備份救回來就立刻補回主檔
     const gap = offlineGain(S);
     return { fresh: false, offline: gap, restored: from === 'bak' };
@@ -301,6 +304,14 @@
     S.codex[kind][id] = 1;
     return true;
   }
+  /* 用「目前持有」把圖鑑補齊（新檔的起始武魂、舊檔沒 codex 欄位都靠這支） */
+  function codexSync() {
+    (S.souls || []).forEach((x) => { if (x && x.id) codexMark('souls', x.id); });
+    (S.bones || []).forEach((x) => { if (x && x.id) codexMark('bones', x.id); });
+    (S.ringBag || []).forEach((x) => { if (x && x.tier) codexMark('rings', x.tier); });
+    Object.keys(S.cd || {}).forEach((id) => { codexMark('beasts', id); });
+  }
+
   function codexInfo() {
     const groups = [
       { key: 'souls',  label: '武魂',  items: CFG.SOULS.map((x) => ({ id: x.id, name: x.name, emoji: x.emoji })) },
@@ -989,7 +1000,7 @@
     load, save, reset,
     addExp, addCoins, spendCoins, addDiamonds, spendDiamonds,
     soulStats, teamSouls, teamStats, power,
-    claimOfflineDouble, weekKey, weeklyAdd, weeklyInfo, weeklyClaim, codexMark, codexInfo, codexMul,
+    claimOfflineDouble, weekKey, weeklyAdd, weeklyInfo, weeklyClaim, codexMark, codexSync, codexInfo, codexMul,
     totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth, migrate, coinBonePull, critChance, soulLevelUp, soulLevelInfo, soulLevelCap, dailyInfo, dailyAdd, dailyClaim, todayKey, achList, checkAchievements, achCount, achMul,
     trueBodyOf, resonanceOf, ringSkillOf, hasFreeRingSlot,
     mergeInfo, mergeRings, mergeAll, mergeLowTiers,
