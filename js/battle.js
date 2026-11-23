@@ -67,9 +67,19 @@
     B.waveNo++;
     if (kind === 'hunt') {
       const beast = B.huntBeast;
+      /* 靈獸用固定數值（220～16000 血、12～210 攻），但隊伍在前期只有 130 血／16 攻：
+         實測打嘯風猿會在全滅邊緣（13 秒打完、剩 1 血），運氣不好就全滅 → 15 秒冷卻 →
+         無限重試，靈環永遠拿不到。所以靈獸也要套橡皮筋：
+         血量上限 = 隊伍 DPS × 10 秒（穩贏但看得見血條在掉），
+         單下傷害上限 = 最脆隊友 6%（至少 16 下才倒，不會在狩獵裡被磨死）。 */
+      const units = B.units.filter((u) => u.maxHp > 0);
+      const weakest = Math.min.apply(null, units.map((u) => u.maxHp));
+      const effDps = Math.max(1, units.reduce((a, u) => a + u.atk * actsPerSec(u.spd) * 0.85, 0));
+      const beastHp = Math.min(beast.hp, Math.round(effDps * 10));
+      const beastAtk = Math.min(beast.atk, Math.max(1, Math.round(weakest * 0.06)));
       B.enemies = [{
         id: beast.id, name: T(beast.name), emoji: beast.emoji,
-        maxHp: beast.hp, hp: beast.hp, atk: beast.atk, def: Math.round(beast.atk * 0.35),
+        maxHp: beastHp, hp: beastHp, atk: beastAtk, def: Math.round(beast.atk * 0.35),
         spd: 88, gauge: 0, stun: 0, alive: true, boss: true, hunt: true, acts: 0, enraged: false,
       }];
       return;
@@ -91,7 +101,7 @@
     const defMit = 1 - mitigation(defCap, State.data.stage);
     const dps = units.reduce((a, u) => a + u.atk * actsPerSec(u.spd) * 0.85 * defMit, 0);
     const effDps = Math.max(1, dps);
-    const baseSec = isBoss ? band.bossSec : band.waveSec;
+    const baseSec = isBoss ? CFG.bossSecFor(State.data.stage) : CFG.waveSecFor(State.data.stage);
     // 該關「原始血量 ÷ 基準秒數」= 打穿它所需的 DPS；超過就是變強，可以縮短戰鬥時間
     const needDps = Math.max(1, st.hp / baseSec);
     const speedFactor = Math.max(band.speedFloor, Math.min(1, needDps / effDps));
@@ -207,6 +217,7 @@
   function backToFarm() {
     B.mode = 'farm';
     B.huntBeast = null;
+    reviveTeam(true);   // 獵靈是獨立挑戰：打完不該把傷勢帶回推關（實測會直接全滅）
     spawnWave('farm');
   }
 
@@ -277,15 +288,23 @@
     const s = State.data;
     const cfg = s.settings || {};
 
-    // 卡等時「獵靈」優先於「打 BOSS」：卡等打王沒有任何經驗，先拿環才有成長
-    if (cfg.autoHunt !== false && B.mode === 'farm' && State.hasFreeRingSlot()) {
+    /* 卡等時「獵靈」優先於「打 BOSS」：卡等打王沒有任何經驗，先拿環才有成長。
+       但「有空格」不等於「卡等」——實測每關都自動跑去獵靈，一次 11 秒、還會被
+       嘯風猿打到全滅再等復活，反而把推進卡住。所以要求：BOSS 已經失敗過一次。 */
+    const stuck = B.pendingBoss && ((s.bossFails || {})[s.stage] || 0) > 0;
+    /* 另一種該去獵靈的情況：身上一個環都沒有（靈環只從獵靈來）。
+       兩種情況都只在「這波清完、等 BOSS」的邊界觸發，不要在小怪波中間插隊。 */
+    const ringless = (s.ringBag || []).length === 0
+      && (s.souls || []).every((x) => !(x.rings || []).length);
+    if (cfg.autoHunt !== false && B.mode === 'farm'
+        && (stuck || ringless) && State.hasFreeRingSlot()) {
       const ready = CFG.BEASTS.filter((b) => s.level >= b.reqLevel && (s.cd[b.id] || 0) <= now);
       const beast = ready[ready.length - 1];   // 打得到就挑最高階的
       if (beast) {
-        B.autoAt = now + CFG.AUTO_HUNT_DELAY;
-        setTimeout(() => {
-          if (B.mode === 'farm' && State.hasFreeRingSlot()) hunt(beast.id);
-        }, CFG.AUTO_HUNT_DELAY);
+        /* 直接進獵靈，不要 setTimeout 排隊：
+           排 2.5 秒會被「自動打王」的 1.8 秒插隊（實測永遠等不到，玩家 150 秒
+           一個靈環都沒有），hunt() 自己就有冷卻與模式檢查。 */
+        hunt(beast.id);
         return;
       }
     }
@@ -457,7 +476,7 @@
     State.addCoins(coinGain);
     const expRes = State.addExp(s, expGain);
     s.stats.kills++;
-    if (!isBoss && s.kills < CFG.BASE_KILLS_PER_STAGE) s.kills++;
+    if (!isBoss && s.kills < CFG.killsPerStage(s.stage)) s.kills++;
 
     emit('kill', {
       stage: s.stage, boss: isBoss, coins: coinGain, exp: expGain,
@@ -492,7 +511,7 @@
     // 這一波清完才出下一波；還有敵人就不重生
     if (aliveEnemies().length) return;
 
-    if (s.kills >= CFG.BASE_KILLS_PER_STAGE && !B.pendingBoss) {
+    if (s.kills >= CFG.killsPerStage(s.stage) && !B.pendingBoss) {
       B.pendingBoss = true;
       emit('bossReady', { stage: s.stage });
     }
@@ -532,7 +551,7 @@
       enemy: alive[0] ? { ...alive[0] } : (B.enemies[0] ? { ...B.enemies[0] } : null),
       pendingBoss: B.pendingBoss,
       kills: State.data.kills,
-      needed: CFG.BASE_KILLS_PER_STAGE,
+      needed: CFG.killsPerStage(State.data.stage),
       stage: State.data.stage,
     };
   }

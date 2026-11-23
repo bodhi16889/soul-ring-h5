@@ -19,6 +19,8 @@ import re
 import sys
 import zipfile
 
+from build_common import strip_pwa
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INCLUDE = ['index.html', 'css/style.css', 'js/config.js', 'js/state.js',
            'js/battle.js', 'js/ui.js', 'js/i18n.js', 'js/ads.js', 'js/ads-gamepix.js', 'js/sfx.js']
@@ -51,6 +53,8 @@ def main():
             if host in ALLOWED_HOSTS:
                 continue
             problems.append(f'{rel} 含外部網址 {host}')
+        if rel == 'index.html':
+            data = strip_pwa(data)
         payload[rel] = data
 
     # 標題一致性

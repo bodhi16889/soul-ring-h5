@@ -1052,7 +1052,7 @@ def main() -> int:
         })()""")
         check("靈印獨立等級：可升到玩家等級 +20，費用遞增，錢不夠/到頂會擋",
               lvup["cap"] == 120 and lvup["r1"]["ok"] is True and lvup["r1"]["lv"] == 101
-              and lvup["atCap"] is False and lvup["poor"] is False and lvup["cost100"] > 1000000,
+              and lvup["atCap"] is False and lvup["poor"] is False and 50000 < lvup["cost100"] < 200000,
               str(lvup))
 
         daily = page.evaluate("""(() => {

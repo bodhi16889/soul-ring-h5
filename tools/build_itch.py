@@ -25,6 +25,8 @@ import re
 import sys
 import zipfile
 
+from build_common import strip_pwa
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # 與 GamePix 版相同的來源，但排除 js/gamepix.js
 INCLUDE = ['index.html', 'css/style.css', 'js/config.js', 'js/state.js',
@@ -41,6 +43,7 @@ def transform(rel, text):
     """把 GamePix 專屬的標籤與註解拿掉，其餘原樣保留。"""
     if rel != 'index.html':
         return text
+    text = strip_pwa(text)
     out = []
     skip_sdk_comment = False
     for line in text.splitlines():

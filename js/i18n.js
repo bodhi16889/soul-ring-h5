@@ -100,6 +100,8 @@
     '覺醒殿': 'Awaken Shrine', '靈印殿': 'Spirit Shrine',
     '每日簽到': 'Daily check-in', '連續': 'Streak', '領取': 'Claim',
     '覺醒一次': 'Pull ×1', '十連覺醒': 'Pull ×10', '兌換': 'Redeem',
+    '首次十連': 'First 10-pull', '免費': 'FREE',
+    '免費十連已領取': 'Free 10-pull claimed', '免費十連已使用': 'Free 10-pull already used',
     '機率：靈印 ★5 3% · ★4 12% · ★3 以下 70% · 靈骨 15%（每抽）':
       'Rates per pull: spirit ★5 3% · ★4 12% · ★3 or lower 70% · spirit bone 15%',
     '測試兌換碼：': 'Test codes: ',
@@ -133,6 +135,7 @@
     '靈技 · 神滅': 'Skill · Annihilation', '靈技 · 震懾': 'Skill · Dread',
     '靈技 · 千軍': 'Skill · Myriad',
     '外附靈骨': 'Soul Bone', '疾風': 'Gale', '王者': 'King',
+    '巨力': 'Might', '堅甲': 'Ironhide',
 
     /* 存檔／設定 */
     '自動挑戰 BOSS': 'Auto-challenge boss', '自動獵靈': 'Auto-hunt',

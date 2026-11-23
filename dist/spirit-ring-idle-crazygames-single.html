@@ -764,6 +764,8 @@ textarea, input,
     '覺醒殿': 'Awaken Shrine', '靈印殿': 'Spirit Shrine',
     '每日簽到': 'Daily check-in', '連續': 'Streak', '領取': 'Claim',
     '覺醒一次': 'Pull ×1', '十連覺醒': 'Pull ×10', '兌換': 'Redeem',
+    '首次十連': 'First 10-pull', '免費': 'FREE',
+    '免費十連已領取': 'Free 10-pull claimed', '免費十連已使用': 'Free 10-pull already used',
     '機率：靈印 ★5 3% · ★4 12% · ★3 以下 70% · 靈骨 15%（每抽）':
       'Rates per pull: spirit ★5 3% · ★4 12% · ★3 or lower 70% · spirit bone 15%',
     '測試兌換碼：': 'Test codes: ',
@@ -797,6 +799,7 @@ textarea, input,
     '靈技 · 神滅': 'Skill · Annihilation', '靈技 · 震懾': 'Skill · Dread',
     '靈技 · 千軍': 'Skill · Myriad',
     '外附靈骨': 'Soul Bone', '疾風': 'Gale', '王者': 'King',
+    '巨力': 'Might', '堅甲': 'Ironhide',
 
     /* 存檔／設定 */
     '自動挑戰 BOSS': 'Auto-challenge boss', '自動獵靈': 'Auto-hunt',
@@ -1484,13 +1487,21 @@ textarea, input,
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.9.2';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.10.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
   const RING_ORDER = ['white', 'yellow', 'violet', 'black', 'red'];  // 合成階梯
   const RING_MERGE_COUNT = 3;       // 3 個同階 → 1 個高一階
   const BASE_KILLS_PER_STAGE = 8;           // 每關殺 8 隻小怪出 BOSS（放置遊戲不要拖）
+  /* 新手加速：前 5 關只要 4 隻、6–10 關 6 隻。
+     理由：第一分鐘決定留存，原本 8 隻 × 2.5 秒 = 每關 20 秒以上，新玩家一分鐘只前進 2 關。 */
+  function killsPerStage(stage) {
+    const st = Math.max(1, stage | 0);
+    if (st <= 5) return 4;
+    if (st <= 10) return 6;
+    return BASE_KILLS_PER_STAGE;
+  }
   const AUTO_BOSS_DELAY = 1800;            // 清完小怪後幾毫秒自動挑戰 BOSS
   /* 橡皮筋難度：怪物數值再高也被隊伍現況夾住，避免「某關之後永遠打不死」 */
   const BAND = {
@@ -1510,6 +1521,14 @@ textarea, input,
        （變強 1.67 倍以內換得到速度；再往上只影響能不能打更深的關） */
     speedFloor: 0.6,
   };
+  /* 前 10 關把「每波需要的秒數」壓到 1.5 秒，25 關前 2.0 秒，之後回歸 2.5 秒。
+     橡皮筋的 hpCap = DPS × 秒數，秒數越小怪越脆、推進越快。 */
+  function waveSecFor(stage) {
+    const st = Math.max(1, stage | 0);
+    if (st <= 10) return 1.5;
+    if (st <= 25) return 2.0;
+    return BAND.waveSec;
+  }
   const AUTO_HUNT_DELAY = 2500;            // 卡等時幾毫秒自動去獵靈
   const PULL_COST_TICKET = 1;
   const PULL_COST_DIAMOND = 100;
@@ -1615,8 +1634,13 @@ textarea, input,
 
   /* ---------- 靈印獨立等級（靈幣升級，可超越玩家等級 10 級）---------- */
   const SOUL_LV = { maxAhead: 20, max: 150, base: 300, pow: 1.9 };
+  /* 前 10 級刻意便宜（120 + 30×Lv），讓新手 3 分鐘內看得到 5–8 次升級。
+     11 級之後沿用原曲線形狀（Lv^1.9）但除以 20：11 級 1,428（不是原本的 27,900，
+     否則從 420 直接跳 66 倍），100 級 75,165（仍是有份量的後期開銷）。 */
   function soulLevelCost(level) {
-    return Math.round(SOUL_LV.base * Math.pow(Math.max(1, level), SOUL_LV.pow));
+    const lv = Math.max(1, level | 0);
+    if (lv <= 10) return 120 + 30 * lv;
+    return Math.round(15 * Math.pow(lv, 1.9));
   }
 
   /* ---------- 成就（永久加成，每項 +0.5% 全屬性）---------- */
@@ -1695,7 +1719,7 @@ textarea, input,
     VERSION, MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
     RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR,
     RING_ORDER, RING_MERGE_COUNT,
-    BASE_KILLS_PER_STAGE, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND,
+    BASE_KILLS_PER_STAGE, killsPerStage, waveSecFor, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND,
     REBIRTH, rebirthGain, stageMul,
     PULL_COST_TICKET, PULL_COST_DIAMOND, PULL10_COST_TICKET, PULL10_COST_DIAMOND,
     expNeed, levelCap, ringSlots, enemyStats, killReward, offlinePerMinute,
@@ -1743,6 +1767,7 @@ textarea, input,
       ringBag: [],           // 未裝備的靈環
       bones: [],             // [{uid, id}] 未裝備的靈骨
       bonePulls: 0,          // 靈幣抽靈骨次數（成本會遞增）
+      freeTenUsed: false,    // 新手免費十連是否已用（v1.10.0）
       daily: { day: '', idle: 0, hunt: 0, merge: 0, claimed: [] },   // 每日任務進度
       ach: { unlocked: {} },   // 成就（id -> true），每項永久 +0.5% 全屬性
       cd: {},                // 靈獸 id -> 下次可獵時間
@@ -1837,6 +1862,7 @@ textarea, input,
     out.cd = (d && d.cd) || {};
     out.codes = Array.isArray(d && d.codes) ? d.codes : [];
     out.checkin = Object.assign({ lastDay: '', streak: 0, total: 0 }, (d && d.checkin) || {});
+    out.freeTenUsed = !!(d && d.freeTenUsed);
     out.rebirths = Math.max(0, out.rebirths | 0);
     out.marks = Math.max(0, out.marks | 0);
     // 舊存檔：把「上次轉生時的最高關卡」補成現在的 bestStage，
@@ -2433,6 +2459,17 @@ textarea, input,
     else { if (!spendDiamonds(cost)) return { ok: false, msg: T('鑽石不足') }; }
     return { ok: true, result: rollOne() };
   }
+  /* 新手免費十連：只能領一次，不扣券也不扣鑽。
+     目的：讓新玩家在前 3 分鐘就體驗到靈骨/升星，而不是 25 分鐘後才碰到覺醒。 */
+  function pullTenFree() {
+    if (S.freeTenUsed) return { ok: false, msg: T('免費十連已使用'), results: [] };
+    S.freeTenUsed = true;
+    const results = [];
+    for (let i = 0; i < 10; i++) results.push(rollOne());
+    S.stats.pulls += results.length;
+    return { ok: true, results };
+  }
+
   function rollOne() {
     // 15% 出靈骨，其餘出靈印
     if (Math.random() < 0.15 && CFG.PULL_BONES.length) {
@@ -2599,7 +2636,7 @@ textarea, input,
     slotNextCost, slotNextLevel, canExpand, expandSlot, toggleTeam,
     dayKey, checkinInfo, checkIn,
     pullOnce, rollOne, redeem, exportCode, importCode,
-    offlineGain, OFFLINE_CAP_H,
+    offlineGain, OFFLINE_CAP_H, pullTenFree,
     saveStatus, restoreBackup,
   };
 })(window);
@@ -2699,7 +2736,7 @@ textarea, input,
     const defMit = 1 - mitigation(defCap, State.data.stage);
     const dps = units.reduce((a, u) => a + u.atk * actsPerSec(u.spd) * 0.85 * defMit, 0);
     const effDps = Math.max(1, dps);
-    const baseSec = isBoss ? band.bossSec : band.waveSec;
+    const baseSec = isBoss ? band.bossSec : CFG.waveSecFor(State.data.stage);
     // 該關「原始血量 ÷ 基準秒數」= 打穿它所需的 DPS；超過就是變強，可以縮短戰鬥時間
     const needDps = Math.max(1, st.hp / baseSec);
     const speedFactor = Math.max(band.speedFloor, Math.min(1, needDps / effDps));
@@ -3065,7 +3102,7 @@ textarea, input,
     State.addCoins(coinGain);
     const expRes = State.addExp(s, expGain);
     s.stats.kills++;
-    if (!isBoss && s.kills < CFG.BASE_KILLS_PER_STAGE) s.kills++;
+    if (!isBoss && s.kills < CFG.killsPerStage(s.stage)) s.kills++;
 
     emit('kill', {
       stage: s.stage, boss: isBoss, coins: coinGain, exp: expGain,
@@ -3100,7 +3137,7 @@ textarea, input,
     // 這一波清完才出下一波；還有敵人就不重生
     if (aliveEnemies().length) return;
 
-    if (s.kills >= CFG.BASE_KILLS_PER_STAGE && !B.pendingBoss) {
+    if (s.kills >= CFG.killsPerStage(s.stage) && !B.pendingBoss) {
       B.pendingBoss = true;
       emit('bossReady', { stage: s.stage });
     }
@@ -3140,7 +3177,7 @@ textarea, input,
       enemy: alive[0] ? { ...alive[0] } : (B.enemies[0] ? { ...B.enemies[0] } : null),
       pendingBoss: B.pendingBoss,
       kills: State.data.kills,
-      needed: CFG.BASE_KILLS_PER_STAGE,
+      needed: CFG.killsPerStage(State.data.stage),
       stage: State.data.stage,
     };
   }
@@ -3837,7 +3874,10 @@ textarea, input,
       banner(T(`連續簽到 ${r.streak} 天`));
     });
     $('#btnPull1').addEventListener('click', () => doPull(1));
-    $('#btnPull10').addEventListener('click', () => doPull(10));
+    $('#btnPull10').addEventListener('click', () => {
+      if (!State.data.freeTenUsed) return doPullFree();
+      doPull(10);
+    });
     $('#btnCode').addEventListener('click', () => {
       const r = State.redeem($('#codeInput').value);
       if (!r.ok) return toast(r.msg);
@@ -3864,9 +3904,23 @@ textarea, input,
     State.save(true);
     Battle.refreshTeam();
     renderAll();
+    renderPullResults(results);
+  }
+
+  function doPullFree() {
+    const res = State.pullTenFree();
+    if (!res.ok) { toast(res.msg); return; }
+    State.save(true);
+    Battle.refreshTeam();
+    renderAll();
+    toast(T('免費十連已領取'));
+    renderPullResults(res.results);
+  }
+
+  function renderPullResults(results) {
     $('#pullResult').innerHTML = results.map((r) => {
       const cls = r.star >= 5 ? 's5' : r.star >= 4 ? 's4' : '';
-      const label = r.kind === 'bone' ? T(`${r.name}（${r.desc || T('靈骨')}）`)
+      const label = r.kind === 'bone' ? `${T(r.name)}（${T(r.desc || '靈骨')}）`
         : r.kind === 'star' ? T(`${r.name} ★${r.star}（升星）`)
         : r.kind === 'dup' ? T(`${r.name}（重複 → +${r.diamonds}💎）`)
         : `${r.name} ★${r.star}`;
@@ -3980,9 +4034,12 @@ textarea, input,
     renderAch();
     $('#ticketInfo').textContent = T(`覺醒券 ${s.tickets} · 鑽石 ${fmt(s.diamonds)}`);
     $('#btnPull1').textContent = T(`覺醒一次（${CFG.PULL_COST_TICKET} 券 / ${CFG.PULL_COST_DIAMOND} 💎）`);
-    $('#btnPull10').textContent = T(`十連覺醒（${CFG.PULL10_COST_TICKET} 券 / ${CFG.PULL10_COST_DIAMOND} 💎）`);
+    $('#btnPull10').textContent = s.freeTenUsed
+      ? T(`十連覺醒（${CFG.PULL10_COST_TICKET} 券 / ${CFG.PULL10_COST_DIAMOND} 💎）`)
+      : T('首次十連（免費）');
     $('#btnPull1').disabled = s.tickets < CFG.PULL_COST_TICKET && s.diamonds < CFG.PULL_COST_DIAMOND;
-    $('#btnPull10').disabled = s.tickets < CFG.PULL10_COST_TICKET && s.diamonds < CFG.PULL10_COST_DIAMOND;
+    $('#btnPull10').disabled = s.freeTenUsed
+      && s.tickets < CFG.PULL10_COST_TICKET && s.diamonds < CFG.PULL10_COST_DIAMOND;
   }
 
   /* ================= 頂部 / 全部 ================= */
@@ -4063,8 +4120,8 @@ textarea, input,
       }
       case 'skill': {
         ringFx(ev.unit, ev.element);
-        banner(ev.resonance ? T(`${ev.name} · 共鳴`) : ev.name);
-        if (ev.ring) addLog(T(`${ev.name}${ev.resonance ? T('（屬性共鳴 +25%）') : ''}`), 'c-purple');
+        banner(ev.resonance ? `${T(ev.name)} · ${T('共鳴')}` : T(ev.name));
+        if (ev.ring) addLog(`${T(ev.name)}${ev.resonance ? T('（屬性共鳴 +25%）') : ''}`, 'c-purple');
         break;
       }
       case 'kill': {

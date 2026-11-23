@@ -59,13 +59,21 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.9.2';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.10.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
   const RING_ORDER = ['white', 'yellow', 'violet', 'black', 'red'];  // 合成階梯
   const RING_MERGE_COUNT = 3;       // 3 個同階 → 1 個高一階
   const BASE_KILLS_PER_STAGE = 8;           // 每關殺 8 隻小怪出 BOSS（放置遊戲不要拖）
+  /* 新手加速：前 5 關只要 4 隻、6–10 關 6 隻。
+     理由：第一分鐘決定留存，原本 8 隻 × 2.5 秒 = 每關 20 秒以上，新玩家一分鐘只前進 2 關。 */
+  function killsPerStage(stage) {
+    const st = Math.max(1, stage | 0);
+    if (st <= 5) return 4;
+    if (st <= 10) return 6;
+    return BASE_KILLS_PER_STAGE;
+  }
   const AUTO_BOSS_DELAY = 1800;            // 清完小怪後幾毫秒自動挑戰 BOSS
   /* 橡皮筋難度：怪物數值再高也被隊伍現況夾住，避免「某關之後永遠打不死」 */
   const BAND = {
@@ -85,6 +93,22 @@
        （變強 1.67 倍以內換得到速度；再往上只影響能不能打更深的關） */
     speedFloor: 0.6,
   };
+  /* 前 10 關把「每波需要的秒數」壓到 1.5 秒，25 關前 2.0 秒，之後回歸 2.5 秒。
+     橡皮筋的 hpCap = DPS × 秒數，秒數越小怪越脆、推進越快。 */
+  function waveSecFor(stage) {
+    const st = Math.max(1, stage | 0);
+    if (st <= 10) return 1.5;
+    if (st <= 25) return 2.0;
+    return BAND.waveSec;
+  }
+  /* 前 10 關 BOSS 血量上限用 6 秒（原本一律 15 秒）。
+     實測：新手每關時間幾乎都花在 BOSS，4 隻小怪 6 秒 + BOSS 15 秒 = 21 秒/關。 */
+  function bossSecFor(stage) {
+    const st = Math.max(1, stage | 0);
+    if (st <= 10) return 6;
+    if (st <= 25) return 10;
+    return BAND.bossSec;
+  }
   const AUTO_HUNT_DELAY = 2500;            // 卡等時幾毫秒自動去獵靈
   const PULL_COST_TICKET = 1;
   const PULL_COST_DIAMOND = 100;
@@ -190,8 +214,13 @@
 
   /* ---------- 靈印獨立等級（靈幣升級，可超越玩家等級 10 級）---------- */
   const SOUL_LV = { maxAhead: 20, max: 150, base: 300, pow: 1.9 };
+  /* 前 10 級刻意便宜（120 + 30×Lv），讓新手 3 分鐘內看得到 5–8 次升級。
+     11 級之後沿用原曲線形狀（Lv^1.9）但除以 20：11 級 1,428（不是原本的 27,900，
+     否則從 420 直接跳 66 倍），100 級 75,165（仍是有份量的後期開銷）。 */
   function soulLevelCost(level) {
-    return Math.round(SOUL_LV.base * Math.pow(Math.max(1, level), SOUL_LV.pow));
+    const lv = Math.max(1, level | 0);
+    if (lv <= 10) return 120 + 30 * lv;
+    return Math.round(15 * Math.pow(lv, 1.9));
   }
 
   /* ---------- 成就（永久加成，每項 +0.5% 全屬性）---------- */
@@ -270,7 +299,7 @@
     VERSION, MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
     RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR,
     RING_ORDER, RING_MERGE_COUNT,
-    BASE_KILLS_PER_STAGE, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND,
+    BASE_KILLS_PER_STAGE, killsPerStage, waveSecFor, bossSecFor, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND,
     REBIRTH, rebirthGain, stageMul,
     PULL_COST_TICKET, PULL_COST_DIAMOND, PULL10_COST_TICKET, PULL10_COST_DIAMOND,
     expNeed, levelCap, ringSlots, enemyStats, killReward, offlinePerMinute,

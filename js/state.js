@@ -35,6 +35,7 @@
       ringBag: [],           // 未裝備的靈環
       bones: [],             // [{uid, id}] 未裝備的靈骨
       bonePulls: 0,          // 靈幣抽靈骨次數（成本會遞增）
+      freeTenUsed: false,    // 新手免費十連是否已用（v1.10.0）
       daily: { day: '', idle: 0, hunt: 0, merge: 0, claimed: [] },   // 每日任務進度
       ach: { unlocked: {} },   // 成就（id -> true），每項永久 +0.5% 全屬性
       cd: {},                // 靈獸 id -> 下次可獵時間
@@ -129,6 +130,7 @@
     out.cd = (d && d.cd) || {};
     out.codes = Array.isArray(d && d.codes) ? d.codes : [];
     out.checkin = Object.assign({ lastDay: '', streak: 0, total: 0 }, (d && d.checkin) || {});
+    out.freeTenUsed = !!(d && d.freeTenUsed);
     out.rebirths = Math.max(0, out.rebirths | 0);
     out.marks = Math.max(0, out.marks | 0);
     // 舊存檔：把「上次轉生時的最高關卡」補成現在的 bestStage，
@@ -725,6 +727,17 @@
     else { if (!spendDiamonds(cost)) return { ok: false, msg: T('鑽石不足') }; }
     return { ok: true, result: rollOne() };
   }
+  /* 新手免費十連：只能領一次，不扣券也不扣鑽。
+     目的：讓新玩家在前 3 分鐘就體驗到靈骨/升星，而不是 25 分鐘後才碰到覺醒。 */
+  function pullTenFree() {
+    if (S.freeTenUsed) return { ok: false, msg: T('免費十連已使用'), results: [] };
+    S.freeTenUsed = true;
+    const results = [];
+    for (let i = 0; i < 10; i++) results.push(rollOne());
+    S.stats.pulls += results.length;
+    return { ok: true, results };
+  }
+
   function rollOne() {
     // 15% 出靈骨，其餘出靈印
     if (Math.random() < 0.15 && CFG.PULL_BONES.length) {
@@ -891,7 +904,7 @@
     slotNextCost, slotNextLevel, canExpand, expandSlot, toggleTeam,
     dayKey, checkinInfo, checkIn,
     pullOnce, rollOne, redeem, exportCode, importCode,
-    offlineGain, OFFLINE_CAP_H,
+    offlineGain, OFFLINE_CAP_H, pullTenFree,
     saveStatus, restoreBackup,
   };
 })(window);

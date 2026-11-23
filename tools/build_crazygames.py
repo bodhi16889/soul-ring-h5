@@ -25,6 +25,8 @@ import re
 import sys
 import zipfile
 
+from build_common import strip_pwa
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INCLUDE = ['index.html', 'css/style.css', 'js/config.js', 'js/state.js',
            'js/battle.js', 'js/ui.js', 'js/i18n.js', 'js/ads.js', 'js/ads-crazy.js', 'js/sfx.js']
@@ -42,6 +44,7 @@ def transform(rel, text):
     """把 GamePix 的 SDK 區塊換成 CrazyGames 的（只動 index.html）。"""
     if rel != 'index.html':
         return text
+    text = strip_pwa(text)
     out = []
     skip = False
     for line in text.splitlines():

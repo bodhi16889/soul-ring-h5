@@ -6,11 +6,30 @@
 <meta name="theme-color" content="#120b1f" />
 <title>Spirit Ring Idle</title>
 <meta name="description" content="Idle cultivation RPG: awaken spirits, hunt for rings, fuse them, and rebirth. Five-spirit auto-battle with offline progress." />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="apple-touch-icon" href="pwa/icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Spirit Ring" />
 <link rel="stylesheet" href="css/style.css" />
 <!-- GamePix SDK v3：官方要求「SDK 必須早於遊戲 bundle」，且 GamePixConfig 必須在 SDK 之前設定。
      載入失敗（離線／CDN 掛掉）時 js/gamepix.js 會全部 no-op，遊戲照常可玩。 -->
 <script>window.GamePixConfig = { lifecycle: 'manual' };</script>
 <script src="https://integration.gamepix.com/sdk/v3/gamepix.sdk.js"></script>
+<script>
+/* PWA：只有在自家 https 站台（GitHub Pages）註冊 service worker。
+   CrazyGames / GamePix / itch 的嵌入頁不註冊——那些平台有自己的快取，
+   而且在別人家的 iframe 裡註冊 SW 只會增加變數。失敗一律吞掉，不影響遊戲。 */
+(function () {
+  if (!('serviceWorker' in navigator)) return;
+  var local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+  if (location.protocol !== 'https:' && !local) return;
+  if (/crazygames|gamepix|itch\.zone/i.test(location.hostname)) return;
+  addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  });
+})();
+</script>
 </head>
 <body>
 <div id="loading" class="loading">

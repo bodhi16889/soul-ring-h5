@@ -57,6 +57,12 @@ def main() -> int:
         print(f"✗ 只內嵌了 {n} 個 js，可能路徑不符", file=sys.stderr)
         return 1
 
+    # 2.5) 拔掉 PWA：單檔版沒有 manifest／sw.js，留著只會在 console 噴 404
+    html = re.sub(r'<link rel="manifest"[^>]*>\s*', '', html)
+    html = re.sub(r'<link rel="apple-touch-icon"[^>]*>\s*', '', html)
+    html = re.sub(r'<meta name="apple-mobile-web-app[^>]*>\s*', '', html)
+    html = re.sub(r'<script>\s*/\* PWA[\s\S]*?</script>\s*', '', html)
+
     # 3) 殘留檢查：不能還有本機相對資源引用
     left = re.findall(r'(?:src|href)="(?!#|https?:|data:)([^"]+)"', html)
     left = [x for x in left if not x.startswith('#')]

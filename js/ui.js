@@ -678,7 +678,10 @@
       banner(T(`連續簽到 ${r.streak} 天`));
     });
     $('#btnPull1').addEventListener('click', () => doPull(1));
-    $('#btnPull10').addEventListener('click', () => doPull(10));
+    $('#btnPull10').addEventListener('click', () => {
+      if (!State.data.freeTenUsed) return doPullFree();
+      doPull(10);
+    });
     $('#btnCode').addEventListener('click', () => {
       const r = State.redeem($('#codeInput').value);
       if (!r.ok) return toast(r.msg);
@@ -705,9 +708,23 @@
     State.save(true);
     Battle.refreshTeam();
     renderAll();
+    renderPullResults(results);
+  }
+
+  function doPullFree() {
+    const res = State.pullTenFree();
+    if (!res.ok) { toast(res.msg); return; }
+    State.save(true);
+    Battle.refreshTeam();
+    renderAll();
+    toast(T('免費十連已領取'));
+    renderPullResults(res.results);
+  }
+
+  function renderPullResults(results) {
     $('#pullResult').innerHTML = results.map((r) => {
       const cls = r.star >= 5 ? 's5' : r.star >= 4 ? 's4' : '';
-      const label = r.kind === 'bone' ? T(`${r.name}（${r.desc || T('靈骨')}）`)
+      const label = r.kind === 'bone' ? `${T(r.name)}（${T(r.desc || '靈骨')}）`
         : r.kind === 'star' ? T(`${r.name} ★${r.star}（升星）`)
         : r.kind === 'dup' ? T(`${r.name}（重複 → +${r.diamonds}💎）`)
         : `${r.name} ★${r.star}`;
@@ -821,9 +838,12 @@
     renderAch();
     $('#ticketInfo').textContent = T(`覺醒券 ${s.tickets} · 鑽石 ${fmt(s.diamonds)}`);
     $('#btnPull1').textContent = T(`覺醒一次（${CFG.PULL_COST_TICKET} 券 / ${CFG.PULL_COST_DIAMOND} 💎）`);
-    $('#btnPull10').textContent = T(`十連覺醒（${CFG.PULL10_COST_TICKET} 券 / ${CFG.PULL10_COST_DIAMOND} 💎）`);
+    $('#btnPull10').textContent = s.freeTenUsed
+      ? T(`十連覺醒（${CFG.PULL10_COST_TICKET} 券 / ${CFG.PULL10_COST_DIAMOND} 💎）`)
+      : T('首次十連（免費）');
     $('#btnPull1').disabled = s.tickets < CFG.PULL_COST_TICKET && s.diamonds < CFG.PULL_COST_DIAMOND;
-    $('#btnPull10').disabled = s.tickets < CFG.PULL10_COST_TICKET && s.diamonds < CFG.PULL10_COST_DIAMOND;
+    $('#btnPull10').disabled = s.freeTenUsed
+      && s.tickets < CFG.PULL10_COST_TICKET && s.diamonds < CFG.PULL10_COST_DIAMOND;
   }
 
   /* ================= 頂部 / 全部 ================= */
@@ -904,8 +924,8 @@
       }
       case 'skill': {
         ringFx(ev.unit, ev.element);
-        banner(ev.resonance ? T(`${ev.name} · 共鳴`) : ev.name);
-        if (ev.ring) addLog(T(`${ev.name}${ev.resonance ? T('（屬性共鳴 +25%）') : ''}`), 'c-purple');
+        banner(ev.resonance ? `${T(ev.name)} · ${T('共鳴')}` : T(ev.name));
+        if (ev.ring) addLog(`${T(ev.name)}${ev.resonance ? T('（屬性共鳴 +25%）') : ''}`, 'c-purple');
         break;
       }
       case 'kill': {
