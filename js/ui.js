@@ -1155,6 +1155,9 @@
     }
   }
 
+  const STAT_LABEL = { atk: '攻擊', hp: '生命', def: '防禦', spd: '速度', all: '全屬性' };
+  const PRIORITY_LABEL = { boss: '推進', hunt: '獵靈', farm: '推關' };
+
   function renderShop() {
     const box = $('#shopBox');
     if (!box) return;
@@ -1207,23 +1210,52 @@
     if (b) b.addEventListener('click', showRelics);
   }
 
-  function showRelics() {
-    const rows = CFG.RELIC_TIERS.map((t) => {
-      const items = CFG.RELICS.filter((r) => r.tier === t.key);
-      const cells = items.map((r) => {
-        const got = State.hasRelic(r.id);
-        return `<span class="codex-cell ${got ? 'on' : ''}" style="${got ? `border-color:${t.color}` : ''}">
-          <i>${got ? '🔮' : '❔'}</i><b>${got ? T(r.name) : T('未解鎖')}</b></span>`;
+  function relicRowsHtml() {
+    const list = State.relicInfo();
+    return CFG.RELIC_TIERS.map((t) => {
+      const items = list.filter((r) => r.tier === t.key);
+      const rows = items.map((r) => {
+        if (!r.owned) {
+          return `<div class="merge-row"><span class="mr-name">❔ ${T('未解鎖')}</span>
+            <span class="hint">${T('覺醒里程可得')}</span><span></span></div>`;
+        }
+        const can = !r.maxed && (State.data.cores | 0) >= (r.cost || 0);
+        return `<div class="merge-row">
+          <span class="mr-name">🔮 ${T(r.name)} <span class="hint">Lv ${r.level}/${r.max}</span></span>
+          <span class="hint">+${r.curPct}% ${T(STAT_LABEL[r.stat] || r.stat)}</span>
+          <button class="mini-btn ${can ? 'primary' : ''}" data-relic="${r.id}" ${can ? '' : 'disabled'}>
+            ${r.maxed ? T('已滿級') : `${T('升級')} · ${r.cost} ${T('獸核')}`}
+          </button>
+        </div>`;
       }).join('');
-      return `<div class="codex-group"><div class="merge-head"><b style="color:${t.color}">${T(t.name)} +${Math.round(t.bonus * 100)}%</b></div>
-        <div class="codex-grid">${cells}</div></div>`;
+      return `<div class="codex-group"><div class="merge-head">
+          <b style="color:${t.color}">${T(t.name)} +${Math.round(t.bonus * 100)}%</b></div>${rows}</div>`;
     }).join('');
+  }
+
+  function showRelics() {
     const info = State.relicMilestoneInfo();
-    openModal(T('靈寶收藏'), T(`
+    openModal(T('靈寶收藏'), `
       <div class="hint">${T('每 10 次覺醒抽得一件（券或鑽都算），12 件限量、各只能拿一次')}</div>
       <div class="hint">${T('目前進度')} ${info.have}/${info.need} · ${T('已收集')} ${info.owned}/${info.all}</div>
-      ${rows}`),
+      <div class="hint" style="margin-top:6px">${T('升級只吃獸核：每級 +30%，滿級再給全屬性 +2%')}</div>
+      ${relicRowsHtml()}`,
       [{ text: T('關閉'), kind: 'primary' }]);
+    bindRelicUpgrade();
+  }
+
+  function bindRelicUpgrade() {
+    $$('[data-relic]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = State.relicUpgrade(b.dataset.relic);
+        if (!r.ok) return toast(r.msg);
+        State.save(true);
+        Battle.refreshTeam();
+        renderAll();
+        toast(`${T('靈寶升級')} → Lv ${r.level}`);
+        showRelics();          // 重畫收藏視窗
+      });
+    });
   }
 
   function renderWeekly() {
@@ -1560,11 +1592,17 @@
 
   function showOffline(g) {
     const h = Math.floor(g.minutes / 60), m = g.minutes % 60;
+    const lvLine = g.levels > 0
+      ? `<div>${T('等級')} <b class="c-ok">Lv ${g.levelBefore} → ${g.levelAfter}</b> <span class="hint">(+${g.levels})</span></div>`
+      : `<div>${T('等級')} <b>Lv ${g.levelAfter}</b> <span class="hint">${T('（未升級）')}</span></div>`;
     openModal(T('離線收益'), T(`
       <div>${T('離線')} <b>${h > 0 ? h + ' ' + T('小時') + ' ' : ''}${m} ${T('分')}</b>${g.capped ? T('（已達 12 小時上限）') : ''}</div>
-      <div style="margin-top:8px">靈幣 <b class="c-gold">+${fmt(g.coins)}</b></div>
-      <div>經驗 <b class="c-ok">+${fmt(g.exp)}</b></div>
-      <div class="hint" style="margin-top:8px">${T('掛機效率會隨關卡提升')}</div>`),
+      <div style="margin-top:8px">靈幣 <b class="c-gold">+${fmt(g.coins)}</b>
+        <span class="hint">(${fmt(g.coinsPerMin)} / ${T('分')})</span></div>
+      <div>經驗 <b class="c-ok">+${fmt(g.exp)}</b>
+        <span class="hint">(${fmt(g.expPerMin)} / ${T('分')})</span></div>
+      ${lvLine}
+      <div class="hint" style="margin-top:8px">${T('掛機效率會隨關卡提升')} · ${T('目前第')} ${g.stage} ${T('關')}</div>`),
       [
         { text: T('看廣告 ×2'), kind: '', onClick: () => {
           if (!global.GP || !GP.reward) { toast(T('這裡沒有廣告可用')); return; }
@@ -1629,24 +1667,25 @@
         <button class="mini-btn" id="btnSfx">${T('音效')}${I18N.lang === 'en' ? ': ' : '：'}${(global.SFX && SFX.enabled) ? T('開') : T('關')}</button>
         <button class="mini-btn" id="btnBgm">${T('音樂')}${I18N.lang === 'en' ? ': ' : '：'}${(global.SFX && SFX.bgm) ? T('開') : T('關')}</button>
       </div>
-      <div class="acts" style="display:flex;gap:8px;margin-top:8px">
+      <div class="acts" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="mini-btn ${I18N.lang === 'en' ? 'primary' : ''}" id="btnLangEn">English</button>
         <button class="mini-btn ${I18N.lang === 'zh' ? 'primary' : ''}" id="btnLangZh">中文</button>
       </div>
-      <div class="acts" style="display:flex;gap:8px;margin-top:8px">
+      <div class="acts" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="mini-btn" id="btnAutoMerge">自動合成低階環：${(s.settings.autoMerge === false) ? T('關') : T('開')}</button>
       </div>
-      <div class="acts" style="display:flex;gap:8px;margin-top:8px">
+      <div class="acts" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="mini-btn" id="btnAutoBoss">自動挑戰 BOSS：${s.settings.autoBoss === false ? T('關') : T('開')}</button>
         <button class="mini-btn" id="btnAutoHunt">卡等自動獵靈：${s.settings.autoHunt === false ? T('關') : T('開')}</button>
         <button class="mini-btn" id="btnAutoRing">自動裝備靈環：${s.settings.autoRing === false ? T('關') : T('開')}</button>
         <button class="mini-btn" id="btnAutoStar">自動升星：${(s.settings || {}).autoStar === false ? T('關') : T('開')}</button>
+        <button class="mini-btn" id="btnPriority">${T('優先')}：${T(PRIORITY_LABEL[(s.settings || {}).autoPriority || 'boss'])}</button>
       </div>
-      <div class="acts" style="display:flex;gap:8px;margin-top:8px">
+      <div class="acts" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="mini-btn" id="btnExport">匯出存檔碼</button>
         <button class="mini-btn" id="btnImport">匯入存檔碼</button>
       </div>
-      <div class="acts" style="display:flex;gap:8px;margin-top:8px">
+      <div class="acts" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="mini-btn ghost" id="btnRename">改暱稱</button>
         <button class="mini-btn ghost" id="btnReset">重新開始</button>
       </div>`),
@@ -1663,6 +1702,16 @@
       if (!global.SFX) return;
       SFX.bgmSet(!SFX.bgm);
       bgmBtn.textContent = `${T('音樂')}${I18N.lang === 'en' ? ': ' : '：'}${SFX.bgm ? T('開') : T('關')}`;
+    });
+    const prioBtn = $('#btnPriority');
+    if (prioBtn) prioBtn.addEventListener('click', () => {
+      const list = ['boss', 'hunt', 'farm'];
+      const cur = (State.data.settings || {}).autoPriority || 'boss';
+      const next = list[(list.indexOf(cur) + 1) % list.length];
+      State.data.settings.autoPriority = next;
+      State.save(true);
+      prioBtn.textContent = `${T('優先')}：${T(PRIORITY_LABEL[next])}`;
+      toast(`${T('優先')}：${T(PRIORITY_LABEL[next])}`);
     });
     const autoStarBtn = $('#btnAutoStar');
     if (autoStarBtn) autoStarBtn.addEventListener('click', () => {

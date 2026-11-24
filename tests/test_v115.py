@@ -191,12 +191,18 @@ def main() -> int:
 
         page.click("#btnRelics")
         time.sleep(0.5)
-        modal = page.evaluate("""(() => ({
-            title: document.getElementById('modalTitle').textContent,
-            cells: document.querySelectorAll('.codex-cell').length,
-            on: document.querySelectorAll('.codex-cell.on').length
-        }))()""")
-        ok("靈寶收藏彈窗 12 格", modal["cells"] == 12, json.dumps(modal, ensure_ascii=False))
+        modal = page.evaluate("""(() => {
+            const box = document.getElementById('modalBody');
+            return {
+                title: document.getElementById('modalTitle').textContent,
+                /* v1.19.0 起靈寶收藏改成「一列一件」（可以升級），不再是方格 */
+                rows: box.querySelectorAll('.merge-row').length,
+                upgradable: box.querySelectorAll('[data-relic]').length,
+                hasLv: /Lv \\d\\/5/.test(box.innerText)
+            };
+        })()""")
+        ok("靈寶收藏彈窗 12 件（含未解鎖列）", modal["rows"] == 12,
+           json.dumps(modal, ensure_ascii=False))
         page.keyboard.press("Escape")
 
         cjk = page.evaluate("""(() => {

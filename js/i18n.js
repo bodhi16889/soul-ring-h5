@@ -50,7 +50,7 @@
     '第關': 'Stage', '獲得': 'Got', '關開啟': 'unlocked',
     '掛機效率提升': 'idle rate up', '已自動裝備': 'Auto-equipped',
     '擊敗': 'Defeated', '吸收': 'absorbed',
-    '狂暴（攻擊 +35%）': 'Enraged (+35% ATK)',
+    '狂暴': 'Enraged', '狂暴（攻擊 +35%）': 'Enraged (+35% ATK)',
     '回復 10% 生命': 'Heals 10% HP',
     '獵靈中…': 'Hunting…',
     '全隊倒下': 'Team wiped', '全隊倒下，2 秒後自動重整': 'Team wiped — regrouping in 2s',
@@ -175,6 +175,12 @@
     '疾行': 'Swiftness', '財源': 'Fortune', '獸緣': 'Beast Bond',
     '攻擊': 'ATK', '爆擊率': 'Crit', '生命': 'HP',
     '防禦': 'DEF', '速度': 'SPD', '靈幣收益': 'Coins',
+    /* v1.19.0 靈寶升級 / 離線明細 / 自動化優先序 */
+    '升級': 'Upgrade', '靈寶升級': 'Relic upgraded', '等級': 'Lv',
+    '（未升級）': '(no level up)', '目前第': 'at stage',
+    '升級只吃獸核：每級 +30%，滿級再給全屬性 +2%': 'Upgrades cost beast cores only: +30% per level, +2% all stats at max.',
+    '覺醒里程可得': 'From awakening milestones', '尚未擁有這件靈寶': 'You do not own this relic yet',
+    '優先': 'Auto', '推進': 'Push', '推關': 'Farm',
     '有新版本': 'New version available',
     '更新': 'Update',
     /* v1.16.0：深塔 / 副本 / 詞條 */

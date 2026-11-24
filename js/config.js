@@ -152,6 +152,12 @@
   const RELIC = {
     every: 10,          // 每 10 次覺醒券抽一件
     dupCores: 30,       // 全部收集完，里程改給獸核
+    /* v1.19.0：靈寶升級（1→5 級）。每級 +30% 基礎加成，滿級再給全屬性 +2%，
+       升級只吃獸核 → 給獸核第四個長期出口（前三個：覺醒階／傳承／詞條重鑄）。 */
+    maxLevel: 5,
+    perLevel: 0.30,
+    maxAllBonus: 0.02,
+    upCost: { common: 4, fine: 8, rare: 14, epic: 22, legend: 32 },
     /* 能力越高 → 高階權重越高。progress = 最高關卡 + 轉生×30 + 命印×3 */
     tierWeights(progress) {
       const g = Math.max(0, Math.min(8, Math.floor(progress / 60)));
@@ -232,7 +238,7 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.18.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.19.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）

@@ -46,6 +46,7 @@
       dungeon: { day: '', done: [] },         // 每日副本：今天打過哪些
       shop: { day: '', bought: {} },          // 商店：今日各格已買次數
       talents: {},                            // 命印天賦：nodeId → 等級
+      relicLv: {},                            // 靈寶等級：id → 1..5
       settings: { autoRing: true, autoBoss: true, autoHunt: true, autoStar: true, speed: 1 },
       rerolls: 0,                             // 重鑄券（商店買）
       elite: { day: '', ids: [] },   // 今日已打的精英靈獸
@@ -166,8 +167,13 @@
     if (!out.shop.bought || typeof out.shop.bought !== 'object') out.shop.bought = {};
     out.rerolls = Math.max(0, out.rerolls | 0);
     out.talents = Object.assign({}, (d && d.talents) || {});
+    out.relicLv = Object.assign({}, (d && d.relicLv) || {});
+    Object.keys(out.relicLv).forEach((k) => {
+      out.relicLv[k] = Math.max(1, Math.min(CFG.RELIC.maxLevel, out.relicLv[k] | 0));
+    });
     if (!out.settings) out.settings = {};
     if (!CFG.SPEEDS.includes(out.settings.speed | 0)) out.settings.speed = 1;
+    if (['boss', 'hunt', 'farm'].indexOf(out.settings.autoPriority) < 0) out.settings.autoPriority = 'boss';
     if (!Array.isArray(out.dungeon.done)) out.dungeon.done = [];
     out.elite = Object.assign({ day: '', ids: [] }, (d && d.elite) || {});
     out.depth = Object.assign({}, (d && d.depth) || {});
@@ -274,11 +280,20 @@
     const mul = 1 + CFG.REBIRTH.perMark.income * s.marks;
     const coins = Math.round(rate.coins * minutes * mul);
     const exp = Math.round(rate.exp * minutes * mul);
+    const levelBefore = s.level | 0;
     s.coins += coins;
     addExp(s, exp, { silent: true });
+    const levelAfter = s.level | 0;
     s.lastSave = now;
-    s.pendingOffline = { minutes, coins, exp, doubled: false, at: now };
-    return { minutes, capped: ms > capped, coins, exp, rate };
+    /* v1.19.0：離線要有「明細」才有感——時長、靈幣、經驗、升了幾級、每分鐘速率 */
+    const detail = {
+      minutes, capped: ms > capped, coins, exp, rate,
+      levelBefore, levelAfter, levels: Math.max(0, levelAfter - levelBefore),
+      coinsPerMin: Math.round(rate.coins * mul), expPerMin: Math.round(rate.exp * mul),
+      stage: s.stage | 0, at: now,
+    };
+    s.pendingOffline = Object.assign({ doubled: false }, detail);
+    return detail;
   }
 
   /* 離線收益加倍：廣告看完才能用，一次回歸只能用一次（不覆蓋原本已入帳的那份） */
@@ -661,6 +676,42 @@
     S.relics.push(relic.id);
     return { kind: 'relic', relic, at: S.ticketPulls };
   }
+  /* 靈寶等級：只有已擁有的才有等級（預設 1） */
+  function relicLevel(id) {
+    if (!hasRelic(id)) return 0;
+    return Math.max(1, Math.min(CFG.RELIC.maxLevel, (S.relicLv || {})[id] | 0 || 1));
+  }
+  function relicUpCost(id) {
+    const r = CFG.RELICS.find((x) => x.id === id);
+    if (!r) return null;
+    const base = CFG.RELIC.upCost[r.tier] || 10;
+    const lv = relicLevel(id);
+    if (lv >= CFG.RELIC.maxLevel) return null;
+    return base * lv;           // 1→2 用 1 倍、4→5 用 4 倍
+  }
+  function relicUpgrade(id) {
+    if (!hasRelic(id)) return { ok: false, msg: T('尚未擁有這件靈寶') };
+    const lv = relicLevel(id);
+    if (lv >= CFG.RELIC.maxLevel) return { ok: false, msg: T('已滿級') };
+    const cost = relicUpCost(id);
+    if ((S.cores | 0) < cost) return { ok: false, msg: T('獸核不足'), need: cost };
+    S.cores -= cost;
+    S.relicLv[id] = lv + 1;
+    return { ok: true, level: lv + 1, cost };
+  }
+  function relicInfo() {
+    return CFG.RELICS.map((r) => {
+      const t = CFG.RELIC_BY_KEY[r.tier];
+      const owned = hasRelic(r.id);
+      const lv = owned ? relicLevel(r.id) : 0;
+      const mul = owned ? 1 + CFG.RELIC.perLevel * (lv - 1) : 0;
+      return { id: r.id, name: r.name, tier: r.tier, stat: r.stat, owned, level: lv,
+               max: CFG.RELIC.maxLevel, cost: owned ? relicUpCost(r.id) : null,
+               curPct: owned ? +(t.bonus * mul * 100).toFixed(1) : 0,
+               maxed: owned && lv >= CFG.RELIC.maxLevel };
+    });
+  }
+
   function relicBonus() {
     const out = { atk: 0, hp: 0, def: 0, spd: 0 };
     (S.relics || []).forEach((id) => {
@@ -668,8 +719,18 @@
       if (!r) return;
       const t = CFG.RELIC_BY_KEY[r.tier];
       if (!t) return;
-      if (r.stat === 'all') { out.atk += t.bonus; out.hp += t.bonus; out.def += t.bonus; out.spd += t.bonus; }
-      else out[r.stat] = (out[r.stat] || 0) + t.bonus;
+      const lv = relicLevel(id) || 1;
+      const mul = 1 + CFG.RELIC.perLevel * (lv - 1);      // 5 級 → ×2.2
+      const maxed = lv >= CFG.RELIC.maxLevel;
+      let b = t.bonus * mul;
+      if (r.stat === 'all') {
+        const all = b + (maxed ? CFG.RELIC.maxAllBonus : 0);
+        out.atk += all; out.hp += all; out.def += all; out.spd += all;
+      } else {
+        out[r.stat] = (out[r.stat] || 0) + b;
+        if (maxed) { out.atk += CFG.RELIC.maxAllBonus; out.hp += CFG.RELIC.maxAllBonus;
+                     out.def += CFG.RELIC.maxAllBonus; out.spd += CFG.RELIC.maxAllBonus; }
+      }
     });
     return out;
   }
@@ -1533,6 +1594,7 @@
     relicProgress, relicTierWeights, hasRelic, relicCount, rollRelic, relicMilestone, relicBackfill, relicBonus, relicMilestoneInfo,
     setInfo, setMulFor, shopReset, shopInfo, shopBuy, autoStarUp,
     talentLevel, spentMarks, unspentMarks, talentMul, talentInfo, learnTalent, resetTalents, combatMods,
+    relicLevel, relicUpCost, relicUpgrade, relicInfo,
     spireReset, spireInfo, spireUse, spireReport, spireStats, spireMul,
     dungeonReset, dungeonInfo, dungeonMark, dungeonReward, dungeonClaim,
     rollAffix, rerollAffix, affixTotals,

@@ -389,13 +389,21 @@
     /* 卡等時「獵靈」優先於「打 BOSS」：卡等打王沒有任何經驗，先拿環才有成長。
        但「有空格」不等於「卡等」——實測每關都自動跑去獵靈，一次 11 秒、還會被
        嘯風猿打到全滅再等復活，反而把推進卡住。所以要求：BOSS 已經失敗過一次。 */
+    /* v1.19.0：自動化優先序（玩家決定掛機目標）
+         boss = 推進優先（預設，卡關才去獵靈）
+         hunt = 獵靈優先（有空位就打得到就獵，之後才回頭打王）
+         farm = 只推關（不自動打王、不自動獵靈 → 會停在 BOSS 前，這是玩家自己的選擇） */
+    const pri = cfg.autoPriority || 'boss';
+    if (pri === 'farm') return;
+
     const stuck = B.pendingBoss && ((s.bossFails || {})[s.stage] || 0) > 0;
     /* 另一種該去獵靈的情況：身上一個環都沒有（靈環只從獵靈來）。
        兩種情況都只在「這波清完、等 BOSS」的邊界觸發，不要在小怪波中間插隊。 */
     const ringless = (s.ringBag || []).length === 0
       && (s.souls || []).every((x) => !(x.rings || []).length);
+    const wantsHunt = pri === 'hunt' ? true : (stuck || ringless);
     if (cfg.autoHunt !== false && B.mode === 'farm'
-        && (stuck || ringless) && State.hasFreeRingSlot()) {
+        && wantsHunt && State.hasFreeRingSlot()) {
       const ready = CFG.BEASTS.filter((b) => s.level >= b.reqLevel && (s.cd[b.id] || 0) <= now);
       const beast = ready[ready.length - 1];   // 打得到就挑最高階的
       if (beast) {
@@ -407,7 +415,10 @@
       }
     }
 
-    if (B.pendingBoss && cfg.autoBoss !== false && B.mode === 'farm') {
+    /* 獵靈優先時：這一輪沒靈獸可獵（都冷卻中）才回頭打王，避免卡死在等冷卻 */
+    const huntBlocked = pri === 'hunt' && State.hasFreeRingSlot()
+      && CFG.BEASTS.some((x) => s.level >= x.reqLevel && (s.cd[x.id] || 0) <= now);
+    if (B.pendingBoss && cfg.autoBoss !== false && B.mode === 'farm' && !huntBlocked) {
       B.autoAt = now + CFG.AUTO_BOSS_DELAY;
       setTimeout(() => { if (B.pendingBoss && B.mode === 'farm') challengeBoss(); }, CFG.AUTO_BOSS_DELAY);
     }

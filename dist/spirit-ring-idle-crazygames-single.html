@@ -752,7 +752,7 @@ textarea, input,
     '第關': 'Stage', '獲得': 'Got', '關開啟': 'unlocked',
     '掛機效率提升': 'idle rate up', '已自動裝備': 'Auto-equipped',
     '擊敗': 'Defeated', '吸收': 'absorbed',
-    '狂暴（攻擊 +35%）': 'Enraged (+35% ATK)',
+    '狂暴': 'Enraged', '狂暴（攻擊 +35%）': 'Enraged (+35% ATK)',
     '回復 10% 生命': 'Heals 10% HP',
     '獵靈中…': 'Hunting…',
     '全隊倒下': 'Team wiped', '全隊倒下，2 秒後自動重整': 'Team wiped — regrouping in 2s',
@@ -877,6 +877,12 @@ textarea, input,
     '疾行': 'Swiftness', '財源': 'Fortune', '獸緣': 'Beast Bond',
     '攻擊': 'ATK', '爆擊率': 'Crit', '生命': 'HP',
     '防禦': 'DEF', '速度': 'SPD', '靈幣收益': 'Coins',
+    /* v1.19.0 靈寶升級 / 離線明細 / 自動化優先序 */
+    '升級': 'Upgrade', '靈寶升級': 'Relic upgraded', '等級': 'Lv',
+    '（未升級）': '(no level up)', '目前第': 'at stage',
+    '升級只吃獸核：每級 +30%，滿級再給全屬性 +2%': 'Upgrades cost beast cores only: +30% per level, +2% all stats at max.',
+    '覺醒里程可得': 'From awakening milestones', '尚未擁有這件靈寶': 'You do not own this relic yet',
+    '優先': 'Auto', '推進': 'Push', '推關': 'Farm',
     '有新版本': 'New version available',
     '更新': 'Update',
     /* v1.16.0：深塔 / 副本 / 詞條 */
@@ -1801,6 +1807,12 @@ textarea, input,
   const RELIC = {
     every: 10,          // 每 10 次覺醒券抽一件
     dupCores: 30,       // 全部收集完，里程改給獸核
+    /* v1.19.0：靈寶升級（1→5 級）。每級 +30% 基礎加成，滿級再給全屬性 +2%，
+       升級只吃獸核 → 給獸核第四個長期出口（前三個：覺醒階／傳承／詞條重鑄）。 */
+    maxLevel: 5,
+    perLevel: 0.30,
+    maxAllBonus: 0.02,
+    upCost: { common: 4, fine: 8, rare: 14, epic: 22, legend: 32 },
     /* 能力越高 → 高階權重越高。progress = 最高關卡 + 轉生×30 + 命印×3 */
     tierWeights(progress) {
       const g = Math.max(0, Math.min(8, Math.floor(progress / 60)));
@@ -1881,7 +1893,7 @@ textarea, input,
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.18.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.19.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -2229,6 +2241,7 @@ textarea, input,
       dungeon: { day: '', done: [] },         // 每日副本：今天打過哪些
       shop: { day: '', bought: {} },          // 商店：今日各格已買次數
       talents: {},                            // 命印天賦：nodeId → 等級
+      relicLv: {},                            // 靈寶等級：id → 1..5
       settings: { autoRing: true, autoBoss: true, autoHunt: true, autoStar: true, speed: 1 },
       rerolls: 0,                             // 重鑄券（商店買）
       elite: { day: '', ids: [] },   // 今日已打的精英靈獸
@@ -2349,8 +2362,13 @@ textarea, input,
     if (!out.shop.bought || typeof out.shop.bought !== 'object') out.shop.bought = {};
     out.rerolls = Math.max(0, out.rerolls | 0);
     out.talents = Object.assign({}, (d && d.talents) || {});
+    out.relicLv = Object.assign({}, (d && d.relicLv) || {});
+    Object.keys(out.relicLv).forEach((k) => {
+      out.relicLv[k] = Math.max(1, Math.min(CFG.RELIC.maxLevel, out.relicLv[k] | 0));
+    });
     if (!out.settings) out.settings = {};
     if (!CFG.SPEEDS.includes(out.settings.speed | 0)) out.settings.speed = 1;
+    if (['boss', 'hunt', 'farm'].indexOf(out.settings.autoPriority) < 0) out.settings.autoPriority = 'boss';
     if (!Array.isArray(out.dungeon.done)) out.dungeon.done = [];
     out.elite = Object.assign({ day: '', ids: [] }, (d && d.elite) || {});
     out.depth = Object.assign({}, (d && d.depth) || {});
@@ -2457,11 +2475,20 @@ textarea, input,
     const mul = 1 + CFG.REBIRTH.perMark.income * s.marks;
     const coins = Math.round(rate.coins * minutes * mul);
     const exp = Math.round(rate.exp * minutes * mul);
+    const levelBefore = s.level | 0;
     s.coins += coins;
     addExp(s, exp, { silent: true });
+    const levelAfter = s.level | 0;
     s.lastSave = now;
-    s.pendingOffline = { minutes, coins, exp, doubled: false, at: now };
-    return { minutes, capped: ms > capped, coins, exp, rate };
+    /* v1.19.0：離線要有「明細」才有感——時長、靈幣、經驗、升了幾級、每分鐘速率 */
+    const detail = {
+      minutes, capped: ms > capped, coins, exp, rate,
+      levelBefore, levelAfter, levels: Math.max(0, levelAfter - levelBefore),
+      coinsPerMin: Math.round(rate.coins * mul), expPerMin: Math.round(rate.exp * mul),
+      stage: s.stage | 0, at: now,
+    };
+    s.pendingOffline = Object.assign({ doubled: false }, detail);
+    return detail;
   }
 
   /* 離線收益加倍：廣告看完才能用，一次回歸只能用一次（不覆蓋原本已入帳的那份） */
@@ -2844,6 +2871,42 @@ textarea, input,
     S.relics.push(relic.id);
     return { kind: 'relic', relic, at: S.ticketPulls };
   }
+  /* 靈寶等級：只有已擁有的才有等級（預設 1） */
+  function relicLevel(id) {
+    if (!hasRelic(id)) return 0;
+    return Math.max(1, Math.min(CFG.RELIC.maxLevel, (S.relicLv || {})[id] | 0 || 1));
+  }
+  function relicUpCost(id) {
+    const r = CFG.RELICS.find((x) => x.id === id);
+    if (!r) return null;
+    const base = CFG.RELIC.upCost[r.tier] || 10;
+    const lv = relicLevel(id);
+    if (lv >= CFG.RELIC.maxLevel) return null;
+    return base * lv;           // 1→2 用 1 倍、4→5 用 4 倍
+  }
+  function relicUpgrade(id) {
+    if (!hasRelic(id)) return { ok: false, msg: T('尚未擁有這件靈寶') };
+    const lv = relicLevel(id);
+    if (lv >= CFG.RELIC.maxLevel) return { ok: false, msg: T('已滿級') };
+    const cost = relicUpCost(id);
+    if ((S.cores | 0) < cost) return { ok: false, msg: T('獸核不足'), need: cost };
+    S.cores -= cost;
+    S.relicLv[id] = lv + 1;
+    return { ok: true, level: lv + 1, cost };
+  }
+  function relicInfo() {
+    return CFG.RELICS.map((r) => {
+      const t = CFG.RELIC_BY_KEY[r.tier];
+      const owned = hasRelic(r.id);
+      const lv = owned ? relicLevel(r.id) : 0;
+      const mul = owned ? 1 + CFG.RELIC.perLevel * (lv - 1) : 0;
+      return { id: r.id, name: r.name, tier: r.tier, stat: r.stat, owned, level: lv,
+               max: CFG.RELIC.maxLevel, cost: owned ? relicUpCost(r.id) : null,
+               curPct: owned ? +(t.bonus * mul * 100).toFixed(1) : 0,
+               maxed: owned && lv >= CFG.RELIC.maxLevel };
+    });
+  }
+
   function relicBonus() {
     const out = { atk: 0, hp: 0, def: 0, spd: 0 };
     (S.relics || []).forEach((id) => {
@@ -2851,8 +2914,18 @@ textarea, input,
       if (!r) return;
       const t = CFG.RELIC_BY_KEY[r.tier];
       if (!t) return;
-      if (r.stat === 'all') { out.atk += t.bonus; out.hp += t.bonus; out.def += t.bonus; out.spd += t.bonus; }
-      else out[r.stat] = (out[r.stat] || 0) + t.bonus;
+      const lv = relicLevel(id) || 1;
+      const mul = 1 + CFG.RELIC.perLevel * (lv - 1);      // 5 級 → ×2.2
+      const maxed = lv >= CFG.RELIC.maxLevel;
+      let b = t.bonus * mul;
+      if (r.stat === 'all') {
+        const all = b + (maxed ? CFG.RELIC.maxAllBonus : 0);
+        out.atk += all; out.hp += all; out.def += all; out.spd += all;
+      } else {
+        out[r.stat] = (out[r.stat] || 0) + b;
+        if (maxed) { out.atk += CFG.RELIC.maxAllBonus; out.hp += CFG.RELIC.maxAllBonus;
+                     out.def += CFG.RELIC.maxAllBonus; out.spd += CFG.RELIC.maxAllBonus; }
+      }
     });
     return out;
   }
@@ -3716,6 +3789,7 @@ textarea, input,
     relicProgress, relicTierWeights, hasRelic, relicCount, rollRelic, relicMilestone, relicBackfill, relicBonus, relicMilestoneInfo,
     setInfo, setMulFor, shopReset, shopInfo, shopBuy, autoStarUp,
     talentLevel, spentMarks, unspentMarks, talentMul, talentInfo, learnTalent, resetTalents, combatMods,
+    relicLevel, relicUpCost, relicUpgrade, relicInfo,
     spireReset, spireInfo, spireUse, spireReport, spireStats, spireMul,
     dungeonReset, dungeonInfo, dungeonMark, dungeonReward, dungeonClaim,
     rollAffix, rerollAffix, affixTotals,
@@ -4127,13 +4201,21 @@ textarea, input,
     /* 卡等時「獵靈」優先於「打 BOSS」：卡等打王沒有任何經驗，先拿環才有成長。
        但「有空格」不等於「卡等」——實測每關都自動跑去獵靈，一次 11 秒、還會被
        嘯風猿打到全滅再等復活，反而把推進卡住。所以要求：BOSS 已經失敗過一次。 */
+    /* v1.19.0：自動化優先序（玩家決定掛機目標）
+         boss = 推進優先（預設，卡關才去獵靈）
+         hunt = 獵靈優先（有空位就打得到就獵，之後才回頭打王）
+         farm = 只推關（不自動打王、不自動獵靈 → 會停在 BOSS 前，這是玩家自己的選擇） */
+    const pri = cfg.autoPriority || 'boss';
+    if (pri === 'farm') return;
+
     const stuck = B.pendingBoss && ((s.bossFails || {})[s.stage] || 0) > 0;
     /* 另一種該去獵靈的情況：身上一個環都沒有（靈環只從獵靈來）。
        兩種情況都只在「這波清完、等 BOSS」的邊界觸發，不要在小怪波中間插隊。 */
     const ringless = (s.ringBag || []).length === 0
       && (s.souls || []).every((x) => !(x.rings || []).length);
+    const wantsHunt = pri === 'hunt' ? true : (stuck || ringless);
     if (cfg.autoHunt !== false && B.mode === 'farm'
-        && (stuck || ringless) && State.hasFreeRingSlot()) {
+        && wantsHunt && State.hasFreeRingSlot()) {
       const ready = CFG.BEASTS.filter((b) => s.level >= b.reqLevel && (s.cd[b.id] || 0) <= now);
       const beast = ready[ready.length - 1];   // 打得到就挑最高階的
       if (beast) {
@@ -4145,7 +4227,10 @@ textarea, input,
       }
     }
 
-    if (B.pendingBoss && cfg.autoBoss !== false && B.mode === 'farm') {
+    /* 獵靈優先時：這一輪沒靈獸可獵（都冷卻中）才回頭打王，避免卡死在等冷卻 */
+    const huntBlocked = pri === 'hunt' && State.hasFreeRingSlot()
+      && CFG.BEASTS.some((x) => s.level >= x.reqLevel && (s.cd[x.id] || 0) <= now);
+    if (B.pendingBoss && cfg.autoBoss !== false && B.mode === 'farm' && !huntBlocked) {
       B.autoAt = now + CFG.AUTO_BOSS_DELAY;
       setTimeout(() => { if (B.pendingBoss && B.mode === 'farm') challengeBoss(); }, CFG.AUTO_BOSS_DELAY);
     }
@@ -5647,6 +5732,9 @@ textarea, input,
     }
   }
 
+  const STAT_LABEL = { atk: '攻擊', hp: '生命', def: '防禦', spd: '速度', all: '全屬性' };
+  const PRIORITY_LABEL = { boss: '推進', hunt: '獵靈', farm: '推關' };
+
   function renderShop() {
     const box = $('#shopBox');
     if (!box) return;
@@ -5699,23 +5787,52 @@ textarea, input,
     if (b) b.addEventListener('click', showRelics);
   }
 
-  function showRelics() {
-    const rows = CFG.RELIC_TIERS.map((t) => {
-      const items = CFG.RELICS.filter((r) => r.tier === t.key);
-      const cells = items.map((r) => {
-        const got = State.hasRelic(r.id);
-        return `<span class="codex-cell ${got ? 'on' : ''}" style="${got ? `border-color:${t.color}` : ''}">
-          <i>${got ? '🔮' : '❔'}</i><b>${got ? T(r.name) : T('未解鎖')}</b></span>`;
+  function relicRowsHtml() {
+    const list = State.relicInfo();
+    return CFG.RELIC_TIERS.map((t) => {
+      const items = list.filter((r) => r.tier === t.key);
+      const rows = items.map((r) => {
+        if (!r.owned) {
+          return `<div class="merge-row"><span class="mr-name">❔ ${T('未解鎖')}</span>
+            <span class="hint">${T('覺醒里程可得')}</span><span></span></div>`;
+        }
+        const can = !r.maxed && (State.data.cores | 0) >= (r.cost || 0);
+        return `<div class="merge-row">
+          <span class="mr-name">🔮 ${T(r.name)} <span class="hint">Lv ${r.level}/${r.max}</span></span>
+          <span class="hint">+${r.curPct}% ${T(STAT_LABEL[r.stat] || r.stat)}</span>
+          <button class="mini-btn ${can ? 'primary' : ''}" data-relic="${r.id}" ${can ? '' : 'disabled'}>
+            ${r.maxed ? T('已滿級') : `${T('升級')} · ${r.cost} ${T('獸核')}`}
+          </button>
+        </div>`;
       }).join('');
-      return `<div class="codex-group"><div class="merge-head"><b style="color:${t.color}">${T(t.name)} +${Math.round(t.bonus * 100)}%</b></div>
-        <div class="codex-grid">${cells}</div></div>`;
+      return `<div class="codex-group"><div class="merge-head">
+          <b style="color:${t.color}">${T(t.name)} +${Math.round(t.bonus * 100)}%</b></div>${rows}</div>`;
     }).join('');
+  }
+
+  function showRelics() {
     const info = State.relicMilestoneInfo();
-    openModal(T('靈寶收藏'), T(`
+    openModal(T('靈寶收藏'), `
       <div class="hint">${T('每 10 次覺醒抽得一件（券或鑽都算），12 件限量、各只能拿一次')}</div>
       <div class="hint">${T('目前進度')} ${info.have}/${info.need} · ${T('已收集')} ${info.owned}/${info.all}</div>
-      ${rows}`),
+      <div class="hint" style="margin-top:6px">${T('升級只吃獸核：每級 +30%，滿級再給全屬性 +2%')}</div>
+      ${relicRowsHtml()}`,
       [{ text: T('關閉'), kind: 'primary' }]);
+    bindRelicUpgrade();
+  }
+
+  function bindRelicUpgrade() {
+    $$('[data-relic]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = State.relicUpgrade(b.dataset.relic);
+        if (!r.ok) return toast(r.msg);
+        State.save(true);
+        Battle.refreshTeam();
+        renderAll();
+        toast(`${T('靈寶升級')} → Lv ${r.level}`);
+        showRelics();          // 重畫收藏視窗
+      });
+    });
   }
 
   function renderWeekly() {
@@ -6052,11 +6169,17 @@ textarea, input,
 
   function showOffline(g) {
     const h = Math.floor(g.minutes / 60), m = g.minutes % 60;
+    const lvLine = g.levels > 0
+      ? `<div>${T('等級')} <b class="c-ok">Lv ${g.levelBefore} → ${g.levelAfter}</b> <span class="hint">(+${g.levels})</span></div>`
+      : `<div>${T('等級')} <b>Lv ${g.levelAfter}</b> <span class="hint">${T('（未升級）')}</span></div>`;
     openModal(T('離線收益'), T(`
       <div>${T('離線')} <b>${h > 0 ? h + ' ' + T('小時') + ' ' : ''}${m} ${T('分')}</b>${g.capped ? T('（已達 12 小時上限）') : ''}</div>
-      <div style="margin-top:8px">靈幣 <b class="c-gold">+${fmt(g.coins)}</b></div>
-      <div>經驗 <b class="c-ok">+${fmt(g.exp)}</b></div>
-      <div class="hint" style="margin-top:8px">${T('掛機效率會隨關卡提升')}</div>`),
+      <div style="margin-top:8px">靈幣 <b class="c-gold">+${fmt(g.coins)}</b>
+        <span class="hint">(${fmt(g.coinsPerMin)} / ${T('分')})</span></div>
+      <div>經驗 <b class="c-ok">+${fmt(g.exp)}</b>
+        <span class="hint">(${fmt(g.expPerMin)} / ${T('分')})</span></div>
+      ${lvLine}
+      <div class="hint" style="margin-top:8px">${T('掛機效率會隨關卡提升')} · ${T('目前第')} ${g.stage} ${T('關')}</div>`),
       [
         { text: T('看廣告 ×2'), kind: '', onClick: () => {
           if (!global.GP || !GP.reward) { toast(T('這裡沒有廣告可用')); return; }
@@ -6121,24 +6244,25 @@ textarea, input,
         <button class="mini-btn" id="btnSfx">${T('音效')}${I18N.lang === 'en' ? ': ' : '：'}${(global.SFX && SFX.enabled) ? T('開') : T('關')}</button>
         <button class="mini-btn" id="btnBgm">${T('音樂')}${I18N.lang === 'en' ? ': ' : '：'}${(global.SFX && SFX.bgm) ? T('開') : T('關')}</button>
       </div>
-      <div class="acts" style="display:flex;gap:8px;margin-top:8px">
+      <div class="acts" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="mini-btn ${I18N.lang === 'en' ? 'primary' : ''}" id="btnLangEn">English</button>
         <button class="mini-btn ${I18N.lang === 'zh' ? 'primary' : ''}" id="btnLangZh">中文</button>
       </div>
-      <div class="acts" style="display:flex;gap:8px;margin-top:8px">
+      <div class="acts" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="mini-btn" id="btnAutoMerge">自動合成低階環：${(s.settings.autoMerge === false) ? T('關') : T('開')}</button>
       </div>
-      <div class="acts" style="display:flex;gap:8px;margin-top:8px">
+      <div class="acts" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="mini-btn" id="btnAutoBoss">自動挑戰 BOSS：${s.settings.autoBoss === false ? T('關') : T('開')}</button>
         <button class="mini-btn" id="btnAutoHunt">卡等自動獵靈：${s.settings.autoHunt === false ? T('關') : T('開')}</button>
         <button class="mini-btn" id="btnAutoRing">自動裝備靈環：${s.settings.autoRing === false ? T('關') : T('開')}</button>
         <button class="mini-btn" id="btnAutoStar">自動升星：${(s.settings || {}).autoStar === false ? T('關') : T('開')}</button>
+        <button class="mini-btn" id="btnPriority">${T('優先')}：${T(PRIORITY_LABEL[(s.settings || {}).autoPriority || 'boss'])}</button>
       </div>
-      <div class="acts" style="display:flex;gap:8px;margin-top:8px">
+      <div class="acts" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="mini-btn" id="btnExport">匯出存檔碼</button>
         <button class="mini-btn" id="btnImport">匯入存檔碼</button>
       </div>
-      <div class="acts" style="display:flex;gap:8px;margin-top:8px">
+      <div class="acts" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="mini-btn ghost" id="btnRename">改暱稱</button>
         <button class="mini-btn ghost" id="btnReset">重新開始</button>
       </div>`),
@@ -6155,6 +6279,16 @@ textarea, input,
       if (!global.SFX) return;
       SFX.bgmSet(!SFX.bgm);
       bgmBtn.textContent = `${T('音樂')}${I18N.lang === 'en' ? ': ' : '：'}${SFX.bgm ? T('開') : T('關')}`;
+    });
+    const prioBtn = $('#btnPriority');
+    if (prioBtn) prioBtn.addEventListener('click', () => {
+      const list = ['boss', 'hunt', 'farm'];
+      const cur = (State.data.settings || {}).autoPriority || 'boss';
+      const next = list[(list.indexOf(cur) + 1) % list.length];
+      State.data.settings.autoPriority = next;
+      State.save(true);
+      prioBtn.textContent = `${T('優先')}：${T(PRIORITY_LABEL[next])}`;
+      toast(`${T('優先')}：${T(PRIORITY_LABEL[next])}`);
     });
     const autoStarBtn = $('#btnAutoStar');
     if (autoStarBtn) autoStarBtn.addEventListener('click', () => {
