@@ -182,7 +182,8 @@ body {
   content: "✕"; position: absolute; inset: 0; display: grid; place-items: center;
   font-size: 20px; font-weight: 700; color: #ff8080; text-shadow: 0 0 8px #000;
 }
-.unit .name { font-size: 9px; color: #cbbfe6; white-space: nowrap; }
+.unit .name { font-size: 9px; color: #cbbfe6; white-space: nowrap;
+  max-width: 54px; overflow: hidden; text-overflow: ellipsis; }   /* 長名字會壓到隔壁單位的頭像 */
 .bars { width: 100%; display: flex; flex-direction: column; gap: 2px; }
 .bar { height: 4px; border-radius: 3px; background: rgba(0, 0, 0, .55); overflow: hidden; }
 .bar > i { display: block; height: 100%; width: 100%; transition: width .18s linear; }
@@ -411,6 +412,8 @@ body {
 .nav-btn {
   border: 0; background: transparent; color: var(--muted);
   font-size: 10px; padding: 5px 0 3px; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  justify-content: center;
+  min-height: 44px;            /* 觸控目標 ≥44px（640×480 實測原本只有 38px） */
   cursor: pointer;
 }
 .nav-btn span { font-size: 17px; line-height: 1; }
@@ -1900,7 +1903,7 @@ textarea, input,
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.20.1';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.20.2';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）

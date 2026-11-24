@@ -71,9 +71,13 @@ SEED = """(() => {
 })()"""
 
 
-def shoot(page, name, setup, wait=1.2, full=False):
+def shoot(page, name, setup, wait=1.2, full=False, clean=None):
     page.evaluate(setup)
     time.sleep(wait)
+    if clean:
+        # 拍照前清掉「瞬時」元素（傷害數字、波次橫幅）：不是改玩法，只是不讓浮動數字擋住畫面
+        page.evaluate(clean)
+        time.sleep(0.12)
     path = os.path.join(SHOTS, f"{name}.png")
     page.screenshot(path=path, full_page=full)
     return path
@@ -93,18 +97,27 @@ def take_screenshots(port, skip_existing=False):
         p.evaluate(SEED)
 
         shots = [
-            ("01-battle", "__game.switchTab('battle')", 3.0),
+            # 01 用 BOSS 戰（單一敵人）當主視覺：小怪波的 8 隻 AoE 傷害數字會疊在一起
+            ("01-battle", "(() => { __game.switchTab('battle'); "
+                          "__game.State.data.settings.speed = 1; "
+                          "__game.Battle.state.pendingBoss = true; "
+                          "__game.Battle.challengeBoss(); })()",
+             2.6, False,
+             "(() => { __game.Battle.stop(); "
+             "const f = document.getElementById('floaters'); if (f) f.innerHTML = ''; })()"),
             ("02-spirits", "__game.switchTab('souls')", 1.2),
             ("03-rings", "__game.switchTab('rings')", 1.2),
             ("04-rebirth", "__game.switchTab('souls'); setTimeout(()=>{const b=document.querySelector('#rebirthBox'); if(b) b.scrollIntoView({block:'center'});}, 300)", 1.6),
             ("05-awaken", "__game.switchTab('gacha')", 1.4),
         ]
-        for name, setup, wait in shots:
+        for shot in shots:
+            name, setup, wait = shot[0], shot[1], shot[2]
+            extra = shot[3:]
             path = os.path.join(SHOTS, f"{name}.png")
             if skip_existing and os.path.exists(path):
                 paths.append(path)
                 continue
-            paths.append(shoot(p, name, setup, wait))
+            paths.append(shoot(p, name, setup, wait, *extra))
         b.close()
     return paths
 
@@ -165,19 +178,12 @@ def make_cover(shot_path):
     f_bul = ImageFont.truetype(FONT_REG, 30)
     f_small = ImageFont.truetype(FONT_BOLD, 24)
 
-    x = 92
-    d.text((x, 150), "SPIRIT RING", font=f_title, fill=(255, 255, 255))
-    d.text((x, 250), "IDLE", font=f_title, fill=(255, 205, 90))
-    d.text((x, 372), "Idle cultivation RPG · auto-battle", font=f_sub, fill=(198, 178, 255))
-
-    bullets = ["5 spirits auto-fight for you", "9 ring slots per spirit",
-               "Fuse 3 rings into the next tier", "Rebirth for permanent power"]
-    for i, line in enumerate(bullets):
-        y = 448 + i * 46
-        d.ellipse([x, y + 10, x + 12, y + 22], fill=(255, 205, 90))
-        d.text((x + 26, y), line, font=f_bul, fill=(232, 224, 255))
-
-    d.text((x, 700), "FREE HTML5 · NO INSTALL", font=f_small, fill=(150, 132, 200))
+    # GamePix 規則：cover 上的字只能是遊戲名稱（不得有標語／清單／平台字樣）。
+    # 只有標題時版面會偏空 → 用大字級＋垂直居中，並加一層柔光暈。
+    x = 96
+    ty1, ty2 = 300, 412
+    d.text((x, ty1), "SPIRIT RING", font=f_title, fill=(255, 255, 255))
+    d.text((x, ty2), "IDLE", font=f_title, fill=(255, 205, 90))
     path = os.path.join(OUT, "cover-1360x850.png")
     base.convert("RGB").save(path, "PNG", optimize=True)
     return path
@@ -196,10 +202,7 @@ def make_icon():
         base.alpha_composite(layer.filter(ImageFilter.GaussianBlur(3)))
         d.ellipse([128 - r, 128 - r, 128 + r, 128 + r], outline=col + (255,), width=max(2, wdt // 3))
     d.ellipse([112, 112, 144, 144], fill=(255, 240, 200, 255))
-    f = ImageFont.truetype(FONT_BOLD, 34)
-    txt = "SRI"
-    tw = d.textbbox((0, 0), txt, font=f)[2]
-    d.text(((S - tw) / 2, 176), txt, font=f, fill=(255, 255, 255))
+    # 不放字母縮寫：64px 清單縮圖下「SRI」看不清反而像雜點，環形主視覺本身已足夠辨識
     path = os.path.join(OUT, "icon-256.png")
     base.convert("RGB").save(path, "PNG", optimize=True)
     return path
