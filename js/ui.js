@@ -631,7 +631,7 @@
             <span class="rb-gen">${genText}</span></span>
           <span class="hint">${rebText}</span></h3>
       <div class="rb-line">${T('天賦節點上限')} <b>Lv ${talentCap}</b>
-        <span class="hint">（${T('每 2 次轉生 +1 級')}）</span></div>
+        <span class="hint">${I18N.lang === 'en' ? '(' : '（'}${T('每 2 次轉生 +1 級')}${I18N.lang === 'en' ? ')' : '）'}</span></div>
       <div class="rb-line">${T(`歷史最高：第 ${info.bestStage} 關（需 ${info.minStage} 關）`)}</div>
       <div class="rb-line">${T(`本輪推進：+${info.deep} 關（上次轉生在 第 ${info.lastBest || info.minStage} 關）`)}</div>
       <div class="rb-line">${T(`目前加成：全屬性 +${Math.round(pm.atk * 100 * info.marks)}% · 收益 +${Math.round(pm.income * 100 * info.marks)}%`)}</div>
