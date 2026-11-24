@@ -91,15 +91,23 @@ def main() -> int:
         ok("第 11 抽不再重複發", ms["after11"]["relics"] == 1 and ms["after11"]["milestone"] is False,
            json.dumps(ms["after11"], ensure_ascii=False))
 
-        # ---------- 鑽石抽不計入里程（使用者要求：覺醒券抽到一定數） ----------
+        # ---------- 鑽石抽也計入里程（v1.15.2：只算券會讓玩家「抽很多卻 0 進度」） ----------
         dia = page.evaluate("""(() => {
             const S = __game.State, s = S.data;
             s.diamonds = 100000; s.ticketPulls = 5; s.milestoneAt = 0; s.relics = [];
             const r = S.pullOnce(false);
-            return {pulls: s.ticketPulls, milestone: !!r.milestone};
+            return {pulls: s.ticketPulls, milestone: r.milestone ? r.milestone.kind : null};
         })()""")
-        ok("鑽石抽不計入覺醒里程", dia["pulls"] == 5 and dia["milestone"] is False,
-           json.dumps(dia, ensure_ascii=False))
+        ok("鑽石抽也計入覺醒里程", dia["pulls"] == 6, json.dumps(dia, ensure_ascii=False))
+
+        free = page.evaluate("""(() => {
+            const S = __game.State, s = S.data;
+            s.freeTenUsed = false; s.ticketPulls = 0; s.milestoneAt = 0; s.relics = []; s.tickets = 5;
+            const r = S.pullTenFree();
+            return {pulls: s.ticketPulls, relics: s.relics.length, milestones: (r.milestones || []).length};
+        })()""")
+        ok("免費十連也計入里程並發一件", free["pulls"] == 10 and free["relics"] == 1,
+           json.dumps(free, ensure_ascii=False))
 
         # ---------- 限量：只會拿到沒有的，集滿改給獸核 ----------
         limit = page.evaluate("""(() => {
@@ -120,6 +128,19 @@ def main() -> int:
         ok("130 抽只能集滿 12 件、不會重複", limit["owned"] == 12 and limit["unique"] == 12
            and limit["dup"] == 0, json.dumps(limit, ensure_ascii=False))
         ok("集滿後里程改給獸核", limit["coresAfter"] >= 30, f"cores={limit['coresAfter']}")
+
+        # ---------- 老存檔回填（改版前抽的次數折算里程） ----------
+        back = page.evaluate("""(() => {
+            const S = __game.State, s = S.data;
+            s.ticketPulls = 0; s.milestoneAt = 0; s.relics = []; s.stats.pulls = 126;
+            const got = S.relicBackfill();
+            const again = S.relicBackfill();
+            return {got, again, pulls: s.ticketPulls, relics: s.relics.length};
+        })()""")
+        ok("老存檔回填：126 抽 → 30 里程 → 3 件靈寶",
+           back["got"] == 3 and back["pulls"] == 30 and back["relics"] == 3,
+           json.dumps(back, ensure_ascii=False))
+        ok("回填只做一次（第二次不再發）", back["again"] == 0, str(back["again"]))
 
         # ---------- 能力越高，階級權重越偏頂 ----------
         w = page.evaluate("""(() => {

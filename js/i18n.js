@@ -128,8 +128,8 @@
     '覺醒里程': 'Awaken mileage', '靈寶': 'Relics', '靈寶收藏': 'Relic collection',
     '再': 'next in', '次數': 'pulls', '得一件': 'for a relic',
     '機率隨戰績提升': 'Odds scale with your progress',
-    '每 10 次覺醒券抽得一件，12 件限量、各只能拿一次':
-      'One relic every 10 ticket pulls. 12 limited relics, each obtainable once.',
+    '每 10 次覺醒抽得一件（券或鑽都算），12 件限量、各只能拿一次':
+      'One relic every 10 awaken pulls (tickets or gems). 12 limited relics, each once.',
     '目前進度': 'Progress', '覺醒里程獎勵': 'Mileage reward', '獲得靈寶': 'Got relic',
     '靈寶已全收集': 'All relics collected',
     '凡品': 'Common', '靈品': 'Fine', '玄品': 'Rare', '地品': 'Epic', '天品': 'Legendary',

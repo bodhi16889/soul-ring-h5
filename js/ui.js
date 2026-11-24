@@ -832,6 +832,15 @@
     renderAll();
     toast(T('免費十連已領取'));
     renderPullResults(res.results);
+    (res.milestones || []).forEach((m) => {
+      if (m.kind === 'relic') {
+        const t = CFG.RELIC_BY_KEY[m.relic.tier];
+        toast(`${T('覺醒里程獎勵')}：${T(m.relic.name)}（${T(t.name)} +${Math.round(t.bonus * 100)}%）`);
+      } else {
+        toast(`${T('靈寶已全收集')}：+${m.cores} ${T('獸核')}`);
+      }
+    });
+    renderAll();
   }
 
   function renderPullResults(results) {
@@ -1014,7 +1023,7 @@
     }).join('');
     const info = State.relicMilestoneInfo();
     openModal(T('靈寶收藏'), T(`
-      <div class="hint">${T('每 10 次覺醒券抽得一件，12 件限量、各只能拿一次')}</div>
+      <div class="hint">${T('每 10 次覺醒抽得一件（券或鑽都算），12 件限量、各只能拿一次')}</div>
       <div class="hint">${T('目前進度')} ${info.have}/${info.need} · ${T('已收集')} ${info.owned}/${info.all}</div>
       ${rows}`),
       [{ text: T('關閉'), kind: 'primary' }]);

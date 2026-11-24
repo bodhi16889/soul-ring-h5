@@ -115,6 +115,7 @@
       if (bak) writeKey(KEY + '.corrupt.' + stamp + '.bak', bak);
       S = newSave();
       codexSync();
+      relicBackfill();
       return { fresh: true, corrupted: !!(main || bak), from };
     }
     if (d.v > SAVE_VERSION) {
@@ -122,11 +123,13 @@
       blocked = true;
       S = newSave();
       codexSync();
+      relicBackfill();
       return { newer: true, from };
     }
 
     S = migrate(d);
     codexSync();
+    relicBackfill();
     if (from === 'bak') { writeKey(KEY, JSON.stringify(S)); }   // 備份救回來就立刻補回主檔
     const gap = offlineGain(S);
     return { fresh: false, offline: gap, restored: from === 'bak' };
@@ -352,6 +355,28 @@
     const list = pools[key];
     return list[Math.floor(Math.random() * list.length)];
   }
+  /* 舊存檔回填：改版前抽的次數沒有計入里程。
+     用 stats.pulls 折算（4 抽算 1 次進度、上限 30），並把該給的靈寶一次補發。 */
+  function relicBackfill() {
+    if (!S || !CFG || !CFG.RELIC) return 0;
+    if (S.ticketPulls && S.ticketPulls > 0) return 0;      // 已經有里程紀錄就不動
+    const hist = (S.stats && S.stats.pulls) | 0;
+    if (hist <= 0) return 0;
+    const credited = Math.min(30, Math.floor(hist / 4));
+    if (credited <= 0) return 0;
+    S.ticketPulls = credited;
+    S.milestoneAt = Math.floor(credited / CFG.RELIC.every) * CFG.RELIC.every;
+    const owed = Math.floor(credited / CFG.RELIC.every) - (S.relics || []).length;
+    let got = 0;
+    for (let i = 0; i < owed; i++) {
+      const r = rollRelic();
+      if (!r) break;
+      S.relics.push(r.id);
+      got++;
+    }
+    return got;
+  }
+
   /* 里程結算：券抽次數每到 10 的倍數就給一件；全收集改給獸核 */
   function relicMilestone() {
     const every = CFG.RELIC.every;
@@ -1035,11 +1060,10 @@
     if (useTickets) { if (S.tickets < cost) return { ok: false, msg: T('覺醒券不足') }; S.tickets -= cost; }
     else { if (!spendDiamonds(cost)) return { ok: false, msg: T('鑽石不足') }; }
     const result = rollOne();
-    let milestone = null;
-    if (useTickets) {
-      S.ticketPulls = (S.ticketPulls || 0) + 1;
-      milestone = relicMilestone();     // 每 10 次券抽一件靈寶
-    }
+    /* 里程計「所有覺醒抽」（券或鑽都算）：
+       原本只算券，結果玩家用鑽石抽 50 次進度還是 0 —— 體感上就是「抽不到」。 */
+    S.ticketPulls = (S.ticketPulls || 0) + 1;
+    const milestone = relicMilestone();   // 每 10 次覺醒抽一件靈寶
     return { ok: true, result, milestone };
   }
   /* 新手免費十連：只能領一次，不扣券也不扣鑽。
@@ -1048,9 +1072,15 @@
     if (S.freeTenUsed) return { ok: false, msg: T('免費十連已使用'), results: [] };
     S.freeTenUsed = true;
     const results = [];
-    for (let i = 0; i < 10; i++) results.push(rollOne());
+    const milestones = [];
+    for (let i = 0; i < 10; i++) {
+      results.push(rollOne());
+      S.ticketPulls = (S.ticketPulls || 0) + 1;   // 免費十連也算覺醒里程
+      const m = relicMilestone();
+      if (m) milestones.push(m);
+    }
     S.stats.pulls += results.length;
-    return { ok: true, results };
+    return { ok: true, results, milestones };
   }
 
   function rollOne() {
@@ -1215,7 +1245,7 @@
     soulStats, teamSouls, teamStats, power,
     claimOfflineDouble, weekKey, weeklyAdd, weeklyInfo, weeklyClaim, codexMark, codexSync, codexInfo, codexMul,
     bondInfo, combosInfo, depthOf, depthInfo, depthPlus, inheritInfo, inheritStar,
-    relicProgress, relicTierWeights, hasRelic, relicCount, rollRelic, relicMilestone, relicBonus, relicMilestoneInfo,
+    relicProgress, relicTierWeights, hasRelic, relicCount, rollRelic, relicMilestone, relicBackfill, relicBonus, relicMilestoneInfo,
     ascendInfo, ascendSoul, addCores, eliteInfo, eliteMarkUsed, huntCounter,
     totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth, migrate, coinBonePull, critChance, soulLevelUp, soulLevelInfo, soulLevelCap, dailyInfo, dailyAdd, dailyClaim, todayKey, achList, checkAchievements, achCount, achMul,
     trueBodyOf, resonanceOf, ringSkillOf, hasFreeRingSlot,
