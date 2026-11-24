@@ -123,6 +123,8 @@
     /* 靈印名稱 */
     '巨靈槌': 'Colossus Hammer', '赤焰鳶': 'Ember Kite', '青藤': 'Verdant Vine',
     /* v1.15.0：覺醒里程 / 靈寶 */
+    '有新版本': 'New version available',
+    '更新': 'Update',
     '覺醒里程': 'Awaken mileage', '靈寶': 'Relics', '靈寶收藏': 'Relic collection',
     '再': 'next in', '次數': 'pulls', '得一件': 'for a relic',
     '機率隨戰績提升': 'Odds scale with your progress',

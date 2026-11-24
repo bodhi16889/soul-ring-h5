@@ -39,8 +39,8 @@ def main() -> int:
     if "</style" in css.lower():
         print("✗ style.css 含 </style>，不能直接內嵌", file=sys.stderr)
         return 1
-    html = html.replace('<link rel="stylesheet" href="css/style.css" />',
-                        "<style>\n" + css + "\n</style>")
+    html = re.sub(r'<link rel="stylesheet" href="css/style\.css(?:\?v=[^"]*)?" />',
+                  lambda m: "<style>\n" + css + "\n</style>", html)
     html = html.replace('<link rel="stylesheet" href="css/style.css">',
                         "<style>\n" + css + "\n</style>")
 
@@ -52,7 +52,7 @@ def main() -> int:
             raise SystemExit(f"✗ {src} 內含 </script>，需先轉義才能內嵌")
         return "<script>\n" + code + "\n</script>"
 
-    html, n = re.subn(r'<script src="(js/[^"]+)"></script>', inline, html)
+    html, n = re.subn(r'<script src="(js/[^"?]+)(?:\?v=[^"]*)?"></script>', inline, html)
     if n < 5:
         print(f"✗ 只內嵌了 {n} 個 js，可能路徑不符", file=sys.stderr)
         return 1

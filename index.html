@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Spirit Ring" />
-<link rel="stylesheet" href="css/style.css" />
+<link rel="stylesheet" href="css/style.css?v=1.15.1" />
 <!-- GamePix SDK v3：官方要求「SDK 必須早於遊戲 bundle」，且 GamePixConfig 必須在 SDK 之前設定。
      載入失敗（離線／CDN 掛掉）時 js/gamepix.js 會全部 no-op，遊戲照常可玩。 -->
 <script>window.GamePixConfig = { lifecycle: 'manual' };</script>
@@ -36,6 +36,41 @@
       window.__swReloaded = true;
       location.reload();
     });
+  });
+})();
+</script>
+<script>
+/* 版本看門狗：用 no-store 抓 version.json，發現伺服器版本比執行中的新就顯示更新提示。
+   為什麼需要：GitHub Pages 對靜態檔給 cache-control: max-age=600，
+   瀏覽器最多會用 10 分鐘的舊檔；單靠「重新整理」不一定拿得到新版。 */
+(function () {
+  function banner(v) {
+    if (document.getElementById('verBanner')) return;
+    var d = document.createElement('div');
+    d.id = 'verBanner';
+    d.style.cssText = 'position:fixed;left:12px;right:12px;bottom:64px;z-index:9999;' +
+      'background:#2a1b45;border:1px solid #a875ff;border-radius:12px;padding:10px 12px;' +
+      'display:flex;gap:10px;align-items:center;justify-content:space-between;' +
+      'font:13px/1.35 -apple-system,BlinkMacSystemFont,sans-serif;color:#f2ecff;' +
+      'box-shadow:0 8px 24px rgba(0,0,0,.45)';
+    d.innerHTML = '<span>' + (window.T ? T('有新版本') : 'New version') + ' ' + v + '</span>';
+    var b = document.createElement('button');
+    b.textContent = window.T ? T('更新') : 'Update';
+    b.style.cssText = 'background:#a875ff;border:0;color:#160c2a;font-weight:700;' +
+      'padding:8px 14px;border-radius:9px;min-height:36px';
+    b.onclick = function () { location.replace(location.pathname + '?v=' + encodeURIComponent(v)); };
+    d.appendChild(b);
+    document.body.appendChild(d);
+  }
+  addEventListener('load', function () {
+    if (!window.fetch) return;
+    fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        var cur = (window.CFG && CFG.VERSION) || '';
+        if (j && j.version && cur && j.version !== cur) banner(j.version);
+      })
+      .catch(function () {});
   });
 })();
 </script>
@@ -179,12 +214,12 @@
 </div>
 
 <script src="js/i18n.js"></script>
-<script src="js/ads.js"></script>
-<script src="js/ads-gamepix.js"></script>
-<script src="js/sfx.js"></script>
-<script src="js/config.js"></script>
-<script src="js/state.js"></script>
-<script src="js/battle.js"></script>
-<script src="js/ui.js"></script>
+<script src="js/ads.js?v=1.15.1"></script>
+<script src="js/ads-gamepix.js?v=1.15.1"></script>
+<script src="js/sfx.js?v=1.15.1"></script>
+<script src="js/config.js?v=1.15.1"></script>
+<script src="js/state.js?v=1.15.1"></script>
+<script src="js/battle.js?v=1.15.1"></script>
+<script src="js/ui.js?v=1.15.1"></script>
 </body>
 </html>

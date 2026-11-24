@@ -10,7 +10,7 @@
  *
  * 改版時只要改 VERSION，activate 會清掉舊快取。
  */
-const VERSION = 'v1.14.0';
+const VERSION = 'v1.15.1';
 const CACHE = 'soulring-' + VERSION;
 
 const SHELL = [
@@ -54,9 +54,13 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;   // SDK 等外部資源不攔
 
+  /* cache: 'reload' 很重要：預設 fetch 會吃瀏覽器 HTTP 快取（GitHub Pages 給 max-age=600），
+     所以「network-first」其實會拿到 10 分鐘前的舊檔，玩家重整也沒用。 */
+  const fresh = () => fetch(req, { cache: 'reload' });
+
   if (req.mode === 'navigate') {
     e.respondWith(
-      fetch(req)
+      fresh()
         .then((res) => {
           const copy = res.clone();
           caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
@@ -68,7 +72,7 @@ self.addEventListener('fetch', (e) => {
   }
 
   e.respondWith(
-    fetch(req)
+    fresh()
       .then((res) => {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});

@@ -15,6 +15,7 @@ _PATTERNS = [
     r'<link rel="apple-touch-icon"[^>]*>\s*',
     r'<meta name="apple-mobile-web-app[^>]*>\s*',
     r'<script>\s*/\* PWA[\s\S]*?</script>\s*',
+    r'<script>\s*/\* 版本看門狗[\s\S]*?</script>\s*',
 ]
 
 
