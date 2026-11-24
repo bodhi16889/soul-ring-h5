@@ -39,6 +39,9 @@
       week: { key: '', kills: 0, hunts: 0, merges: 0, claimed: [] },   // 每週任務
       codex: { souls: {}, bones: {}, rings: {}, beasts: {} },          // 圖鑑（收集表）
       cores: 0,              // 獸核：獵靈掉落，用來把滿級靈印升「覺醒階」
+      ticketPulls: 0,        // 覺醒券抽的累計次數（里程用）
+      relics: [],            // 靈寶（限量 12 件，只能拿一次）
+      milestoneAt: 0,        // 上次已結算的券抽里程（防止重複發獎）
       elite: { day: '', ids: [] },   // 今日已打的精英靈獸
       depth: {},             // 深林層數：beastId -> 已連續狩獵次數
       pendingOffline: null,  // 這次回歸的離線收益（可看廣告加倍一次）
@@ -145,6 +148,9 @@
     out.codex = Object.assign({ souls: {}, bones: {}, rings: {}, beasts: {} }, (d && d.codex) || {});
     out.pendingOffline = (d && d.pendingOffline) || null;
     out.cores = Math.max(0, out.cores | 0);
+    out.ticketPulls = Math.max(0, out.ticketPulls | 0);
+    out.relics = Array.isArray(d && d.relics) ? d.relics.slice() : [];
+    out.milestoneAt = Math.max(0, out.milestoneAt | 0);
     out.elite = Object.assign({ day: '', ids: [] }, (d && d.elite) || {});
     out.depth = Object.assign({}, (d && d.depth) || {});
     if (!Array.isArray(out.elite.ids)) out.elite.ids = [];
@@ -316,6 +322,68 @@
     const strong = Object.keys(counts).filter((el) => counts[el] >= CFG.BOND.sameNeed);
     return { counts, kinds, strong, tri: kinds >= CFG.BOND.triKinds,
              sameBonus: CFG.BOND.sameBonus, triBonus: CFG.BOND.triBonus };
+  }
+
+  /* ---------- 靈寶（覺醒里程獎勵）---------- */
+  function relicProgress() {
+    const s = S;
+    return Math.max(0, (s.bestStage | 0) + (s.rebirths | 0) * 30 + (s.marks | 0) * 3);
+  }
+  function relicTierWeights() { return CFG.RELIC.tierWeights(relicProgress()); }
+  function hasRelic(id) { return (S.relics || []).indexOf(id) >= 0; }
+  function relicCount() { return (S.relics || []).length; }
+  /* 抽一件還沒拿到的靈寶；階級用權重、同階內平均。全收集 → null */
+  function rollRelic() {
+    const w = relicTierWeights();
+    const owned = S.relics || [];
+    const pools = {};
+    CFG.RELICS.forEach((r) => {
+      if (owned.indexOf(r.id) >= 0) return;
+      (pools[r.tier] = pools[r.tier] || []).push(r);
+    });
+    const tiers = Object.keys(pools);
+    if (!tiers.length) return null;
+    // 只在「還有貨」的階級之間依權重抽
+    const total = tiers.reduce((a, k) => a + (w[k] || 0), 0);
+    if (total <= 0) return pools[tiers[0]][0];
+    let roll = Math.random() * total;
+    let key = tiers[0];
+    for (const k of tiers) { roll -= (w[k] || 0); if (roll <= 0) { key = k; break; } }
+    const list = pools[key];
+    return list[Math.floor(Math.random() * list.length)];
+  }
+  /* 里程結算：券抽次數每到 10 的倍數就給一件；全收集改給獸核 */
+  function relicMilestone() {
+    const every = CFG.RELIC.every;
+    if ((S.ticketPulls || 0) <= 0 || S.ticketPulls % every !== 0) return null;
+    if (S.milestoneAt === S.ticketPulls) return null;   // 防同一里程重複觸發
+    S.milestoneAt = S.ticketPulls;
+    const relic = rollRelic();
+    if (!relic) {
+      S.cores = (S.cores || 0) + CFG.RELIC.dupCores;
+      return { kind: 'cores', cores: CFG.RELIC.dupCores, at: S.ticketPulls };
+    }
+    S.relics.push(relic.id);
+    return { kind: 'relic', relic, at: S.ticketPulls };
+  }
+  function relicBonus() {
+    const out = { atk: 0, hp: 0, def: 0, spd: 0 };
+    (S.relics || []).forEach((id) => {
+      const r = CFG.RELICS.find((x) => x.id === id);
+      if (!r) return;
+      const t = CFG.RELIC_BY_KEY[r.tier];
+      if (!t) return;
+      if (r.stat === 'all') { out.atk += t.bonus; out.hp += t.bonus; out.def += t.bonus; out.spd += t.bonus; }
+      else out[r.stat] = (out[r.stat] || 0) + t.bonus;
+    });
+    return out;
+  }
+  function relicMilestoneInfo() {
+    const every = CFG.RELIC.every;
+    const n = S.ticketPulls || 0;
+    return { total: n, need: every, have: n % every, nextIn: every - (n % every),
+             owned: relicCount(), all: CFG.RELICS.length,
+             progress: relicProgress(), weights: relicTierWeights() };
   }
 
   /* ---------- 元素組合羈絆（例：風＋火 → 燎原 SPD +12%）---------- */
@@ -513,6 +581,7 @@
                   * (bond.tri ? 1 + bond.triBonus : 1);
     const ascMul = 1 + CFG.ASCEND.bonusPerStage * (soul.ascend || 0);
     const cb = combosInfo().stat;   // 元素組合：atk / hp / def / spd 各自乘算
+    const rl = relicBonus();        // 靈寶：限量收藏品，永久加成
     const tbMul = (1 + trueBodyOf(soul).bonus) * achMul() * codexMul() * bondMul * ascMul;   // 真身 × 成就 × 圖鑑 × 羈絆 × 覺醒
     /* 三種加成各自乘算，不能全部倒進同一個括號：
        靈環後期 +3600%，若命印（+6%/點）與靈骨（+14~20%）也加在同一個括號裡，
@@ -527,10 +596,10 @@
     const markDef = 1 + pm.def * S.marks;
     const markSpd = 1;   // 命印不再加速度（速度有物理上限），改在 critChance() 給爆擊
     return {
-      atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk) * boneAtk * markAtk * tbMul * cb.atk),
-      hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp) * boneHp * markHp * tbMul * cb.hp),
-      def: Math.round(base.def * starMul * lvMul * boneDef * markDef * tbMul * cb.def),
-      spd: Math.round(base.spd * boneSpd * markSpd * tbMul * cb.spd),
+      atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk) * boneAtk * markAtk * tbMul * cb.atk * (1 + rl.atk)),
+      hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp) * boneHp * markHp * tbMul * cb.hp * (1 + rl.hp)),
+      def: Math.round(base.def * starMul * lvMul * boneDef * markDef * tbMul * cb.def * (1 + rl.def)),
+      spd: Math.round(base.spd * boneSpd * markSpd * tbMul * cb.spd * (1 + rl.spd)),
       role: base.role,
       name: base.name,
       emoji: base.emoji,
@@ -965,7 +1034,13 @@
     const cost = useTickets ? CFG.PULL_COST_TICKET : CFG.PULL_COST_DIAMOND;
     if (useTickets) { if (S.tickets < cost) return { ok: false, msg: T('覺醒券不足') }; S.tickets -= cost; }
     else { if (!spendDiamonds(cost)) return { ok: false, msg: T('鑽石不足') }; }
-    return { ok: true, result: rollOne() };
+    const result = rollOne();
+    let milestone = null;
+    if (useTickets) {
+      S.ticketPulls = (S.ticketPulls || 0) + 1;
+      milestone = relicMilestone();     // 每 10 次券抽一件靈寶
+    }
+    return { ok: true, result, milestone };
   }
   /* 新手免費十連：只能領一次，不扣券也不扣鑽。
      目的：讓新玩家在前 3 分鐘就體驗到靈骨/升星，而不是 25 分鐘後才碰到覺醒。 */
@@ -1140,6 +1215,7 @@
     soulStats, teamSouls, teamStats, power,
     claimOfflineDouble, weekKey, weeklyAdd, weeklyInfo, weeklyClaim, codexMark, codexSync, codexInfo, codexMul,
     bondInfo, combosInfo, depthOf, depthInfo, depthPlus, inheritInfo, inheritStar,
+    relicProgress, relicTierWeights, hasRelic, relicCount, rollRelic, relicMilestone, relicBonus, relicMilestoneInfo,
     ascendInfo, ascendSoul, addCores, eliteInfo, eliteMarkUsed, huntCounter,
     totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth, migrate, coinBonePull, critChance, soulLevelUp, soulLevelInfo, soulLevelCap, dailyInfo, dailyAdd, dailyClaim, todayKey, achList, checkAchievements, achCount, achMul,
     trueBodyOf, resonanceOf, ringSkillOf, hasFreeRingSlot,

@@ -81,6 +81,49 @@
        每 3 層獸核 +1（乘算）、每 5 層保證多掉一枚「高一階」靈環 */
   const DEPTH = { coreEvery: 3, bonusRingEvery: 5, maxBonusRing: 'violet' };
 
+  /* ---------- 覺醒里程／靈寶（v1.15.0）----------
+   * 每 10 次「覺醒券」抽（不含鑽石抽）→ 抽一件限量靈寶，永久加戰力。
+   * 「限量」= 12 件各只能拿一次；收集完里程改給獸核。
+   * 「能力越高出現越好」= 階級權重隨 bestStage / 轉生 / 命印 傾斜。
+   */
+  const RELIC_TIERS = [
+    { key: 'common', name: '凡品', bonus: 0.02, color: '#cfd6e4' },
+    { key: 'fine',   name: '靈品', bonus: 0.04, color: '#57d98b' },
+    { key: 'rare',   name: '玄品', bonus: 0.07, color: '#6ea8ff' },
+    { key: 'epic',   name: '地品', bonus: 0.11, color: '#b06bff' },
+    { key: 'legend', name: '天品', bonus: 0.16, color: '#ffcd5a' },
+  ];
+  const RELIC_BY_KEY = Object.fromEntries(RELIC_TIERS.map((t) => [t.key, t]));
+  const RELICS = [
+    { id: 'stonecharm', name: '碎石符', tier: 'common', stat: 'atk' },
+    { id: 'jade',       name: '青玉珮', tier: 'common', stat: 'hp' },
+    { id: 'dirk',       name: '赤鐵匕', tier: 'fine',   stat: 'atk' },
+    { id: 'cloudbelt',  name: '流雲帶', tier: 'fine',   stat: 'spd' },
+    { id: 'turtleplate',name: '玄龜甲片', tier: 'fine', stat: 'def' },
+    { id: 'stardrop',   name: '星塵墜', tier: 'rare',   stat: 'all' },
+    { id: 'orchid',     name: '幽蘭香囊', tier: 'rare', stat: 'hp' },
+    { id: 'galeboots',  name: '疾風靴', tier: 'rare',   stat: 'spd' },
+    { id: 'emberwing',  name: '焚天羽', tier: 'epic',   stat: 'spd' },
+    { id: 'dragonbone', name: '龍脊骨', tier: 'epic',   stat: 'atk' },
+    { id: 'mirror',     name: '太虛鏡', tier: 'legend', stat: 'all' },
+    { id: 'lantern',    name: '九幽燈', tier: 'legend', stat: 'all' },
+  ];
+  const RELIC = {
+    every: 10,          // 每 10 次覺醒券抽一件
+    dupCores: 30,       // 全部收集完，里程改給獸核
+    /* 能力越高 → 高階權重越高。progress = 最高關卡 + 轉生×30 + 命印×3 */
+    tierWeights(progress) {
+      const g = Math.max(0, Math.min(8, Math.floor(progress / 60)));
+      return {
+        common: Math.max(6, 62 - 7 * g),
+        fine: 25 + 1.5 * g,
+        rare: 9 + 3 * g,
+        epic: 3 + 1.6 * g,
+        legend: 1 + 0.9 * g,
+      };
+    },
+  };
+
   /* 元素組合羈絆（只要隊伍裡同時有這兩種元素就生效，可疊加） */
   const COMBOS = [
     { id: 'blaze',  pair: ['wind', 'fire'],  name: '燎原',  stat: 'spd',  bonus: 0.12 },
@@ -101,7 +144,7 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.14.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.15.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -358,7 +401,7 @@
     BEASTS, BEAST_BY_ID, STAGE_AREAS, areaFor,
     VERSION, MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
     RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR, COUNTER, BOND, ASCEND, CORE_DROP, ELITE,
-    INHERIT, DEPTH, COMBOS,
+    INHERIT, DEPTH, COMBOS, RELIC_TIERS, RELIC_BY_KEY, RELICS, RELIC,
     RING_ORDER, RING_MERGE_COUNT,
     BASE_KILLS_PER_STAGE, killsPerStage, waveSecFor, bossSecFor, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND, STAR_MAX,
     REBIRTH, rebirthGain, stageMul,

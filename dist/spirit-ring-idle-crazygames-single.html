@@ -644,6 +644,7 @@ textarea, input,
     <section class="view" data-view="gacha">
       <div class="panel-head"><h2 data-i18n="靈印殿">靈印殿</h2><span id="ticketInfo" class="hint"></span></div>
       <div class="checkin-box" id="dailyBox"></div>
+      <div class="checkin-box" id="relicBox"></div>
       <div class="checkin-box" id="weeklyBox"></div>
       <div class="checkin-box">
         <div class="checkin-head"><span data-i18n="圖鑑">圖鑑</span><span id="codexInfo" class="hint"></span></div>
@@ -816,6 +817,19 @@ textarea, input,
 
     /* 靈印名稱 */
     '巨靈槌': 'Colossus Hammer', '赤焰鳶': 'Ember Kite', '青藤': 'Verdant Vine',
+    /* v1.15.0：覺醒里程 / 靈寶 */
+    '覺醒里程': 'Awaken mileage', '靈寶': 'Relics', '靈寶收藏': 'Relic collection',
+    '再': 'next in', '次數': 'pulls', '得一件': 'for a relic',
+    '機率隨戰績提升': 'Odds scale with your progress',
+    '每 10 次覺醒券抽得一件，12 件限量、各只能拿一次':
+      'One relic every 10 ticket pulls. 12 limited relics, each obtainable once.',
+    '目前進度': 'Progress', '覺醒里程獎勵': 'Mileage reward', '獲得靈寶': 'Got relic',
+    '靈寶已全收集': 'All relics collected',
+    '凡品': 'Common', '靈品': 'Fine', '玄品': 'Rare', '地品': 'Epic', '天品': 'Legendary',
+    '碎石符': 'Stone Charm', '青玉珮': 'Jade Pendant', '赤鐵匕': 'Iron Dirk',
+    '流雲帶': 'Cloud Sash', '玄龜甲片': 'Turtle Plate', '星塵墜': 'Stardust Drop',
+    '幽蘭香囊': 'Orchid Sachet', '疾風靴': 'Gale Boots', '焚天羽': 'Ember Wing',
+    '龍脊骨': 'Dragon Bone', '太虛鏡': 'Void Mirror', '九幽燈': 'Ninth Lamp',
     '石皮野豬': 'Stonehide Boar', '赤羽鷹': 'Crimson Eagle', '岩心傀儡': 'Rockheart Golem',
     '幽潭蛟': 'Abyss Serpent', '焚天鳳': 'Skyfire Phoenix',
     '已達最高星級': 'Already max stars',
@@ -1636,6 +1650,49 @@ textarea, input,
        每 3 層獸核 +1（乘算）、每 5 層保證多掉一枚「高一階」靈環 */
   const DEPTH = { coreEvery: 3, bonusRingEvery: 5, maxBonusRing: 'violet' };
 
+  /* ---------- 覺醒里程／靈寶（v1.15.0）----------
+   * 每 10 次「覺醒券」抽（不含鑽石抽）→ 抽一件限量靈寶，永久加戰力。
+   * 「限量」= 12 件各只能拿一次；收集完里程改給獸核。
+   * 「能力越高出現越好」= 階級權重隨 bestStage / 轉生 / 命印 傾斜。
+   */
+  const RELIC_TIERS = [
+    { key: 'common', name: '凡品', bonus: 0.02, color: '#cfd6e4' },
+    { key: 'fine',   name: '靈品', bonus: 0.04, color: '#57d98b' },
+    { key: 'rare',   name: '玄品', bonus: 0.07, color: '#6ea8ff' },
+    { key: 'epic',   name: '地品', bonus: 0.11, color: '#b06bff' },
+    { key: 'legend', name: '天品', bonus: 0.16, color: '#ffcd5a' },
+  ];
+  const RELIC_BY_KEY = Object.fromEntries(RELIC_TIERS.map((t) => [t.key, t]));
+  const RELICS = [
+    { id: 'stonecharm', name: '碎石符', tier: 'common', stat: 'atk' },
+    { id: 'jade',       name: '青玉珮', tier: 'common', stat: 'hp' },
+    { id: 'dirk',       name: '赤鐵匕', tier: 'fine',   stat: 'atk' },
+    { id: 'cloudbelt',  name: '流雲帶', tier: 'fine',   stat: 'spd' },
+    { id: 'turtleplate',name: '玄龜甲片', tier: 'fine', stat: 'def' },
+    { id: 'stardrop',   name: '星塵墜', tier: 'rare',   stat: 'all' },
+    { id: 'orchid',     name: '幽蘭香囊', tier: 'rare', stat: 'hp' },
+    { id: 'galeboots',  name: '疾風靴', tier: 'rare',   stat: 'spd' },
+    { id: 'emberwing',  name: '焚天羽', tier: 'epic',   stat: 'spd' },
+    { id: 'dragonbone', name: '龍脊骨', tier: 'epic',   stat: 'atk' },
+    { id: 'mirror',     name: '太虛鏡', tier: 'legend', stat: 'all' },
+    { id: 'lantern',    name: '九幽燈', tier: 'legend', stat: 'all' },
+  ];
+  const RELIC = {
+    every: 10,          // 每 10 次覺醒券抽一件
+    dupCores: 30,       // 全部收集完，里程改給獸核
+    /* 能力越高 → 高階權重越高。progress = 最高關卡 + 轉生×30 + 命印×3 */
+    tierWeights(progress) {
+      const g = Math.max(0, Math.min(8, Math.floor(progress / 60)));
+      return {
+        common: Math.max(6, 62 - 7 * g),
+        fine: 25 + 1.5 * g,
+        rare: 9 + 3 * g,
+        epic: 3 + 1.6 * g,
+        legend: 1 + 0.9 * g,
+      };
+    },
+  };
+
   /* 元素組合羈絆（只要隊伍裡同時有這兩種元素就生效，可疊加） */
   const COMBOS = [
     { id: 'blaze',  pair: ['wind', 'fire'],  name: '燎原',  stat: 'spd',  bonus: 0.12 },
@@ -1656,7 +1713,7 @@ textarea, input,
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.14.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.15.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -1913,7 +1970,7 @@ textarea, input,
     BEASTS, BEAST_BY_ID, STAGE_AREAS, areaFor,
     VERSION, MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
     RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR, COUNTER, BOND, ASCEND, CORE_DROP, ELITE,
-    INHERIT, DEPTH, COMBOS,
+    INHERIT, DEPTH, COMBOS, RELIC_TIERS, RELIC_BY_KEY, RELICS, RELIC,
     RING_ORDER, RING_MERGE_COUNT,
     BASE_KILLS_PER_STAGE, killsPerStage, waveSecFor, bossSecFor, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND, STAR_MAX,
     REBIRTH, rebirthGain, stageMul,
@@ -1967,6 +2024,9 @@ textarea, input,
       week: { key: '', kills: 0, hunts: 0, merges: 0, claimed: [] },   // 每週任務
       codex: { souls: {}, bones: {}, rings: {}, beasts: {} },          // 圖鑑（收集表）
       cores: 0,              // 獸核：獵靈掉落，用來把滿級靈印升「覺醒階」
+      ticketPulls: 0,        // 覺醒券抽的累計次數（里程用）
+      relics: [],            // 靈寶（限量 12 件，只能拿一次）
+      milestoneAt: 0,        // 上次已結算的券抽里程（防止重複發獎）
       elite: { day: '', ids: [] },   // 今日已打的精英靈獸
       depth: {},             // 深林層數：beastId -> 已連續狩獵次數
       pendingOffline: null,  // 這次回歸的離線收益（可看廣告加倍一次）
@@ -2073,6 +2133,9 @@ textarea, input,
     out.codex = Object.assign({ souls: {}, bones: {}, rings: {}, beasts: {} }, (d && d.codex) || {});
     out.pendingOffline = (d && d.pendingOffline) || null;
     out.cores = Math.max(0, out.cores | 0);
+    out.ticketPulls = Math.max(0, out.ticketPulls | 0);
+    out.relics = Array.isArray(d && d.relics) ? d.relics.slice() : [];
+    out.milestoneAt = Math.max(0, out.milestoneAt | 0);
     out.elite = Object.assign({ day: '', ids: [] }, (d && d.elite) || {});
     out.depth = Object.assign({}, (d && d.depth) || {});
     if (!Array.isArray(out.elite.ids)) out.elite.ids = [];
@@ -2244,6 +2307,68 @@ textarea, input,
     const strong = Object.keys(counts).filter((el) => counts[el] >= CFG.BOND.sameNeed);
     return { counts, kinds, strong, tri: kinds >= CFG.BOND.triKinds,
              sameBonus: CFG.BOND.sameBonus, triBonus: CFG.BOND.triBonus };
+  }
+
+  /* ---------- 靈寶（覺醒里程獎勵）---------- */
+  function relicProgress() {
+    const s = S;
+    return Math.max(0, (s.bestStage | 0) + (s.rebirths | 0) * 30 + (s.marks | 0) * 3);
+  }
+  function relicTierWeights() { return CFG.RELIC.tierWeights(relicProgress()); }
+  function hasRelic(id) { return (S.relics || []).indexOf(id) >= 0; }
+  function relicCount() { return (S.relics || []).length; }
+  /* 抽一件還沒拿到的靈寶；階級用權重、同階內平均。全收集 → null */
+  function rollRelic() {
+    const w = relicTierWeights();
+    const owned = S.relics || [];
+    const pools = {};
+    CFG.RELICS.forEach((r) => {
+      if (owned.indexOf(r.id) >= 0) return;
+      (pools[r.tier] = pools[r.tier] || []).push(r);
+    });
+    const tiers = Object.keys(pools);
+    if (!tiers.length) return null;
+    // 只在「還有貨」的階級之間依權重抽
+    const total = tiers.reduce((a, k) => a + (w[k] || 0), 0);
+    if (total <= 0) return pools[tiers[0]][0];
+    let roll = Math.random() * total;
+    let key = tiers[0];
+    for (const k of tiers) { roll -= (w[k] || 0); if (roll <= 0) { key = k; break; } }
+    const list = pools[key];
+    return list[Math.floor(Math.random() * list.length)];
+  }
+  /* 里程結算：券抽次數每到 10 的倍數就給一件；全收集改給獸核 */
+  function relicMilestone() {
+    const every = CFG.RELIC.every;
+    if ((S.ticketPulls || 0) <= 0 || S.ticketPulls % every !== 0) return null;
+    if (S.milestoneAt === S.ticketPulls) return null;   // 防同一里程重複觸發
+    S.milestoneAt = S.ticketPulls;
+    const relic = rollRelic();
+    if (!relic) {
+      S.cores = (S.cores || 0) + CFG.RELIC.dupCores;
+      return { kind: 'cores', cores: CFG.RELIC.dupCores, at: S.ticketPulls };
+    }
+    S.relics.push(relic.id);
+    return { kind: 'relic', relic, at: S.ticketPulls };
+  }
+  function relicBonus() {
+    const out = { atk: 0, hp: 0, def: 0, spd: 0 };
+    (S.relics || []).forEach((id) => {
+      const r = CFG.RELICS.find((x) => x.id === id);
+      if (!r) return;
+      const t = CFG.RELIC_BY_KEY[r.tier];
+      if (!t) return;
+      if (r.stat === 'all') { out.atk += t.bonus; out.hp += t.bonus; out.def += t.bonus; out.spd += t.bonus; }
+      else out[r.stat] = (out[r.stat] || 0) + t.bonus;
+    });
+    return out;
+  }
+  function relicMilestoneInfo() {
+    const every = CFG.RELIC.every;
+    const n = S.ticketPulls || 0;
+    return { total: n, need: every, have: n % every, nextIn: every - (n % every),
+             owned: relicCount(), all: CFG.RELICS.length,
+             progress: relicProgress(), weights: relicTierWeights() };
   }
 
   /* ---------- 元素組合羈絆（例：風＋火 → 燎原 SPD +12%）---------- */
@@ -2441,6 +2566,7 @@ textarea, input,
                   * (bond.tri ? 1 + bond.triBonus : 1);
     const ascMul = 1 + CFG.ASCEND.bonusPerStage * (soul.ascend || 0);
     const cb = combosInfo().stat;   // 元素組合：atk / hp / def / spd 各自乘算
+    const rl = relicBonus();        // 靈寶：限量收藏品，永久加成
     const tbMul = (1 + trueBodyOf(soul).bonus) * achMul() * codexMul() * bondMul * ascMul;   // 真身 × 成就 × 圖鑑 × 羈絆 × 覺醒
     /* 三種加成各自乘算，不能全部倒進同一個括號：
        靈環後期 +3600%，若命印（+6%/點）與靈骨（+14~20%）也加在同一個括號裡，
@@ -2455,10 +2581,10 @@ textarea, input,
     const markDef = 1 + pm.def * S.marks;
     const markSpd = 1;   // 命印不再加速度（速度有物理上限），改在 critChance() 給爆擊
     return {
-      atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk) * boneAtk * markAtk * tbMul * cb.atk),
-      hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp) * boneHp * markHp * tbMul * cb.hp),
-      def: Math.round(base.def * starMul * lvMul * boneDef * markDef * tbMul * cb.def),
-      spd: Math.round(base.spd * boneSpd * markSpd * tbMul * cb.spd),
+      atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk) * boneAtk * markAtk * tbMul * cb.atk * (1 + rl.atk)),
+      hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp) * boneHp * markHp * tbMul * cb.hp * (1 + rl.hp)),
+      def: Math.round(base.def * starMul * lvMul * boneDef * markDef * tbMul * cb.def * (1 + rl.def)),
+      spd: Math.round(base.spd * boneSpd * markSpd * tbMul * cb.spd * (1 + rl.spd)),
       role: base.role,
       name: base.name,
       emoji: base.emoji,
@@ -2893,7 +3019,13 @@ textarea, input,
     const cost = useTickets ? CFG.PULL_COST_TICKET : CFG.PULL_COST_DIAMOND;
     if (useTickets) { if (S.tickets < cost) return { ok: false, msg: T('覺醒券不足') }; S.tickets -= cost; }
     else { if (!spendDiamonds(cost)) return { ok: false, msg: T('鑽石不足') }; }
-    return { ok: true, result: rollOne() };
+    const result = rollOne();
+    let milestone = null;
+    if (useTickets) {
+      S.ticketPulls = (S.ticketPulls || 0) + 1;
+      milestone = relicMilestone();     // 每 10 次券抽一件靈寶
+    }
+    return { ok: true, result, milestone };
   }
   /* 新手免費十連：只能領一次，不扣券也不扣鑽。
      目的：讓新玩家在前 3 分鐘就體驗到靈骨/升星，而不是 25 分鐘後才碰到覺醒。 */
@@ -3068,6 +3200,7 @@ textarea, input,
     soulStats, teamSouls, teamStats, power,
     claimOfflineDouble, weekKey, weeklyAdd, weeklyInfo, weeklyClaim, codexMark, codexSync, codexInfo, codexMul,
     bondInfo, combosInfo, depthOf, depthInfo, depthPlus, inheritInfo, inheritStar,
+    relicProgress, relicTierWeights, hasRelic, relicCount, rollRelic, relicMilestone, relicBonus, relicMilestoneInfo,
     ascendInfo, ascendSoul, addCores, eliteInfo, eliteMarkUsed, huntCounter,
     totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth, migrate, coinBonePull, critChance, soulLevelUp, soulLevelInfo, soulLevelCap, dailyInfo, dailyAdd, dailyClaim, todayKey, achList, checkAchievements, achCount, achMul,
     trueBodyOf, resonanceOf, ringSkillOf, hasFreeRingSlot,
@@ -4493,10 +4626,12 @@ textarea, input,
       ? s.tickets >= CFG.PULL10_COST_TICKET
       : s.tickets >= CFG.PULL_COST_TICKET;
     const results = [];
+    const milestones = [];
     for (let i = 0; i < times; i++) {
       const r = State.pullOnce(useTicket);
       if (!r.ok) { if (i === 0) toast(r.msg); break; }
       results.push(r.result);
+      if (r.milestone) milestones.push(r.milestone);
     }
     if (!results.length) return;
     s.stats.pulls += results.length;
@@ -4504,6 +4639,18 @@ textarea, input,
     Battle.refreshTeam();
     renderAll();
     renderPullResults(results);
+    milestones.forEach((m) => {
+      if (m.kind === 'relic') {
+        const t = CFG.RELIC_BY_KEY[m.relic.tier];
+        toast(`${T('覺醒里程獎勵')}：${T(m.relic.name)}（${T(t.name)} +${Math.round(t.bonus * 100)}%）`);
+        addLog(`${T('覺醒里程')} ${m.at} · ${T('獲得靈寶')} ${T(m.relic.name)}（${T(t.name)}）`, 'c-gold');
+        if (global.SFX) SFX.clear();
+      } else {
+        toast(`${T('靈寶已全收集')}：+${m.cores} ${T('獸核')}`);
+        addLog(`${T('覺醒里程')} ${m.at} · ${T('靈寶已全收集')} +${m.cores} ${T('獸核')}`, 'c-gold');
+      }
+    });
+    if (milestones.length) { State.save(true); renderAll(); }
   }
 
   function doPullFree() {
@@ -4661,6 +4808,47 @@ textarea, input,
     }
   }
 
+  function renderRelic() {
+    const box = $('#relicBox');
+    if (!box) return;
+    const info = State.relicMilestoneInfo();
+    const owned = State.relicCount();
+    const w = info.weights;
+    const odds = CFG.RELIC_TIERS.map((t) => {
+      const tot = Object.keys(w).reduce((a, k) => a + w[k], 0) || 1;
+      return `${T(t.name)} ${Math.round((w[t.key] / tot) * 100)}%`;
+    }).join(' · ');
+    box.innerHTML = T(`<div class="merge-head"><b>覺醒里程</b>
+        <span class="hint">${info.have} / ${info.need} ${T('抽')}</span></div>
+      <div class="stats">
+        <span>靈寶 <b>${owned} / ${info.all}</b></span>
+        <span>再 ${info.nextIn} 抽 <b>得一件</b></span>
+      </div>
+      <div class="hint" style="margin-top:6px">${T('機率隨戰績提升')}：${odds}</div>
+      <button class="wide-btn small" id="btnRelics" style="margin-top:8px">${T('靈寶收藏')}</button>`);
+    const b = $('#btnRelics');
+    if (b) b.addEventListener('click', showRelics);
+  }
+
+  function showRelics() {
+    const rows = CFG.RELIC_TIERS.map((t) => {
+      const items = CFG.RELICS.filter((r) => r.tier === t.key);
+      const cells = items.map((r) => {
+        const got = State.hasRelic(r.id);
+        return `<span class="codex-cell ${got ? 'on' : ''}" style="${got ? `border-color:${t.color}` : ''}">
+          <i>${got ? '🔮' : '❔'}</i><b>${got ? T(r.name) : T('未解鎖')}</b></span>`;
+      }).join('');
+      return `<div class="codex-group"><div class="merge-head"><b style="color:${t.color}">${T(t.name)} +${Math.round(t.bonus * 100)}%</b></div>
+        <div class="codex-grid">${cells}</div></div>`;
+    }).join('');
+    const info = State.relicMilestoneInfo();
+    openModal(T('靈寶收藏'), T(`
+      <div class="hint">${T('每 10 次覺醒券抽得一件，12 件限量、各只能拿一次')}</div>
+      <div class="hint">${T('目前進度')} ${info.have}/${info.need} · ${T('已收集')} ${info.owned}/${info.all}</div>
+      ${rows}`),
+      [{ text: T('關閉'), kind: 'primary' }]);
+  }
+
   function renderWeekly() {
     const box = $('#weeklyBox');
     if (!box) return;
@@ -4720,6 +4908,7 @@ textarea, input,
     renderGacha();
     renderWeekly();
     renderCodex();
+    renderRelic();
   }
 
   /* ================= 戰鬥事件 → 畫面 ================= */

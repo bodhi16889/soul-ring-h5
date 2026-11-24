@@ -122,6 +122,19 @@
 
     /* 靈印名稱 */
     '巨靈槌': 'Colossus Hammer', '赤焰鳶': 'Ember Kite', '青藤': 'Verdant Vine',
+    /* v1.15.0：覺醒里程 / 靈寶 */
+    '覺醒里程': 'Awaken mileage', '靈寶': 'Relics', '靈寶收藏': 'Relic collection',
+    '再': 'next in', '次數': 'pulls', '得一件': 'for a relic',
+    '機率隨戰績提升': 'Odds scale with your progress',
+    '每 10 次覺醒券抽得一件，12 件限量、各只能拿一次':
+      'One relic every 10 ticket pulls. 12 limited relics, each obtainable once.',
+    '目前進度': 'Progress', '覺醒里程獎勵': 'Mileage reward', '獲得靈寶': 'Got relic',
+    '靈寶已全收集': 'All relics collected',
+    '凡品': 'Common', '靈品': 'Fine', '玄品': 'Rare', '地品': 'Epic', '天品': 'Legendary',
+    '碎石符': 'Stone Charm', '青玉珮': 'Jade Pendant', '赤鐵匕': 'Iron Dirk',
+    '流雲帶': 'Cloud Sash', '玄龜甲片': 'Turtle Plate', '星塵墜': 'Stardust Drop',
+    '幽蘭香囊': 'Orchid Sachet', '疾風靴': 'Gale Boots', '焚天羽': 'Ember Wing',
+    '龍脊骨': 'Dragon Bone', '太虛鏡': 'Void Mirror', '九幽燈': 'Ninth Lamp',
     '石皮野豬': 'Stonehide Boar', '赤羽鷹': 'Crimson Eagle', '岩心傀儡': 'Rockheart Golem',
     '幽潭蛟': 'Abyss Serpent', '焚天鳳': 'Skyfire Phoenix',
     '已達最高星級': 'Already max stars',

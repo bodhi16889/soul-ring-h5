@@ -797,10 +797,12 @@
       ? s.tickets >= CFG.PULL10_COST_TICKET
       : s.tickets >= CFG.PULL_COST_TICKET;
     const results = [];
+    const milestones = [];
     for (let i = 0; i < times; i++) {
       const r = State.pullOnce(useTicket);
       if (!r.ok) { if (i === 0) toast(r.msg); break; }
       results.push(r.result);
+      if (r.milestone) milestones.push(r.milestone);
     }
     if (!results.length) return;
     s.stats.pulls += results.length;
@@ -808,6 +810,18 @@
     Battle.refreshTeam();
     renderAll();
     renderPullResults(results);
+    milestones.forEach((m) => {
+      if (m.kind === 'relic') {
+        const t = CFG.RELIC_BY_KEY[m.relic.tier];
+        toast(`${T('覺醒里程獎勵')}：${T(m.relic.name)}（${T(t.name)} +${Math.round(t.bonus * 100)}%）`);
+        addLog(`${T('覺醒里程')} ${m.at} · ${T('獲得靈寶')} ${T(m.relic.name)}（${T(t.name)}）`, 'c-gold');
+        if (global.SFX) SFX.clear();
+      } else {
+        toast(`${T('靈寶已全收集')}：+${m.cores} ${T('獸核')}`);
+        addLog(`${T('覺醒里程')} ${m.at} · ${T('靈寶已全收集')} +${m.cores} ${T('獸核')}`, 'c-gold');
+      }
+    });
+    if (milestones.length) { State.save(true); renderAll(); }
   }
 
   function doPullFree() {
@@ -965,6 +979,47 @@
     }
   }
 
+  function renderRelic() {
+    const box = $('#relicBox');
+    if (!box) return;
+    const info = State.relicMilestoneInfo();
+    const owned = State.relicCount();
+    const w = info.weights;
+    const odds = CFG.RELIC_TIERS.map((t) => {
+      const tot = Object.keys(w).reduce((a, k) => a + w[k], 0) || 1;
+      return `${T(t.name)} ${Math.round((w[t.key] / tot) * 100)}%`;
+    }).join(' · ');
+    box.innerHTML = T(`<div class="merge-head"><b>覺醒里程</b>
+        <span class="hint">${info.have} / ${info.need} ${T('抽')}</span></div>
+      <div class="stats">
+        <span>靈寶 <b>${owned} / ${info.all}</b></span>
+        <span>再 ${info.nextIn} 抽 <b>得一件</b></span>
+      </div>
+      <div class="hint" style="margin-top:6px">${T('機率隨戰績提升')}：${odds}</div>
+      <button class="wide-btn small" id="btnRelics" style="margin-top:8px">${T('靈寶收藏')}</button>`);
+    const b = $('#btnRelics');
+    if (b) b.addEventListener('click', showRelics);
+  }
+
+  function showRelics() {
+    const rows = CFG.RELIC_TIERS.map((t) => {
+      const items = CFG.RELICS.filter((r) => r.tier === t.key);
+      const cells = items.map((r) => {
+        const got = State.hasRelic(r.id);
+        return `<span class="codex-cell ${got ? 'on' : ''}" style="${got ? `border-color:${t.color}` : ''}">
+          <i>${got ? '🔮' : '❔'}</i><b>${got ? T(r.name) : T('未解鎖')}</b></span>`;
+      }).join('');
+      return `<div class="codex-group"><div class="merge-head"><b style="color:${t.color}">${T(t.name)} +${Math.round(t.bonus * 100)}%</b></div>
+        <div class="codex-grid">${cells}</div></div>`;
+    }).join('');
+    const info = State.relicMilestoneInfo();
+    openModal(T('靈寶收藏'), T(`
+      <div class="hint">${T('每 10 次覺醒券抽得一件，12 件限量、各只能拿一次')}</div>
+      <div class="hint">${T('目前進度')} ${info.have}/${info.need} · ${T('已收集')} ${info.owned}/${info.all}</div>
+      ${rows}`),
+      [{ text: T('關閉'), kind: 'primary' }]);
+  }
+
   function renderWeekly() {
     const box = $('#weeklyBox');
     if (!box) return;
@@ -1024,6 +1079,7 @@
     renderGacha();
     renderWeekly();
     renderCodex();
+    renderRelic();
   }
 
   /* ================= 戰鬥事件 → 畫面 ================= */
