@@ -86,6 +86,7 @@
       get ready() { return true; },
       State, Battle, CFG,
       switchTab, openModal, closeModal, renderAll,
+      showOffline, showRelics, showCodex,   // 測試與除錯用：直接開對應視窗
       checkinInfo: () => State.checkinInfo(),
       get tab() { return tab; },
     };
@@ -1593,14 +1594,15 @@
   function showOffline(g) {
     const h = Math.floor(g.minutes / 60), m = g.minutes % 60;
     const lvLine = g.levels > 0
-      ? `<div>${T('等級')} <b class="c-ok">Lv ${g.levelBefore} → ${g.levelAfter}</b> <span class="hint">(+${g.levels})</span></div>`
-      : `<div>${T('等級')} <b>Lv ${g.levelAfter}</b> <span class="hint">${T('（未升級）')}</span></div>`;
+      ? `<div>${T('等級')} <b class="c-ok">${g.levelBefore} → ${g.levelAfter}</b> <span class="hint">(+${g.levels})</span></div>`
+      : `<div>${T('等級')} <b>${g.levelAfter}</b> <span class="hint">${T('（未升級）')}</span></div>`;
     openModal(T('離線收益'), T(`
       <div>${T('離線')} <b>${h > 0 ? h + ' ' + T('小時') + ' ' : ''}${m} ${T('分')}</b>${g.capped ? T('（已達 12 小時上限）') : ''}</div>
       <div style="margin-top:8px">靈幣 <b class="c-gold">+${fmt(g.coins)}</b>
         <span class="hint">(${fmt(g.coinsPerMin)} / ${T('分')})</span></div>
       <div>經驗 <b class="c-ok">+${fmt(g.exp)}</b>
         <span class="hint">(${fmt(g.expPerMin)} / ${T('分')})</span></div>
+      ${g.expCapped ? `<div class="hint">${T('離線經驗上限')}：Lv ${g.expCapLv}${g.rawExp > g.exp ? `（${T('原始')} +${fmt(g.rawExp)}）` : ''}</div>` : ''}
       ${lvLine}
       <div class="hint" style="margin-top:8px">${T('掛機效率會隨關卡提升')} · ${T('目前第')} ${g.stage} ${T('關')}</div>`),
       [

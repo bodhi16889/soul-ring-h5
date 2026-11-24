@@ -180,6 +180,11 @@
     water: { stat: 'hunt', bonus: 0.08 },
   };
 
+  /* v1.20.0：離線經驗上限 —— 只推進到「等級上限 × ratio」。
+     原本離線 2 小時就能從 Lv12 衝到 Lv100（實測），掛機價值有了但等級變無意義。
+     0.8 = 保留「掛一晚升一截」的爽感，又留下 20% 要自己打。 */
+  const OFFLINE = { levelCapRatio: 0.8 };
+
   /* v1.18.0：戰鬥倍速（雙方同步加速 → 平衡不變，只是省時間） */
   const SPEEDS = [1, 2, 3];
 
@@ -238,7 +243,7 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.19.1';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.20.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -524,7 +529,7 @@
     BEASTS, BEAST_BY_ID, STAGE_AREAS, areaFor,
     VERSION, MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
     RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR, COUNTER, BOND, ASCEND, CORE_DROP, ELITE,
-    INHERIT, DEPTH, COMBOS, SET_BONUS, SHOP, RELIC_TIERS, SPEEDS, TALENTS, RELIC_BY_KEY, RELICS, RELIC,
+    INHERIT, DEPTH, COMBOS, SET_BONUS, SHOP, RELIC_TIERS, SPEEDS, TALENTS, OFFLINE, RELIC_BY_KEY, RELICS, RELIC,
     SPIRE, DUNGEON, DUNGEONS, AFFIX, AFFIX_BY_KEY,
     RING_ORDER, RING_MERGE_COUNT,
     BASE_KILLS_PER_STAGE, killsPerStage, waveSecFor, bossSecFor, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND, STAR_MAX,

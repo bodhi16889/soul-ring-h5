@@ -175,6 +175,8 @@
     '疾行': 'Swiftness', '財源': 'Fortune', '獸緣': 'Beast Bond',
     '攻擊': 'ATK', '爆擊率': 'Crit', '生命': 'HP',
     '防禦': 'DEF', '速度': 'SPD', '靈幣收益': 'Coins',
+    /* v1.20.0 離線經驗上限 */
+    '離線經驗上限': 'Offline EXP cap', '原始': 'raw',
     /* v1.19.0 靈寶升級 / 離線明細 / 自動化優先序 */
     '升級': 'Upgrade', '靈寶升級': 'Relic upgraded', '等級': 'Lv',
     '（未升級）': '(no level up)', '目前第': 'at stage',

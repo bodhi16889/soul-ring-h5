@@ -285,15 +285,34 @@
     const rate = CFG.offlinePerMinute(s.stage);
     const mul = 1 + CFG.REBIRTH.perMark.income * s.marks;
     const coins = Math.round(rate.coins * minutes * mul);
-    const exp = Math.round(rate.exp * minutes * mul);
+    const rawExp = Math.round(rate.exp * minutes * mul);
     const levelBefore = s.level | 0;
+
+    /* v1.20.0：離線經驗只推進到「等級上限 × 80%」。
+       實測問題：3 小時離線就把 Lv12 拉到 Lv100（滿級），等級完全失去意義。
+       現在超過的部分直接不給（不是先給再扣回），並在明細裡標示上限。 */
+    const rings = totalRingsEquipped();
+    const lvCap = CFG.levelCap(rings);
+    const targetLv = Math.max(levelBefore, Math.floor(lvCap * CFG.OFFLINE.levelCapRatio));
+    let exp = rawExp;
+    let expCapped = false;
+    if (levelBefore >= targetLv) {
+      expCapped = rawExp > 0;
+      exp = 0;
+    } else {
+      let need = 0;
+      for (let l = levelBefore; l < targetLv; l++) need += CFG.expNeed(l);
+      need = Math.max(0, need - (s.exp || 0));
+      if (rawExp > need) { exp = need; expCapped = true; }
+    }
+
     s.coins += coins;
     addExp(s, exp, { silent: true });
     const levelAfter = s.level | 0;
     s.lastSave = now;
     /* v1.19.0：離線要有「明細」才有感——時長、靈幣、經驗、升了幾級、每分鐘速率 */
     const detail = {
-      minutes, capped: ms > capped, coins, exp, rate,
+      minutes, capped: ms > capped, coins, exp, rawExp, expCapped, expCapLv: targetLv, rate,
       levelBefore, levelAfter, levels: Math.max(0, levelAfter - levelBefore),
       coinsPerMin: Math.round(rate.coins * mul), expPerMin: Math.round(rate.exp * mul),
       stage: s.stage | 0, at: now,

@@ -877,6 +877,8 @@ textarea, input,
     '疾行': 'Swiftness', '財源': 'Fortune', '獸緣': 'Beast Bond',
     '攻擊': 'ATK', '爆擊率': 'Crit', '生命': 'HP',
     '防禦': 'DEF', '速度': 'SPD', '靈幣收益': 'Coins',
+    /* v1.20.0 離線經驗上限 */
+    '離線經驗上限': 'Offline EXP cap', '原始': 'raw',
     /* v1.19.0 靈寶升級 / 離線明細 / 自動化優先序 */
     '升級': 'Upgrade', '靈寶升級': 'Relic upgraded', '等級': 'Lv',
     '（未升級）': '(no level up)', '目前第': 'at stage',
@@ -1835,6 +1837,11 @@ textarea, input,
     water: { stat: 'hunt', bonus: 0.08 },
   };
 
+  /* v1.20.0：離線經驗上限 —— 只推進到「等級上限 × ratio」。
+     原本離線 2 小時就能從 Lv12 衝到 Lv100（實測），掛機價值有了但等級變無意義。
+     0.8 = 保留「掛一晚升一截」的爽感，又留下 20% 要自己打。 */
+  const OFFLINE = { levelCapRatio: 0.8 };
+
   /* v1.18.0：戰鬥倍速（雙方同步加速 → 平衡不變，只是省時間） */
   const SPEEDS = [1, 2, 3];
 
@@ -1893,7 +1900,7 @@ textarea, input,
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.19.1';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.20.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -2179,7 +2186,7 @@ textarea, input,
     BEASTS, BEAST_BY_ID, STAGE_AREAS, areaFor,
     VERSION, MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
     RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR, COUNTER, BOND, ASCEND, CORE_DROP, ELITE,
-    INHERIT, DEPTH, COMBOS, SET_BONUS, SHOP, RELIC_TIERS, SPEEDS, TALENTS, RELIC_BY_KEY, RELICS, RELIC,
+    INHERIT, DEPTH, COMBOS, SET_BONUS, SHOP, RELIC_TIERS, SPEEDS, TALENTS, OFFLINE, RELIC_BY_KEY, RELICS, RELIC,
     SPIRE, DUNGEON, DUNGEONS, AFFIX, AFFIX_BY_KEY,
     RING_ORDER, RING_MERGE_COUNT,
     BASE_KILLS_PER_STAGE, killsPerStage, waveSecFor, bossSecFor, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND, STAR_MAX,
@@ -2480,15 +2487,34 @@ textarea, input,
     const rate = CFG.offlinePerMinute(s.stage);
     const mul = 1 + CFG.REBIRTH.perMark.income * s.marks;
     const coins = Math.round(rate.coins * minutes * mul);
-    const exp = Math.round(rate.exp * minutes * mul);
+    const rawExp = Math.round(rate.exp * minutes * mul);
     const levelBefore = s.level | 0;
+
+    /* v1.20.0：離線經驗只推進到「等級上限 × 80%」。
+       實測問題：3 小時離線就把 Lv12 拉到 Lv100（滿級），等級完全失去意義。
+       現在超過的部分直接不給（不是先給再扣回），並在明細裡標示上限。 */
+    const rings = totalRingsEquipped();
+    const lvCap = CFG.levelCap(rings);
+    const targetLv = Math.max(levelBefore, Math.floor(lvCap * CFG.OFFLINE.levelCapRatio));
+    let exp = rawExp;
+    let expCapped = false;
+    if (levelBefore >= targetLv) {
+      expCapped = rawExp > 0;
+      exp = 0;
+    } else {
+      let need = 0;
+      for (let l = levelBefore; l < targetLv; l++) need += CFG.expNeed(l);
+      need = Math.max(0, need - (s.exp || 0));
+      if (rawExp > need) { exp = need; expCapped = true; }
+    }
+
     s.coins += coins;
     addExp(s, exp, { silent: true });
     const levelAfter = s.level | 0;
     s.lastSave = now;
     /* v1.19.0：離線要有「明細」才有感——時長、靈幣、經驗、升了幾級、每分鐘速率 */
     const detail = {
-      minutes, capped: ms > capped, coins, exp, rate,
+      minutes, capped: ms > capped, coins, exp, rawExp, expCapped, expCapLv: targetLv, rate,
       levelBefore, levelAfter, levels: Math.max(0, levelAfter - levelBefore),
       coinsPerMin: Math.round(rate.coins * mul), expPerMin: Math.round(rate.exp * mul),
       stage: s.stage | 0, at: now,
@@ -4669,6 +4695,7 @@ textarea, input,
       get ready() { return true; },
       State, Battle, CFG,
       switchTab, openModal, closeModal, renderAll,
+      showOffline, showRelics, showCodex,   // 測試與除錯用：直接開對應視窗
       checkinInfo: () => State.checkinInfo(),
       get tab() { return tab; },
     };
@@ -6176,14 +6203,15 @@ textarea, input,
   function showOffline(g) {
     const h = Math.floor(g.minutes / 60), m = g.minutes % 60;
     const lvLine = g.levels > 0
-      ? `<div>${T('等級')} <b class="c-ok">Lv ${g.levelBefore} → ${g.levelAfter}</b> <span class="hint">(+${g.levels})</span></div>`
-      : `<div>${T('等級')} <b>Lv ${g.levelAfter}</b> <span class="hint">${T('（未升級）')}</span></div>`;
+      ? `<div>${T('等級')} <b class="c-ok">${g.levelBefore} → ${g.levelAfter}</b> <span class="hint">(+${g.levels})</span></div>`
+      : `<div>${T('等級')} <b>${g.levelAfter}</b> <span class="hint">${T('（未升級）')}</span></div>`;
     openModal(T('離線收益'), T(`
       <div>${T('離線')} <b>${h > 0 ? h + ' ' + T('小時') + ' ' : ''}${m} ${T('分')}</b>${g.capped ? T('（已達 12 小時上限）') : ''}</div>
       <div style="margin-top:8px">靈幣 <b class="c-gold">+${fmt(g.coins)}</b>
         <span class="hint">(${fmt(g.coinsPerMin)} / ${T('分')})</span></div>
       <div>經驗 <b class="c-ok">+${fmt(g.exp)}</b>
         <span class="hint">(${fmt(g.expPerMin)} / ${T('分')})</span></div>
+      ${g.expCapped ? `<div class="hint">${T('離線經驗上限')}：Lv ${g.expCapLv}${g.rawExp > g.exp ? `（${T('原始')} +${fmt(g.rawExp)}）` : ''}</div>` : ''}
       ${lvLine}
       <div class="hint" style="margin-top:8px">${T('掛機效率會隨關卡提升')} · ${T('目前第')} ${g.stage} ${T('關')}</div>`),
       [
