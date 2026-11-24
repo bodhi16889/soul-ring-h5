@@ -65,6 +65,34 @@
 
   function spawnWave(kind) {
     B.waveNo++;
+    if (kind === 'spire') {
+      const st = State.spireStats(B.spireFloor || 1);
+      B.enemies = [{
+        id: 'spire' + st.floor, name: T(st.boss ? '塔守' : '塔靈'), emoji: st.boss ? '👹' : '👻',
+        maxHp: st.hp, hp: st.hp, atk: st.atk, def: st.def, spd: st.spd,
+        gauge: 0, stun: 0, alive: true, boss: st.boss, spire: true, acts: 0, enraged: false,
+      }];
+      B.spireFloor = st.floor;
+      emit('spireWave', { floor: st.floor, boss: st.boss });
+      return;
+    }
+    if (kind === 'dungeon') {
+      const d = B.dungeon;
+      const team = State.teamStats();
+      const units = B.units.filter((u) => u.maxHp > 0);
+      const weakest = Math.min.apply(null, units.map((u) => u.maxHp));
+      const effDps = Math.max(1, units.reduce((a, u) => a + u.atk * actsPerSec(u.spd) * 0.85, 0));
+      const st = CFG.enemyStats(State.data.stage, true);
+      const hp = Math.min(Math.round(st.hp * 1.6), Math.round(effDps * CFG.DUNGEON.hpSec));
+      const atk = Math.max(1, Math.round(weakest * CFG.DUNGEON.atkCap));
+      B.enemies = [{
+        id: 'dg_' + (d ? d.id : 'x'), name: T(d ? d.name : '副本'), emoji: d ? d.emoji : '🏰',
+        maxHp: hp, hp: hp, atk: atk, def: Math.round(team.atk * 0.08), spd: 92,
+        gauge: 0, stun: 0, alive: true, boss: true, dungeon: true, acts: 0, enraged: false,
+      }];
+      emit('dungeonWave', { id: d ? d.id : null });
+      return;
+    }
     if (kind === 'hunt') {
       const beast = B.huntBeast;
       /* 靈獸用固定數值（220～16000 血、12～210 攻），但隊伍在前期只有 130 血／16 攻：
@@ -214,6 +242,43 @@
     return { ok: true };
   }
 
+  /* ---------- 無盡深塔 ---------- */
+  function spireStart() {
+    if (B.mode !== 'farm') return { ok: false, msg: T('戰鬥中無法進入深塔') };
+    const use = State.spireUse();
+    if (!use.ok) return use;
+    B.mode = 'spire';
+    B.spireFloor = 1;
+    reviveTeam(true);
+    spawnWave('spire');
+    emit('spireStart', { left: use.left });
+    return { ok: true, left: use.left };
+  }
+  function spireEnd() {
+    const cleared = Math.max(0, (B.spireFloor || 1) - 1);
+    const r = State.spireReport(cleared);
+    B.mode = 'farm';
+    B.spireFloor = 0;
+    reviveTeam(true);
+    spawnWave('farm');
+    emit('spireEnd', r);
+    return r;
+  }
+
+  /* ---------- 每日副本 ---------- */
+  function dungeonStart(id) {
+    if (B.mode !== 'farm') return { ok: false, msg: T('戰鬥中無法進入副本') };
+    const info = State.dungeonInfo().find((x) => x.id === id);
+    if (!info) return { ok: false, msg: T('沒有這個副本') };
+    if (info.done) return { ok: false, msg: T('今天已打過') };
+    B.mode = 'dungeon';
+    B.dungeon = CFG.DUNGEONS.find((x) => x.id === id);
+    reviveTeam(true);
+    spawnWave('dungeon');
+    emit('dungeonStart', { id });
+    return { ok: true };
+  }
+
   function reviveTeam(healFull) {
     B.units.forEach((u) => {
       u.alive = true;
@@ -256,7 +321,28 @@
           spawnWave('farm');
           emit('bossFailed', { stage: s2.stage, fails: s2.bossFails[s2.stage] });
         }
-        if (B.mode === 'hunt') {
+        if (B.mode === 'spire') {
+      const cleared = B.spireFloor || 1;
+      const rep = State.spireReport(cleared);
+      emit('spireClear', { floor: cleared, best: rep.best, newBest: rep.newBest, cores: rep.cores });
+      if (cleared % CFG.SPIRE.coreEvery === 0) State.addCores(CFG.SPIRE.coreAmount);
+      B.spireFloor = cleared + 1;
+      spawnWave('spire');
+      return;
+    }
+
+    if (B.mode === 'dungeon') {
+      const d = B.dungeon;
+      const res = State.dungeonClaim(d ? d.id : '');
+      B.mode = 'farm';
+      B.dungeon = null;
+      reviveTeam(true);
+      spawnWave('farm');
+      emit('dungeonWin', { id: d ? d.id : null, reward: res.ok ? res.reward : null });
+      return;
+    }
+
+    if (B.mode === 'hunt') {
           const beast = B.huntBeast;
           if (beast) State.data.cd[beast.id] = Date.now() + 15000;   // 失敗冷卻 15 秒
           B.mode = 'farm';
@@ -333,7 +419,7 @@
     if (u.mp >= SKILL_MP) { u.mp = 0; castSkill(u); return; }
     const t = targetEnemy();
     if (!t) return;
-    const dmg = calcDamage(u.atk * (1 + u.buffAtk), t.def, 0.9, 1.1, State.critChance(), State.data.stage);
+    const dmg = calcDamage(u.atk * (1 + u.buffAtk), effDef(t.def), 0.9, 1.1, State.critChance(), State.data.stage);
     hitEnemy(t, dmg, u, false);
     u.mp = Math.min(SKILL_MP, u.mp + MP_PER_ACTION);
   }
@@ -353,13 +439,13 @@
       const targets = aliveEnemies();
       if (ringSkill.type === 'aoe') {
         for (const e of targets) {
-          hitEnemy(e, calcDamage(u.atk * (1 + u.buffAtk) * ringSkill.mult * resoMul, e.def, 0.95, 1.05, State.critChance(), State.data.stage), u, true);
+          hitEnemy(e, calcDamage(u.atk * (1 + u.buffAtk) * ringSkill.mult * resoMul, effDef(e.def), 0.95, 1.05, State.critChance(), State.data.stage), u, true);
         }
         if (targets.length > 1) emit('aoe', { count: targets.length });
       } else {
         const t = targetEnemy();
         if (t) {
-          hitEnemy(t, calcDamage(u.atk * (1 + u.buffAtk) * ringSkill.mult * resoMul, t.def, 0.95, 1.05, State.critChance(), State.data.stage), u, true);
+          hitEnemy(t, calcDamage(u.atk * (1 + u.buffAtk) * ringSkill.mult * resoMul, effDef(t.def), 0.95, 1.05, State.critChance(), State.data.stage), u, true);
           if (Math.random() < (ringSkill.chance || 0) && t.alive) {
             t.stun = Math.max(t.stun, 1);
             emit('stun', { who: 'enemy', enemyId: t.id });
@@ -374,14 +460,14 @@
       // 強攻系：全體 200%（多波時才看得出價值）
       const targets = aliveEnemies();
       for (const e of targets) {
-        const dmg = calcDamage(u.atk * (1 + u.buffAtk) * 2.0, e.def, 0.95, 1.05, State.critChance(), State.data.stage);
+        const dmg = calcDamage(u.atk * (1 + u.buffAtk) * 2.0, effDef(e.def), 0.95, 1.05, State.critChance(), State.data.stage);
         hitEnemy(e, dmg, u, true);
       }
       if (targets.length > 1) emit('aoe', { count: targets.length });
     } else if (u.role === 'ctrl') {
       const t = targetEnemy();
       if (t) {
-        hitEnemy(t, calcDamage(u.atk * (1 + u.buffAtk) * 1.2, t.def, 0.95, 1.05, State.critChance(), State.data.stage), u, true);
+        hitEnemy(t, calcDamage(u.atk * (1 + u.buffAtk) * 1.2, effDef(t.def), 0.95, 1.05, State.critChance(), State.data.stage), u, true);
         if (Math.random() < 0.45 && t.alive) {
           t.stun = Math.max(t.stun, 1);
           emit('stun', { who: 'enemy', enemyId: t.id });
@@ -409,11 +495,36 @@
   function hitEnemy(enemy, dmg, u, isSkill) {
     if (!enemy || !enemy.alive) return;
     // 五行剋制只作用在狩獵場（主線維持原本節奏，不讓剋制變成推關卡的必要條件）
+    if (B.mode === 'spire') {
+      const cleared = B.spireFloor || 1;
+      const rep = State.spireReport(cleared);
+      emit('spireClear', { floor: cleared, best: rep.best, newBest: rep.newBest, cores: rep.cores });
+      if (cleared % CFG.SPIRE.coreEvery === 0) State.addCores(CFG.SPIRE.coreAmount);
+      B.spireFloor = cleared + 1;
+      spawnWave('spire');
+      return;
+    }
+
+    if (B.mode === 'dungeon') {
+      const d = B.dungeon;
+      const res = State.dungeonClaim(d ? d.id : '');
+      B.mode = 'farm';
+      B.dungeon = null;
+      reviveTeam(true);
+      spawnWave('farm');
+      emit('dungeonWin', { id: d ? d.id : null, reward: res.ok ? res.reward : null });
+      return;
+    }
+
     if (B.mode === 'hunt') {
       const mul = (B.huntCounter ? B.huntCounter.mult : 1) * (B.huntCombo || 1);
       if (mul !== 1) dmg = Math.max(1, Math.round(dmg * mul));
     }
     enemy.hp -= dmg;
+    const leech = State.affixTotals ? (State.affixTotals().leech || 0) : 0;
+    if (leech > 0 && u && u.maxHp > 0) {
+      u.hp = Math.min(u.maxHp, u.hp + dmg * leech);
+    }
     emit('hit', {
       side: 'enemy', enemyId: enemy.id, amount: dmg, crit: isSkill, unit: u,
       hp: Math.max(0, enemy.hp), maxHp: enemy.maxHp,
@@ -468,6 +579,27 @@
   /* ---------- 擊殺結算 ---------- */
   function onEnemyDead(enemy) {
     const s = State.data;
+
+    if (B.mode === 'spire') {
+      const cleared = B.spireFloor || 1;
+      const rep = State.spireReport(cleared);
+      emit('spireClear', { floor: cleared, best: rep.best, newBest: rep.newBest, cores: rep.cores });
+      if (cleared % CFG.SPIRE.coreEvery === 0) State.addCores(CFG.SPIRE.coreAmount);
+      B.spireFloor = cleared + 1;
+      spawnWave('spire');
+      return;
+    }
+
+    if (B.mode === 'dungeon') {
+      const d = B.dungeon;
+      const res = State.dungeonClaim(d ? d.id : '');
+      B.mode = 'farm';
+      B.dungeon = null;
+      reviveTeam(true);
+      spawnWave('farm');
+      emit('dungeonWin', { id: d ? d.id : null, reward: res.ok ? res.reward : null });
+      return;
+    }
 
     if (B.mode === 'hunt') {
       const beast = B.huntBeast;
@@ -574,6 +706,12 @@
     return Math.min(CFG.COMBAT.defCap, (def || 0) / ((def || 0) + k));
   }
 
+  /* 詞條「破防」：玩家造成的傷害對敵方防禦打折（只影響我方輸出） */
+  function effDef(def) {
+    const pen = State.affixTotals ? (State.affixTotals().pen || 0) : 0;
+    return Math.max(0, (def || 0) * (1 - Math.min(0.5, pen)));
+  }
+
   function calcDamage(atk, def, lo, hi, critChance, defLevel) {
     const raw = atk * (lo + Math.random() * (hi - lo));
     const dmg = raw * (1 - mitigation(def, defLevel));
@@ -596,6 +734,7 @@
   }
 
   global.Battle = {
+    spireStart, spireEnd, dungeonStart,
     init, start, stop, refreshTeam, challengeBoss, hunt, backToFarm, reviveTeam,
     on, snapshot, spawnWave, targetEnemy,
     /* 測試用內部鉤子（不影響遊戲流程） */

@@ -32,6 +32,8 @@
     const res = State.load();
     bindNav();
     bindCodex();
+    const bs = $('#btnSpire'); if (bs) bs.addEventListener('click', showSpire);
+    const bd = $('#btnDungeon'); if (bd) bd.addEventListener('click', showDungeons);
     bindTop();
     bindBattle();
     bindSouls();
@@ -105,6 +107,17 @@
       const r = Battle.challengeBoss();
       if (!r.ok) toast(r.msg);
     });
+  }
+
+  function renderSpireBtn() {
+    const b = $('#btnSpire');
+    if (!b) return;
+    const info = State.spireInfo();
+    const label = I18N.lang === 'en'
+      ? `Endless Spire (${info.left}/${info.perDay})`
+      : `無盡深塔（${info.left}/${info.perDay}）`;
+    b.textContent = label;
+    b.disabled = info.left <= 0;
   }
 
   function renderBattle() {
@@ -402,6 +415,49 @@
     if (off) off.addEventListener('click', () => {
       State.unequipBone(soulId); closeModal();
       State.save(true); Battle.refreshTeam(); renderAll();
+    });
+  }
+
+  function showSpire() {
+    const info = State.spireInfo();
+    const next = State.spireStats(info.best + 1);
+    openModal(T('無盡深塔'), T(`
+      <div class="hint">${T('每天 3 次，從第 1 層連打到全滅；敵人用固定公式，不套橡皮筋')}</div>
+      <div class="stats" style="margin-top:8px">
+        <span>${T('最高層')} <b>${info.best}</b></span>
+        <span>${T('塔印')} <b>${info.marks}</b></span>
+        <span>${T('全屬性')} <b>+${(info.bonus * 100).toFixed(1)}%</b></span>
+      </div>
+      <div class="hint" style="margin-top:8px">${T('下一層')}：${T('生命')} ${fmt(next.hp)} · ${T('攻擊')} ${fmt(next.atk)}${next.boss ? ' · BOSS' : ''}</div>
+      <div class="hint">${T('每')} 10 ${T('層')} → +${CFG.SPIRE.coreAmount} ${T('獸核')}</div>`),
+      [{ text: T('進入深塔'), kind: 'primary', onClick: () => {
+          const r = Battle.spireStart();
+          if (!r.ok) { toast(r.msg); return; }
+          closeModal(); switchTab('battle'); renderAll();
+          toast(T('深塔挑戰開始'));
+        } },
+       { text: T('關閉'), kind: '' }]);
+  }
+
+  function showDungeons() {
+    const list = State.dungeonInfo();
+    const rows = list.map((d) => `<div class="merge-row">
+        <span class="mr-name">${d.emoji} ${T(d.name)}</span>
+        <span class="hint">${T(d.desc)}</span>
+        <button class="mini-btn ${d.done ? '' : 'primary'}" data-dg="${d.id}" ${d.done ? 'disabled' : ''}>
+          ${d.done ? T('今日已完成') : T('挑戰')}
+        </button>
+      </div>`).join('');
+    openModal(T('每日副本'), T(`
+      <div class="hint">${T('每天各 1 次，獎勵隨最高關卡提升')}</div>${rows}`),
+      [{ text: T('關閉'), kind: '' }]);
+    $$('#modalBody [data-dg]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = Battle.dungeonStart(b.dataset.dg);
+        if (!r.ok) return toast(r.msg);
+        closeModal(); switchTab('battle'); renderAll();
+        toast(T('副本挑戰開始'));
+      });
     });
   }
 
@@ -1077,6 +1133,7 @@
 
   function renderAll() {
     renderTop();
+    renderSpireBtn();
     renderBattle();
     renderSouls();
     renderBones();
@@ -1182,6 +1239,37 @@
       case 'huntLose':
         addLog(T(`獵靈失敗：${ev.beast ? ev.beast.name : T('靈獸')} 太強，15 秒後可再試（先去升級或補靈骨）`), 'c-bad');
         break;
+      case 'spireClear': {
+        addLog(`${T('深塔')} ${T('第關')} ${ev.floor} ${T('層')}${ev.newBest ? ' · ' + T('新紀錄') : ''}`, ev.boss ? 'c-gold' : 'c-purple');
+        if (ev.floor % 10 === 0) toast(`${T('深塔')} ${ev.floor} ${T('層')} → +${CFG.SPIRE.coreAmount} ${T('獸核')}`);
+        renderAll();
+        break;
+      }
+      case 'spireEnd': {
+        banner(T('深塔結束'));
+        toast(`${T('抵達')} ${ev.floor} ${T('層')} · ${T('最高')} ${ev.best}`);
+        addLog(`${T('深塔結束')} · ${T('抵達')} ${ev.floor} ${T('層')} · ${T('最高')} ${ev.best}${ev.cores ? ` · ${T('獸核')} +${ev.cores}` : ''}`, 'c-gold');
+        State.save(true);
+        renderAll();
+        break;
+      }
+      case 'dungeonWin': {
+        const rw = ev.reward;
+        const txt = rw ? (rw.stat === 'coins' ? `${T('靈幣')} +${fmt(rw.amount)}`
+          : rw.stat === 'cores' ? `${T('獸核')} +${rw.amount}`
+          : `${T('覺醒券')} +${rw.amount}`) : T('沒有獎勵');
+        banner(T('副本完成'));
+        addLog(`${T('副本完成')} · ${txt}`, 'c-gold');
+        toast(txt);
+        State.save(true);
+        renderAll();
+        break;
+      }
+      case 'dungeonLose': {
+        toast(T('副本失敗，明天再來'));
+        renderAll();
+        break;
+      }
       case 'huntWin': {
         const t = CFG.TIER_BY_KEY[ev.ring.tier];
         banner(T('吸收靈環'));

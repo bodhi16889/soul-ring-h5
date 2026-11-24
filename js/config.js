@@ -81,6 +81,47 @@
        每 3 層獸核 +1（乘算）、每 5 層保證多掉一枚「高一階」靈環 */
   const DEPTH = { coreEvery: 3, bonusRingEvery: 5, maxBonusRing: 'violet' };
 
+  /* ---------- 無盡深塔（v1.16.0）----------
+   * 每天 3 次挑戰；每次從第 1 層連打到全滅為止（隊伍血量不重置）。
+   * 敵人用固定公式、**不套橡皮筋** → 打得到多深就是真實戰力。
+   * 每層 +1 塔印（永久，上限 200），每 10 層給獸核。
+   */
+  const SPIRE = {
+    perDay: 3,
+    hpBase: 130, hpGrow: 1.26,
+    atkBase: 10, atkGrow: 1.19,
+    markBonus: 0.005,     // 每層 +0.5% 全屬性
+    maxMark: 200,
+    coreEvery: 10, coreAmount: 5,
+    bossEvery: 5,         // 每 5 層是守關（血量 ×2.2、攻擊 ×1.15）
+  };
+
+  /* ---------- 每日輪替副本（v1.16.0）----------
+   * 每天各 1 次，獎勵隨「最高關卡」縮放；戰鬥沿用主線數值但血量放寬到 25 秒。
+   */
+  const DUNGEON = { hpSec: 25, atkCap: 0.09 };
+  const DUNGEONS = [
+    { id: 'treasure', name: '財寶窟', emoji: '💰', stat: 'coins',
+      desc: '大量靈幣（約 30 分鐘掛機量）' },
+    { id: 'nest', name: '獸巢', emoji: '🪺', stat: 'cores',
+      desc: '獸核 ×6（覺醒階／傳承的來源）' },
+    { id: 'spring', name: '靈泉', emoji: '⛲', stat: 'tickets',
+      desc: '覺醒券 ×2（覺醒里程也一起推進）' },
+  ];
+
+  /* ---------- 靈環詞條（v1.16.0）---------- */
+  const AFFIX = {
+    chance: 0.15,
+    rerollCost: 10,
+    list: [
+      { key: 'crit',   name: '爆擊',   val: 0.03, unit: 'pct' },
+      { key: 'leech',  name: '吸血',   val: 0.02, unit: 'pct' },
+      { key: 'pen',    name: '破防',   val: 0.08, unit: 'pct' },
+      { key: 'swift',  name: '迅捷',   val: 0.06, unit: 'pct' },
+    ],
+  };
+  const AFFIX_BY_KEY = Object.fromEntries(AFFIX.list.map((a) => [a.key, a]));
+
   /* ---------- 覺醒里程／靈寶（v1.15.0）----------
    * 每 10 次「覺醒券」抽（不含鑽石抽）→ 抽一件限量靈寶，永久加戰力。
    * 「限量」= 12 件各只能拿一次；收集完里程改給獸核。
@@ -144,7 +185,7 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.15.2';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.16.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -402,6 +443,7 @@
     VERSION, MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
     RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR, COUNTER, BOND, ASCEND, CORE_DROP, ELITE,
     INHERIT, DEPTH, COMBOS, RELIC_TIERS, RELIC_BY_KEY, RELICS, RELIC,
+    SPIRE, DUNGEON, DUNGEONS, AFFIX, AFFIX_BY_KEY,
     RING_ORDER, RING_MERGE_COUNT,
     BASE_KILLS_PER_STAGE, killsPerStage, waveSecFor, bossSecFor, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND, STAR_MAX,
     REBIRTH, rebirthGain, stageMul,

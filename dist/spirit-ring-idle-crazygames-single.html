@@ -594,6 +594,10 @@ textarea, input,
         <div id="battleBanner" class="banner"></div>
         <button id="bossBtn" class="boss-btn" data-i18n="挑戰 BOSS">挑戰 BOSS</button>
       </div>
+      <div class="acts" style="display:flex;gap:8px;margin:6px 0 2px">
+        <button id="btnSpire" class="mini-btn" data-i18n="無盡深塔">無盡深塔</button>
+        <button id="btnDungeon" class="mini-btn" data-i18n="每日副本">每日副本</button>
+      </div>
       <div class="stage-info">
         <div class="prog-row">
           <span id="stageLabel">Stage <b id="stageNum">1</b></span>
@@ -820,6 +824,25 @@ textarea, input,
     /* v1.15.0：覺醒里程 / 靈寶 */
     '有新版本': 'New version available',
     '更新': 'Update',
+    /* v1.16.0：深塔 / 副本 / 詞條 */
+    '大量靈幣（約 30 分鐘掛機量）': 'Lots of coins (about 30 min of idle income)',
+    '獸核 ×6（覺醒階／傳承的來源）': '6 beast cores (for ascension and inheritance)',
+    '覺醒券 ×2（覺醒里程也一起推進）': '2 tickets (also counts toward awaken mileage)',
+    '無盡深塔': 'Endless Spire', '每日副本': 'Daily dungeons', '深塔': 'Spire',
+    '財寶窟': 'Treasure Vault', '獸巢': 'Beast Nest', '靈泉': 'Spirit Spring',
+    '每天 3 次，從第 1 層連打到全滅；敵人用固定公式，不套橡皮筋':
+      '3 runs a day. Climb floor by floor until your team falls; enemies use fixed stats.',
+    '最高層': 'Best floor', '塔印': 'Tower marks', '下一層': 'Next floor',
+    '進入深塔': 'Enter spire', '深塔挑戰開始': 'Spire run started',
+    '深塔結束': 'Spire run ended', '抵達': 'Reached', '最高': 'best',
+    '新紀錄': 'new record', '塔靈': 'Tower spirit', '塔守': 'Tower guardian',
+    '每': 'every', '每天各 1 次，獎勵隨最高關卡提升': 'One run per dungeon each day; rewards scale with your best stage',
+    '今日已完成': 'Done today', '挑戰': 'Challenge', '副本挑戰開始': 'Dungeon started',
+    '副本完成': 'Dungeon cleared', '副本失敗，明天再來': 'Dungeon failed, come back tomorrow',
+    '沒有這個副本': 'No such dungeon', '今天已打過': 'Already done today',
+    '今日深塔次數已用完': 'No spire runs left today', '戰鬥中無法進入深塔': 'Cannot enter during combat',
+    '戰鬥中無法進入副本': 'Cannot enter during combat',
+    '爆擊': 'Crit', '吸血': 'Lifesteal', '破防': 'Armor pen', '迅捷': 'Swift',
     '覺醒里程': 'Awaken mileage', '靈寶': 'Relics', '靈寶收藏': 'Relic collection',
     '再': 'next in', '次數': 'pulls', '得一件': 'for a relic',
     '機率隨戰績提升': 'Odds scale with your progress',
@@ -1652,6 +1675,47 @@ textarea, input,
        每 3 層獸核 +1（乘算）、每 5 層保證多掉一枚「高一階」靈環 */
   const DEPTH = { coreEvery: 3, bonusRingEvery: 5, maxBonusRing: 'violet' };
 
+  /* ---------- 無盡深塔（v1.16.0）----------
+   * 每天 3 次挑戰；每次從第 1 層連打到全滅為止（隊伍血量不重置）。
+   * 敵人用固定公式、**不套橡皮筋** → 打得到多深就是真實戰力。
+   * 每層 +1 塔印（永久，上限 200），每 10 層給獸核。
+   */
+  const SPIRE = {
+    perDay: 3,
+    hpBase: 130, hpGrow: 1.26,
+    atkBase: 10, atkGrow: 1.19,
+    markBonus: 0.005,     // 每層 +0.5% 全屬性
+    maxMark: 200,
+    coreEvery: 10, coreAmount: 5,
+    bossEvery: 5,         // 每 5 層是守關（血量 ×2.2、攻擊 ×1.15）
+  };
+
+  /* ---------- 每日輪替副本（v1.16.0）----------
+   * 每天各 1 次，獎勵隨「最高關卡」縮放；戰鬥沿用主線數值但血量放寬到 25 秒。
+   */
+  const DUNGEON = { hpSec: 25, atkCap: 0.09 };
+  const DUNGEONS = [
+    { id: 'treasure', name: '財寶窟', emoji: '💰', stat: 'coins',
+      desc: '大量靈幣（約 30 分鐘掛機量）' },
+    { id: 'nest', name: '獸巢', emoji: '🪺', stat: 'cores',
+      desc: '獸核 ×6（覺醒階／傳承的來源）' },
+    { id: 'spring', name: '靈泉', emoji: '⛲', stat: 'tickets',
+      desc: '覺醒券 ×2（覺醒里程也一起推進）' },
+  ];
+
+  /* ---------- 靈環詞條（v1.16.0）---------- */
+  const AFFIX = {
+    chance: 0.15,
+    rerollCost: 10,
+    list: [
+      { key: 'crit',   name: '爆擊',   val: 0.03, unit: 'pct' },
+      { key: 'leech',  name: '吸血',   val: 0.02, unit: 'pct' },
+      { key: 'pen',    name: '破防',   val: 0.08, unit: 'pct' },
+      { key: 'swift',  name: '迅捷',   val: 0.06, unit: 'pct' },
+    ],
+  };
+  const AFFIX_BY_KEY = Object.fromEntries(AFFIX.list.map((a) => [a.key, a]));
+
   /* ---------- 覺醒里程／靈寶（v1.15.0）----------
    * 每 10 次「覺醒券」抽（不含鑽石抽）→ 抽一件限量靈寶，永久加戰力。
    * 「限量」= 12 件各只能拿一次；收集完里程改給獸核。
@@ -1715,7 +1779,7 @@ textarea, input,
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.15.2';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.16.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -1973,6 +2037,7 @@ textarea, input,
     VERSION, MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
     RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR, COUNTER, BOND, ASCEND, CORE_DROP, ELITE,
     INHERIT, DEPTH, COMBOS, RELIC_TIERS, RELIC_BY_KEY, RELICS, RELIC,
+    SPIRE, DUNGEON, DUNGEONS, AFFIX, AFFIX_BY_KEY,
     RING_ORDER, RING_MERGE_COUNT,
     BASE_KILLS_PER_STAGE, killsPerStage, waveSecFor, bossSecFor, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND, STAR_MAX,
     REBIRTH, rebirthGain, stageMul,
@@ -2029,6 +2094,8 @@ textarea, input,
       ticketPulls: 0,        // 覺醒券抽的累計次數（里程用）
       relics: [],            // 靈寶（限量 12 件，只能拿一次）
       milestoneAt: 0,        // 上次已結算的券抽里程（防止重複發獎）
+      spire: { best: 0, day: '', used: 0 },   // 無盡深塔：最高層 / 日期 / 今日已用次數
+      dungeon: { day: '', done: [] },         // 每日副本：今天打過哪些
       elite: { day: '', ids: [] },   // 今日已打的精英靈獸
       depth: {},             // 深林層數：beastId -> 已連續狩獵次數
       pendingOffline: null,  // 這次回歸的離線收益（可看廣告加倍一次）
@@ -2141,6 +2208,9 @@ textarea, input,
     out.ticketPulls = Math.max(0, out.ticketPulls | 0);
     out.relics = Array.isArray(d && d.relics) ? d.relics.slice() : [];
     out.milestoneAt = Math.max(0, out.milestoneAt | 0);
+    out.spire = Object.assign({ best: 0, day: '', used: 0 }, (d && d.spire) || {});
+    out.dungeon = Object.assign({ day: '', done: [] }, (d && d.dungeon) || {});
+    if (!Array.isArray(out.dungeon.done)) out.dungeon.done = [];
     out.elite = Object.assign({ day: '', ids: [] }, (d && d.elite) || {});
     out.depth = Object.assign({}, (d && d.depth) || {});
     if (!Array.isArray(out.elite.ids)) out.elite.ids = [];
@@ -2312,6 +2382,106 @@ textarea, input,
     const strong = Object.keys(counts).filter((el) => counts[el] >= CFG.BOND.sameNeed);
     return { counts, kinds, strong, tri: kinds >= CFG.BOND.triKinds,
              sameBonus: CFG.BOND.sameBonus, triBonus: CFG.BOND.triBonus };
+  }
+
+  /* ---------- 無盡深塔 ---------- */
+  function spireReset() {
+    const k = todayKey();
+    if (!S.spire || S.spire.day !== k) S.spire = { best: (S.spire && S.spire.best) || 0, day: k, used: 0 };
+  }
+  function spireInfo() {
+    spireReset();
+    const best = S.spire.best | 0;
+    return { best, used: S.spire.used | 0, perDay: CFG.SPIRE.perDay,
+             left: Math.max(0, CFG.SPIRE.perDay - (S.spire.used | 0)),
+             marks: Math.min(best, CFG.SPIRE.maxMark),
+             bonus: CFG.SPIRE.markBonus * Math.min(best, CFG.SPIRE.maxMark) };
+  }
+  function spireUse() {
+    spireReset();
+    if ((S.spire.used | 0) >= CFG.SPIRE.perDay) return { ok: false, msg: T('今日深塔次數已用完') };
+    S.spire.used = (S.spire.used | 0) + 1;
+    return { ok: true, left: CFG.SPIRE.perDay - S.spire.used };
+  }
+  /* 回報本次抵達的層數：更新最高紀錄、發獸核 */
+  function spireReport(floor) {
+    spireReset();
+    floor = Math.max(0, floor | 0);
+    const before = S.spire.best | 0;
+    if (floor > before) S.spire.best = floor;
+    return { floor, best: S.spire.best, newBest: floor > before, cores: 0 };
+  }
+  function spireStats(floor) {
+    const f = Math.max(1, floor | 0);
+    const sp = CFG.SPIRE;
+    const boss = f % sp.bossEvery === 0;
+    const hp = Math.round(sp.hpBase * Math.pow(sp.hpGrow, f - 1) * (boss ? 2.2 : 1));
+    const atk = Math.round(sp.atkBase * Math.pow(sp.atkGrow, f - 1) * (boss ? 1.15 : 1));
+    return { floor: f, boss, hp, atk,
+             def: Math.round(atk * 0.4), spd: 88 + Math.min(40, Math.floor(f / 3)) };
+  }
+  function spireMul() { return 1 + CFG.SPIRE.markBonus * Math.min(S.spire ? (S.spire.best | 0) : 0, CFG.SPIRE.maxMark); }
+
+  /* ---------- 每日副本 ---------- */
+  function dungeonReset() {
+    const k = todayKey();
+    if (!S.dungeon || S.dungeon.day !== k) S.dungeon = { day: k, done: [] };
+  }
+  function dungeonInfo() {
+    dungeonReset();
+    return CFG.DUNGEONS.map((d) => ({
+      id: d.id, name: d.name, emoji: d.emoji, desc: d.desc,
+      done: S.dungeon.done.indexOf(d.id) >= 0,
+    }));
+  }
+  function dungeonMark(id) { dungeonReset(); if (S.dungeon.done.indexOf(id) < 0) S.dungeon.done.push(id); }
+  function dungeonReward(id) {
+    const d = CFG.DUNGEONS.find((x) => x.id === id);
+    if (!d) return null;
+    const stage = Math.max(1, S.bestStage | 0);
+    if (d.stat === 'coins') return { stat: 'coins', amount: Math.round(CFG.killReward(stage).coins * 900) };
+    if (d.stat === 'cores') return { stat: 'cores', amount: 6 };
+    return { stat: 'tickets', amount: 2 };
+  }
+  function dungeonClaim(id) {
+    const info = dungeonInfo().find((x) => x.id === id);
+    if (!info) return { ok: false, msg: T('沒有這個副本') };
+    if (info.done) return { ok: false, msg: T('今天已打過') };
+    const rw = dungeonReward(id);
+    if (rw.stat === 'coins') S.coins += rw.amount;
+    else if (rw.stat === 'cores') S.cores = (S.cores | 0) + rw.amount;
+    else if (rw.stat === 'tickets') {
+      S.tickets += rw.amount;
+      S.ticketPulls = (S.ticketPulls || 0);   // 券本身不動里程，抽的時候才算
+    }
+    dungeonMark(id);
+    return { ok: true, reward: rw };
+  }
+
+  /* ---------- 靈環詞條 ---------- */
+  function rollAffix() {
+    if (Math.random() >= CFG.AFFIX.chance) return null;
+    const list = CFG.AFFIX.list;
+    const a = list[Math.floor(Math.random() * list.length)];
+    return { key: a.key, val: a.val };
+  }
+  function rerollAffix(uid) {
+    const ring = S.ringBag.find((r) => r.uid === uid);
+    if (!ring) return { ok: false, msg: T('找不到靈環') };
+    if ((S.cores | 0) < CFG.AFFIX.rerollCost) return { ok: false, msg: T('獸核不足'), need: CFG.AFFIX.rerollCost };
+    S.cores -= CFG.AFFIX.rerollCost;
+    let a = null;
+    for (let i = 0; i < 12 && !a; i++) a = rollAffix();
+    ring.affix = a;   // null 代表洗成無詞條（風險）
+    return { ok: true, affix: a, cost: CFG.AFFIX.rerollCost };
+  }
+  function affixTotals() {
+    const out = { crit: 0, leech: 0, pen: 0, swift: 0 };
+    (S.ringBag || []).forEach((r) => {
+      if (!r.affix || !r.equipped) return;
+      out[r.affix.key] = (out[r.affix.key] || 0) + r.affix.val;
+    });
+    return out;
   }
 
   /* ---------- 靈寶（覺醒里程獎勵）---------- */
@@ -2594,7 +2764,7 @@ textarea, input,
     const ascMul = 1 + CFG.ASCEND.bonusPerStage * (soul.ascend || 0);
     const cb = combosInfo().stat;   // 元素組合：atk / hp / def / spd 各自乘算
     const rl = relicBonus();        // 靈寶：限量收藏品，永久加成
-    const tbMul = (1 + trueBodyOf(soul).bonus) * achMul() * codexMul() * bondMul * ascMul;   // 真身 × 成就 × 圖鑑 × 羈絆 × 覺醒
+    const tbMul = (1 + trueBodyOf(soul).bonus) * achMul() * codexMul() * bondMul * ascMul * spireMul();   // 真身 × 成就 × 圖鑑 × 羈絆 × 覺醒
     /* 三種加成各自乘算，不能全部倒進同一個括號：
        靈環後期 +3600%，若命印（+6%/點）與靈骨（+14~20%）也加在同一個括號裡，
        25 點命印只讓戰力多 5%，玩家會覺得「轉生沒用、戰力卡死」。
@@ -2633,9 +2803,11 @@ textarea, input,
   }
   /* 爆擊率：基礎 10% + 命印每點 0.15%（上限 +40%） */
   function critChance() {
-    const c = CFG.COMBAT.critBase + Math.min(CFG.REBIRTH.critMax,
-      (S.marks || 0) * CFG.REBIRTH.critPerMark);
-    return Math.min(0.5, c);
+    // 命印 + 靈環詞條（crit）都在這裡疊加，上限 60%
+    const c = CFG.COMBAT.critBase
+      + Math.min(CFG.REBIRTH.critMax, (S.marks || 0) * CFG.REBIRTH.critPerMark)
+      + (affixTotals().crit || 0);
+    return Math.min(0.6, c);
   }
 
   function power() {
@@ -2806,6 +2978,7 @@ textarea, input,
       tier: tierKey, name: t ? t.name : T('靈環'),
       element: element || 'wind',
       equipped: null,
+      affix: rollAffix(),     // 15% 機率帶詞條（爆擊／吸血／破防／迅捷）
     };
   }
   function ringSlotsOf(soul) {
@@ -3233,6 +3406,9 @@ textarea, input,
     claimOfflineDouble, weekKey, weeklyAdd, weeklyInfo, weeklyClaim, codexMark, codexSync, codexInfo, codexMul,
     bondInfo, combosInfo, depthOf, depthInfo, depthPlus, inheritInfo, inheritStar,
     relicProgress, relicTierWeights, hasRelic, relicCount, rollRelic, relicMilestone, relicBackfill, relicBonus, relicMilestoneInfo,
+    spireReset, spireInfo, spireUse, spireReport, spireStats, spireMul,
+    dungeonReset, dungeonInfo, dungeonMark, dungeonReward, dungeonClaim,
+    rollAffix, rerollAffix, affixTotals,
     ascendInfo, ascendSoul, addCores, eliteInfo, eliteMarkUsed, huntCounter,
     totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth, migrate, coinBonePull, critChance, soulLevelUp, soulLevelInfo, soulLevelCap, dailyInfo, dailyAdd, dailyClaim, todayKey, achList, checkAchievements, achCount, achMul,
     trueBodyOf, resonanceOf, ringSkillOf, hasFreeRingSlot,
@@ -3317,6 +3493,34 @@ textarea, input,
 
   function spawnWave(kind) {
     B.waveNo++;
+    if (kind === 'spire') {
+      const st = State.spireStats(B.spireFloor || 1);
+      B.enemies = [{
+        id: 'spire' + st.floor, name: T(st.boss ? '塔守' : '塔靈'), emoji: st.boss ? '👹' : '👻',
+        maxHp: st.hp, hp: st.hp, atk: st.atk, def: st.def, spd: st.spd,
+        gauge: 0, stun: 0, alive: true, boss: st.boss, spire: true, acts: 0, enraged: false,
+      }];
+      B.spireFloor = st.floor;
+      emit('spireWave', { floor: st.floor, boss: st.boss });
+      return;
+    }
+    if (kind === 'dungeon') {
+      const d = B.dungeon;
+      const team = State.teamStats();
+      const units = B.units.filter((u) => u.maxHp > 0);
+      const weakest = Math.min.apply(null, units.map((u) => u.maxHp));
+      const effDps = Math.max(1, units.reduce((a, u) => a + u.atk * actsPerSec(u.spd) * 0.85, 0));
+      const st = CFG.enemyStats(State.data.stage, true);
+      const hp = Math.min(Math.round(st.hp * 1.6), Math.round(effDps * CFG.DUNGEON.hpSec));
+      const atk = Math.max(1, Math.round(weakest * CFG.DUNGEON.atkCap));
+      B.enemies = [{
+        id: 'dg_' + (d ? d.id : 'x'), name: T(d ? d.name : '副本'), emoji: d ? d.emoji : '🏰',
+        maxHp: hp, hp: hp, atk: atk, def: Math.round(team.atk * 0.08), spd: 92,
+        gauge: 0, stun: 0, alive: true, boss: true, dungeon: true, acts: 0, enraged: false,
+      }];
+      emit('dungeonWave', { id: d ? d.id : null });
+      return;
+    }
     if (kind === 'hunt') {
       const beast = B.huntBeast;
       /* 靈獸用固定數值（220～16000 血、12～210 攻），但隊伍在前期只有 130 血／16 攻：
@@ -3466,6 +3670,43 @@ textarea, input,
     return { ok: true };
   }
 
+  /* ---------- 無盡深塔 ---------- */
+  function spireStart() {
+    if (B.mode !== 'farm') return { ok: false, msg: T('戰鬥中無法進入深塔') };
+    const use = State.spireUse();
+    if (!use.ok) return use;
+    B.mode = 'spire';
+    B.spireFloor = 1;
+    reviveTeam(true);
+    spawnWave('spire');
+    emit('spireStart', { left: use.left });
+    return { ok: true, left: use.left };
+  }
+  function spireEnd() {
+    const cleared = Math.max(0, (B.spireFloor || 1) - 1);
+    const r = State.spireReport(cleared);
+    B.mode = 'farm';
+    B.spireFloor = 0;
+    reviveTeam(true);
+    spawnWave('farm');
+    emit('spireEnd', r);
+    return r;
+  }
+
+  /* ---------- 每日副本 ---------- */
+  function dungeonStart(id) {
+    if (B.mode !== 'farm') return { ok: false, msg: T('戰鬥中無法進入副本') };
+    const info = State.dungeonInfo().find((x) => x.id === id);
+    if (!info) return { ok: false, msg: T('沒有這個副本') };
+    if (info.done) return { ok: false, msg: T('今天已打過') };
+    B.mode = 'dungeon';
+    B.dungeon = CFG.DUNGEONS.find((x) => x.id === id);
+    reviveTeam(true);
+    spawnWave('dungeon');
+    emit('dungeonStart', { id });
+    return { ok: true };
+  }
+
   function reviveTeam(healFull) {
     B.units.forEach((u) => {
       u.alive = true;
@@ -3508,7 +3749,28 @@ textarea, input,
           spawnWave('farm');
           emit('bossFailed', { stage: s2.stage, fails: s2.bossFails[s2.stage] });
         }
-        if (B.mode === 'hunt') {
+        if (B.mode === 'spire') {
+      const cleared = B.spireFloor || 1;
+      const rep = State.spireReport(cleared);
+      emit('spireClear', { floor: cleared, best: rep.best, newBest: rep.newBest, cores: rep.cores });
+      if (cleared % CFG.SPIRE.coreEvery === 0) State.addCores(CFG.SPIRE.coreAmount);
+      B.spireFloor = cleared + 1;
+      spawnWave('spire');
+      return;
+    }
+
+    if (B.mode === 'dungeon') {
+      const d = B.dungeon;
+      const res = State.dungeonClaim(d ? d.id : '');
+      B.mode = 'farm';
+      B.dungeon = null;
+      reviveTeam(true);
+      spawnWave('farm');
+      emit('dungeonWin', { id: d ? d.id : null, reward: res.ok ? res.reward : null });
+      return;
+    }
+
+    if (B.mode === 'hunt') {
           const beast = B.huntBeast;
           if (beast) State.data.cd[beast.id] = Date.now() + 15000;   // 失敗冷卻 15 秒
           B.mode = 'farm';
@@ -3585,7 +3847,7 @@ textarea, input,
     if (u.mp >= SKILL_MP) { u.mp = 0; castSkill(u); return; }
     const t = targetEnemy();
     if (!t) return;
-    const dmg = calcDamage(u.atk * (1 + u.buffAtk), t.def, 0.9, 1.1, State.critChance(), State.data.stage);
+    const dmg = calcDamage(u.atk * (1 + u.buffAtk), effDef(t.def), 0.9, 1.1, State.critChance(), State.data.stage);
     hitEnemy(t, dmg, u, false);
     u.mp = Math.min(SKILL_MP, u.mp + MP_PER_ACTION);
   }
@@ -3605,13 +3867,13 @@ textarea, input,
       const targets = aliveEnemies();
       if (ringSkill.type === 'aoe') {
         for (const e of targets) {
-          hitEnemy(e, calcDamage(u.atk * (1 + u.buffAtk) * ringSkill.mult * resoMul, e.def, 0.95, 1.05, State.critChance(), State.data.stage), u, true);
+          hitEnemy(e, calcDamage(u.atk * (1 + u.buffAtk) * ringSkill.mult * resoMul, effDef(e.def), 0.95, 1.05, State.critChance(), State.data.stage), u, true);
         }
         if (targets.length > 1) emit('aoe', { count: targets.length });
       } else {
         const t = targetEnemy();
         if (t) {
-          hitEnemy(t, calcDamage(u.atk * (1 + u.buffAtk) * ringSkill.mult * resoMul, t.def, 0.95, 1.05, State.critChance(), State.data.stage), u, true);
+          hitEnemy(t, calcDamage(u.atk * (1 + u.buffAtk) * ringSkill.mult * resoMul, effDef(t.def), 0.95, 1.05, State.critChance(), State.data.stage), u, true);
           if (Math.random() < (ringSkill.chance || 0) && t.alive) {
             t.stun = Math.max(t.stun, 1);
             emit('stun', { who: 'enemy', enemyId: t.id });
@@ -3626,14 +3888,14 @@ textarea, input,
       // 強攻系：全體 200%（多波時才看得出價值）
       const targets = aliveEnemies();
       for (const e of targets) {
-        const dmg = calcDamage(u.atk * (1 + u.buffAtk) * 2.0, e.def, 0.95, 1.05, State.critChance(), State.data.stage);
+        const dmg = calcDamage(u.atk * (1 + u.buffAtk) * 2.0, effDef(e.def), 0.95, 1.05, State.critChance(), State.data.stage);
         hitEnemy(e, dmg, u, true);
       }
       if (targets.length > 1) emit('aoe', { count: targets.length });
     } else if (u.role === 'ctrl') {
       const t = targetEnemy();
       if (t) {
-        hitEnemy(t, calcDamage(u.atk * (1 + u.buffAtk) * 1.2, t.def, 0.95, 1.05, State.critChance(), State.data.stage), u, true);
+        hitEnemy(t, calcDamage(u.atk * (1 + u.buffAtk) * 1.2, effDef(t.def), 0.95, 1.05, State.critChance(), State.data.stage), u, true);
         if (Math.random() < 0.45 && t.alive) {
           t.stun = Math.max(t.stun, 1);
           emit('stun', { who: 'enemy', enemyId: t.id });
@@ -3661,11 +3923,36 @@ textarea, input,
   function hitEnemy(enemy, dmg, u, isSkill) {
     if (!enemy || !enemy.alive) return;
     // 五行剋制只作用在狩獵場（主線維持原本節奏，不讓剋制變成推關卡的必要條件）
+    if (B.mode === 'spire') {
+      const cleared = B.spireFloor || 1;
+      const rep = State.spireReport(cleared);
+      emit('spireClear', { floor: cleared, best: rep.best, newBest: rep.newBest, cores: rep.cores });
+      if (cleared % CFG.SPIRE.coreEvery === 0) State.addCores(CFG.SPIRE.coreAmount);
+      B.spireFloor = cleared + 1;
+      spawnWave('spire');
+      return;
+    }
+
+    if (B.mode === 'dungeon') {
+      const d = B.dungeon;
+      const res = State.dungeonClaim(d ? d.id : '');
+      B.mode = 'farm';
+      B.dungeon = null;
+      reviveTeam(true);
+      spawnWave('farm');
+      emit('dungeonWin', { id: d ? d.id : null, reward: res.ok ? res.reward : null });
+      return;
+    }
+
     if (B.mode === 'hunt') {
       const mul = (B.huntCounter ? B.huntCounter.mult : 1) * (B.huntCombo || 1);
       if (mul !== 1) dmg = Math.max(1, Math.round(dmg * mul));
     }
     enemy.hp -= dmg;
+    const leech = State.affixTotals ? (State.affixTotals().leech || 0) : 0;
+    if (leech > 0 && u && u.maxHp > 0) {
+      u.hp = Math.min(u.maxHp, u.hp + dmg * leech);
+    }
     emit('hit', {
       side: 'enemy', enemyId: enemy.id, amount: dmg, crit: isSkill, unit: u,
       hp: Math.max(0, enemy.hp), maxHp: enemy.maxHp,
@@ -3720,6 +4007,27 @@ textarea, input,
   /* ---------- 擊殺結算 ---------- */
   function onEnemyDead(enemy) {
     const s = State.data;
+
+    if (B.mode === 'spire') {
+      const cleared = B.spireFloor || 1;
+      const rep = State.spireReport(cleared);
+      emit('spireClear', { floor: cleared, best: rep.best, newBest: rep.newBest, cores: rep.cores });
+      if (cleared % CFG.SPIRE.coreEvery === 0) State.addCores(CFG.SPIRE.coreAmount);
+      B.spireFloor = cleared + 1;
+      spawnWave('spire');
+      return;
+    }
+
+    if (B.mode === 'dungeon') {
+      const d = B.dungeon;
+      const res = State.dungeonClaim(d ? d.id : '');
+      B.mode = 'farm';
+      B.dungeon = null;
+      reviveTeam(true);
+      spawnWave('farm');
+      emit('dungeonWin', { id: d ? d.id : null, reward: res.ok ? res.reward : null });
+      return;
+    }
 
     if (B.mode === 'hunt') {
       const beast = B.huntBeast;
@@ -3826,6 +4134,12 @@ textarea, input,
     return Math.min(CFG.COMBAT.defCap, (def || 0) / ((def || 0) + k));
   }
 
+  /* 詞條「破防」：玩家造成的傷害對敵方防禦打折（只影響我方輸出） */
+  function effDef(def) {
+    const pen = State.affixTotals ? (State.affixTotals().pen || 0) : 0;
+    return Math.max(0, (def || 0) * (1 - Math.min(0.5, pen)));
+  }
+
   function calcDamage(atk, def, lo, hi, critChance, defLevel) {
     const raw = atk * (lo + Math.random() * (hi - lo));
     const dmg = raw * (1 - mitigation(def, defLevel));
@@ -3848,6 +4162,7 @@ textarea, input,
   }
 
   global.Battle = {
+    spireStart, spireEnd, dungeonStart,
     init, start, stop, refreshTeam, challengeBoss, hunt, backToFarm, reviveTeam,
     on, snapshot, spawnWave, targetEnemy,
     /* 測試用內部鉤子（不影響遊戲流程） */
@@ -3893,6 +4208,8 @@ textarea, input,
     const res = State.load();
     bindNav();
     bindCodex();
+    const bs = $('#btnSpire'); if (bs) bs.addEventListener('click', showSpire);
+    const bd = $('#btnDungeon'); if (bd) bd.addEventListener('click', showDungeons);
     bindTop();
     bindBattle();
     bindSouls();
@@ -3966,6 +4283,17 @@ textarea, input,
       const r = Battle.challengeBoss();
       if (!r.ok) toast(r.msg);
     });
+  }
+
+  function renderSpireBtn() {
+    const b = $('#btnSpire');
+    if (!b) return;
+    const info = State.spireInfo();
+    const label = I18N.lang === 'en'
+      ? `Endless Spire (${info.left}/${info.perDay})`
+      : `無盡深塔（${info.left}/${info.perDay}）`;
+    b.textContent = label;
+    b.disabled = info.left <= 0;
   }
 
   function renderBattle() {
@@ -4263,6 +4591,49 @@ textarea, input,
     if (off) off.addEventListener('click', () => {
       State.unequipBone(soulId); closeModal();
       State.save(true); Battle.refreshTeam(); renderAll();
+    });
+  }
+
+  function showSpire() {
+    const info = State.spireInfo();
+    const next = State.spireStats(info.best + 1);
+    openModal(T('無盡深塔'), T(`
+      <div class="hint">${T('每天 3 次，從第 1 層連打到全滅；敵人用固定公式，不套橡皮筋')}</div>
+      <div class="stats" style="margin-top:8px">
+        <span>${T('最高層')} <b>${info.best}</b></span>
+        <span>${T('塔印')} <b>${info.marks}</b></span>
+        <span>${T('全屬性')} <b>+${(info.bonus * 100).toFixed(1)}%</b></span>
+      </div>
+      <div class="hint" style="margin-top:8px">${T('下一層')}：${T('生命')} ${fmt(next.hp)} · ${T('攻擊')} ${fmt(next.atk)}${next.boss ? ' · BOSS' : ''}</div>
+      <div class="hint">${T('每')} 10 ${T('層')} → +${CFG.SPIRE.coreAmount} ${T('獸核')}</div>`),
+      [{ text: T('進入深塔'), kind: 'primary', onClick: () => {
+          const r = Battle.spireStart();
+          if (!r.ok) { toast(r.msg); return; }
+          closeModal(); switchTab('battle'); renderAll();
+          toast(T('深塔挑戰開始'));
+        } },
+       { text: T('關閉'), kind: '' }]);
+  }
+
+  function showDungeons() {
+    const list = State.dungeonInfo();
+    const rows = list.map((d) => `<div class="merge-row">
+        <span class="mr-name">${d.emoji} ${T(d.name)}</span>
+        <span class="hint">${T(d.desc)}</span>
+        <button class="mini-btn ${d.done ? '' : 'primary'}" data-dg="${d.id}" ${d.done ? 'disabled' : ''}>
+          ${d.done ? T('今日已完成') : T('挑戰')}
+        </button>
+      </div>`).join('');
+    openModal(T('每日副本'), T(`
+      <div class="hint">${T('每天各 1 次，獎勵隨最高關卡提升')}</div>${rows}`),
+      [{ text: T('關閉'), kind: '' }]);
+    $$('#modalBody [data-dg]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = Battle.dungeonStart(b.dataset.dg);
+        if (!r.ok) return toast(r.msg);
+        closeModal(); switchTab('battle'); renderAll();
+        toast(T('副本挑戰開始'));
+      });
     });
   }
 
@@ -4938,6 +5309,7 @@ textarea, input,
 
   function renderAll() {
     renderTop();
+    renderSpireBtn();
     renderBattle();
     renderSouls();
     renderBones();
@@ -5043,6 +5415,37 @@ textarea, input,
       case 'huntLose':
         addLog(T(`獵靈失敗：${ev.beast ? ev.beast.name : T('靈獸')} 太強，15 秒後可再試（先去升級或補靈骨）`), 'c-bad');
         break;
+      case 'spireClear': {
+        addLog(`${T('深塔')} ${T('第關')} ${ev.floor} ${T('層')}${ev.newBest ? ' · ' + T('新紀錄') : ''}`, ev.boss ? 'c-gold' : 'c-purple');
+        if (ev.floor % 10 === 0) toast(`${T('深塔')} ${ev.floor} ${T('層')} → +${CFG.SPIRE.coreAmount} ${T('獸核')}`);
+        renderAll();
+        break;
+      }
+      case 'spireEnd': {
+        banner(T('深塔結束'));
+        toast(`${T('抵達')} ${ev.floor} ${T('層')} · ${T('最高')} ${ev.best}`);
+        addLog(`${T('深塔結束')} · ${T('抵達')} ${ev.floor} ${T('層')} · ${T('最高')} ${ev.best}${ev.cores ? ` · ${T('獸核')} +${ev.cores}` : ''}`, 'c-gold');
+        State.save(true);
+        renderAll();
+        break;
+      }
+      case 'dungeonWin': {
+        const rw = ev.reward;
+        const txt = rw ? (rw.stat === 'coins' ? `${T('靈幣')} +${fmt(rw.amount)}`
+          : rw.stat === 'cores' ? `${T('獸核')} +${rw.amount}`
+          : `${T('覺醒券')} +${rw.amount}`) : T('沒有獎勵');
+        banner(T('副本完成'));
+        addLog(`${T('副本完成')} · ${txt}`, 'c-gold');
+        toast(txt);
+        State.save(true);
+        renderAll();
+        break;
+      }
+      case 'dungeonLose': {
+        toast(T('副本失敗，明天再來'));
+        renderAll();
+        break;
+      }
       case 'huntWin': {
         const t = CFG.TIER_BY_KEY[ev.ring.tier];
         banner(T('吸收靈環'));

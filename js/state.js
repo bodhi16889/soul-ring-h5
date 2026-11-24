@@ -42,6 +42,8 @@
       ticketPulls: 0,        // 覺醒券抽的累計次數（里程用）
       relics: [],            // 靈寶（限量 12 件，只能拿一次）
       milestoneAt: 0,        // 上次已結算的券抽里程（防止重複發獎）
+      spire: { best: 0, day: '', used: 0 },   // 無盡深塔：最高層 / 日期 / 今日已用次數
+      dungeon: { day: '', done: [] },         // 每日副本：今天打過哪些
       elite: { day: '', ids: [] },   // 今日已打的精英靈獸
       depth: {},             // 深林層數：beastId -> 已連續狩獵次數
       pendingOffline: null,  // 這次回歸的離線收益（可看廣告加倍一次）
@@ -154,6 +156,9 @@
     out.ticketPulls = Math.max(0, out.ticketPulls | 0);
     out.relics = Array.isArray(d && d.relics) ? d.relics.slice() : [];
     out.milestoneAt = Math.max(0, out.milestoneAt | 0);
+    out.spire = Object.assign({ best: 0, day: '', used: 0 }, (d && d.spire) || {});
+    out.dungeon = Object.assign({ day: '', done: [] }, (d && d.dungeon) || {});
+    if (!Array.isArray(out.dungeon.done)) out.dungeon.done = [];
     out.elite = Object.assign({ day: '', ids: [] }, (d && d.elite) || {});
     out.depth = Object.assign({}, (d && d.depth) || {});
     if (!Array.isArray(out.elite.ids)) out.elite.ids = [];
@@ -325,6 +330,106 @@
     const strong = Object.keys(counts).filter((el) => counts[el] >= CFG.BOND.sameNeed);
     return { counts, kinds, strong, tri: kinds >= CFG.BOND.triKinds,
              sameBonus: CFG.BOND.sameBonus, triBonus: CFG.BOND.triBonus };
+  }
+
+  /* ---------- 無盡深塔 ---------- */
+  function spireReset() {
+    const k = todayKey();
+    if (!S.spire || S.spire.day !== k) S.spire = { best: (S.spire && S.spire.best) || 0, day: k, used: 0 };
+  }
+  function spireInfo() {
+    spireReset();
+    const best = S.spire.best | 0;
+    return { best, used: S.spire.used | 0, perDay: CFG.SPIRE.perDay,
+             left: Math.max(0, CFG.SPIRE.perDay - (S.spire.used | 0)),
+             marks: Math.min(best, CFG.SPIRE.maxMark),
+             bonus: CFG.SPIRE.markBonus * Math.min(best, CFG.SPIRE.maxMark) };
+  }
+  function spireUse() {
+    spireReset();
+    if ((S.spire.used | 0) >= CFG.SPIRE.perDay) return { ok: false, msg: T('今日深塔次數已用完') };
+    S.spire.used = (S.spire.used | 0) + 1;
+    return { ok: true, left: CFG.SPIRE.perDay - S.spire.used };
+  }
+  /* 回報本次抵達的層數：更新最高紀錄、發獸核 */
+  function spireReport(floor) {
+    spireReset();
+    floor = Math.max(0, floor | 0);
+    const before = S.spire.best | 0;
+    if (floor > before) S.spire.best = floor;
+    return { floor, best: S.spire.best, newBest: floor > before, cores: 0 };
+  }
+  function spireStats(floor) {
+    const f = Math.max(1, floor | 0);
+    const sp = CFG.SPIRE;
+    const boss = f % sp.bossEvery === 0;
+    const hp = Math.round(sp.hpBase * Math.pow(sp.hpGrow, f - 1) * (boss ? 2.2 : 1));
+    const atk = Math.round(sp.atkBase * Math.pow(sp.atkGrow, f - 1) * (boss ? 1.15 : 1));
+    return { floor: f, boss, hp, atk,
+             def: Math.round(atk * 0.4), spd: 88 + Math.min(40, Math.floor(f / 3)) };
+  }
+  function spireMul() { return 1 + CFG.SPIRE.markBonus * Math.min(S.spire ? (S.spire.best | 0) : 0, CFG.SPIRE.maxMark); }
+
+  /* ---------- 每日副本 ---------- */
+  function dungeonReset() {
+    const k = todayKey();
+    if (!S.dungeon || S.dungeon.day !== k) S.dungeon = { day: k, done: [] };
+  }
+  function dungeonInfo() {
+    dungeonReset();
+    return CFG.DUNGEONS.map((d) => ({
+      id: d.id, name: d.name, emoji: d.emoji, desc: d.desc,
+      done: S.dungeon.done.indexOf(d.id) >= 0,
+    }));
+  }
+  function dungeonMark(id) { dungeonReset(); if (S.dungeon.done.indexOf(id) < 0) S.dungeon.done.push(id); }
+  function dungeonReward(id) {
+    const d = CFG.DUNGEONS.find((x) => x.id === id);
+    if (!d) return null;
+    const stage = Math.max(1, S.bestStage | 0);
+    if (d.stat === 'coins') return { stat: 'coins', amount: Math.round(CFG.killReward(stage).coins * 900) };
+    if (d.stat === 'cores') return { stat: 'cores', amount: 6 };
+    return { stat: 'tickets', amount: 2 };
+  }
+  function dungeonClaim(id) {
+    const info = dungeonInfo().find((x) => x.id === id);
+    if (!info) return { ok: false, msg: T('沒有這個副本') };
+    if (info.done) return { ok: false, msg: T('今天已打過') };
+    const rw = dungeonReward(id);
+    if (rw.stat === 'coins') S.coins += rw.amount;
+    else if (rw.stat === 'cores') S.cores = (S.cores | 0) + rw.amount;
+    else if (rw.stat === 'tickets') {
+      S.tickets += rw.amount;
+      S.ticketPulls = (S.ticketPulls || 0);   // 券本身不動里程，抽的時候才算
+    }
+    dungeonMark(id);
+    return { ok: true, reward: rw };
+  }
+
+  /* ---------- 靈環詞條 ---------- */
+  function rollAffix() {
+    if (Math.random() >= CFG.AFFIX.chance) return null;
+    const list = CFG.AFFIX.list;
+    const a = list[Math.floor(Math.random() * list.length)];
+    return { key: a.key, val: a.val };
+  }
+  function rerollAffix(uid) {
+    const ring = S.ringBag.find((r) => r.uid === uid);
+    if (!ring) return { ok: false, msg: T('找不到靈環') };
+    if ((S.cores | 0) < CFG.AFFIX.rerollCost) return { ok: false, msg: T('獸核不足'), need: CFG.AFFIX.rerollCost };
+    S.cores -= CFG.AFFIX.rerollCost;
+    let a = null;
+    for (let i = 0; i < 12 && !a; i++) a = rollAffix();
+    ring.affix = a;   // null 代表洗成無詞條（風險）
+    return { ok: true, affix: a, cost: CFG.AFFIX.rerollCost };
+  }
+  function affixTotals() {
+    const out = { crit: 0, leech: 0, pen: 0, swift: 0 };
+    (S.ringBag || []).forEach((r) => {
+      if (!r.affix || !r.equipped) return;
+      out[r.affix.key] = (out[r.affix.key] || 0) + r.affix.val;
+    });
+    return out;
   }
 
   /* ---------- 靈寶（覺醒里程獎勵）---------- */
@@ -607,7 +712,7 @@
     const ascMul = 1 + CFG.ASCEND.bonusPerStage * (soul.ascend || 0);
     const cb = combosInfo().stat;   // 元素組合：atk / hp / def / spd 各自乘算
     const rl = relicBonus();        // 靈寶：限量收藏品，永久加成
-    const tbMul = (1 + trueBodyOf(soul).bonus) * achMul() * codexMul() * bondMul * ascMul;   // 真身 × 成就 × 圖鑑 × 羈絆 × 覺醒
+    const tbMul = (1 + trueBodyOf(soul).bonus) * achMul() * codexMul() * bondMul * ascMul * spireMul();   // 真身 × 成就 × 圖鑑 × 羈絆 × 覺醒
     /* 三種加成各自乘算，不能全部倒進同一個括號：
        靈環後期 +3600%，若命印（+6%/點）與靈骨（+14~20%）也加在同一個括號裡，
        25 點命印只讓戰力多 5%，玩家會覺得「轉生沒用、戰力卡死」。
@@ -646,9 +751,11 @@
   }
   /* 爆擊率：基礎 10% + 命印每點 0.15%（上限 +40%） */
   function critChance() {
-    const c = CFG.COMBAT.critBase + Math.min(CFG.REBIRTH.critMax,
-      (S.marks || 0) * CFG.REBIRTH.critPerMark);
-    return Math.min(0.5, c);
+    // 命印 + 靈環詞條（crit）都在這裡疊加，上限 60%
+    const c = CFG.COMBAT.critBase
+      + Math.min(CFG.REBIRTH.critMax, (S.marks || 0) * CFG.REBIRTH.critPerMark)
+      + (affixTotals().crit || 0);
+    return Math.min(0.6, c);
   }
 
   function power() {
@@ -819,6 +926,7 @@
       tier: tierKey, name: t ? t.name : T('靈環'),
       element: element || 'wind',
       equipped: null,
+      affix: rollAffix(),     // 15% 機率帶詞條（爆擊／吸血／破防／迅捷）
     };
   }
   function ringSlotsOf(soul) {
@@ -1246,6 +1354,9 @@
     claimOfflineDouble, weekKey, weeklyAdd, weeklyInfo, weeklyClaim, codexMark, codexSync, codexInfo, codexMul,
     bondInfo, combosInfo, depthOf, depthInfo, depthPlus, inheritInfo, inheritStar,
     relicProgress, relicTierWeights, hasRelic, relicCount, rollRelic, relicMilestone, relicBackfill, relicBonus, relicMilestoneInfo,
+    spireReset, spireInfo, spireUse, spireReport, spireStats, spireMul,
+    dungeonReset, dungeonInfo, dungeonMark, dungeonReward, dungeonClaim,
+    rollAffix, rerollAffix, affixTotals,
     ascendInfo, ascendSoul, addCores, eliteInfo, eliteMarkUsed, huntCounter,
     totalRingsEquipped, levelCap, atCap, incomeMul, rebirthInfo, doRebirth, migrate, coinBonePull, critChance, soulLevelUp, soulLevelInfo, soulLevelCap, dailyInfo, dailyAdd, dailyClaim, todayKey, achList, checkAchievements, achCount, achMul,
     trueBodyOf, resonanceOf, ringSkillOf, hasFreeRingSlot,
