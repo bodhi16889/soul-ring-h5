@@ -1604,7 +1604,7 @@
         <span class="hint">(${fmt(g.expPerMin)} / ${T('分')})</span></div>
       ${g.expCapped ? `<div class="hint">${T('離線經驗上限')}：Lv ${g.expCapLv}${g.rawExp > g.exp ? `（${T('原始')} +${fmt(g.rawExp)}）` : ''}</div>` : ''}
       ${lvLine}
-      <div class="hint" style="margin-top:8px">${T('掛機效率會隨關卡提升')} · ${T('目前第')} ${g.stage} ${T('關')}</div>`),
+      <div class="hint" style="margin-top:8px">${T('掛機效率會隨關卡提升')} · ${T('目前關卡')} ${g.stage}</div>`),
       [
         { text: T('看廣告 ×2'), kind: '', onClick: () => {
           if (!global.GP || !GP.reward) { toast(T('這裡沒有廣告可用')); return; }
