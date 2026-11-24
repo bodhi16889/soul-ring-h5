@@ -174,6 +174,34 @@
     water: { stat: 'hunt', bonus: 0.08 },
   };
 
+  /* v1.18.0：戰鬥倍速（雙方同步加速 → 平衡不變，只是省時間） */
+  const SPEEDS = [1, 2, 3];
+
+  /* v1.18.0：命印天賦樹（3 分支 × 3 節點 × 5 級）
+     規則：**投入的命印不再給「每點 +6% 全屬性」**，改給該節點的效果；
+     未投入的命印維持原本的 +6% 全屬性 → 舊存檔完全相容，且產生機會成本。 */
+  const TALENTS = {
+    maxLevel: 5,
+    resetCores: 10,
+    branches: [
+      { id: 'atk', name: '攻勢', nodes: [
+        { id: 'atkP',   name: '銳鋒', per: 0.06, stat: 'atk',   label: '攻擊' },
+        { id: 'critP',  name: '致命', per: 0.02, stat: 'crit',  label: '爆擊率' },
+        { id: 'penP',   name: '破甲', per: 0.04, stat: 'pen',   label: '破防' },
+      ] },
+      { id: 'def', name: '守勢', nodes: [
+        { id: 'hpP',    name: '堅壁', per: 0.08, stat: 'hp',    label: '生命' },
+        { id: 'defP',   name: '鐵壁', per: 0.08, stat: 'def',   label: '防禦' },
+        { id: 'leechP', name: '噬血', per: 0.01, stat: 'leech', label: '吸血' },
+      ] },
+      { id: 'agi', name: '靈巧', nodes: [
+        { id: 'spdP',   name: '疾行', per: 0.06, stat: 'spd',   label: '速度' },
+        { id: 'coinP',  name: '財源', per: 0.10, stat: 'coin',  label: '靈幣收益' },
+        { id: 'coreP',  name: '獸緣', per: 0.08, stat: 'cores', label: '獸核' },
+      ] },
+    ],
+  };
+
   /* 商店（每日固定 6 格，庫存每日重置） */
   const SHOP = [
     { id: 'ticket2', name: '覺醒券 ×2', give: { tickets: 2 },  cost: { cores: 24 }, stock: 2 },
@@ -204,7 +232,7 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.17.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.18.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -490,7 +518,7 @@
     BEASTS, BEAST_BY_ID, STAGE_AREAS, areaFor,
     VERSION, MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
     RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR, COUNTER, BOND, ASCEND, CORE_DROP, ELITE,
-    INHERIT, DEPTH, COMBOS, SET_BONUS, SHOP, RELIC_TIERS, RELIC_BY_KEY, RELICS, RELIC,
+    INHERIT, DEPTH, COMBOS, SET_BONUS, SHOP, RELIC_TIERS, SPEEDS, TALENTS, RELIC_BY_KEY, RELICS, RELIC,
     SPIRE, DUNGEON, DUNGEONS, AFFIX, AFFIX_BY_KEY,
     RING_ORDER, RING_MERGE_COUNT,
     BASE_KILLS_PER_STAGE, killsPerStage, waveSecFor, bossSecFor, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND, STAR_MAX,

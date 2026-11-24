@@ -597,6 +597,7 @@ textarea, input,
       <div class="acts" style="display:flex;gap:8px;margin:6px 0 2px">
         <button id="btnSpire" class="mini-btn" data-i18n="無盡深塔">無盡深塔</button>
         <button id="btnDungeon" class="mini-btn" data-i18n="每日副本">每日副本</button>
+        <button id="btnSpeed" class="mini-btn" data-i18n="倍速">倍速 ×1</button>
       </div>
       <div class="stage-info">
         <div class="prog-row">
@@ -861,6 +862,21 @@ textarea, input,
     '副本常客': 'Dungeon Regular', '累積完成 10 次副本': 'Clear 10 dungeons',
     '家財萬貫': 'Tycoon', '持有 1,000,000 靈幣': 'Hold 1,000,000 coins',
     '券不手軟': 'Tickets Galore', '持有 20 張覺醒券': 'Hold 20 tickets',
+    /* v1.18.0 倍速 + 命印天賦樹 */
+    '倍速': 'Speed', '命印天賦': 'Mark Talents', '未投入': 'Unspent',
+    '每點全屬性 +6%': 'each unspent mark +6% all stats',
+    '投入天賦的命印改給該節點效果，不再給每點 +6% 全屬性。': 'Marks spent on talents give that node\u2019s effect instead of the +6% per-mark bonus.',
+    '投入': 'Invest', '已滿級': 'Maxed', '沒有可用的命印': 'No unspent marks',
+    '沒有這個天賦': 'No such talent', '重置天賦': 'Reset talents',
+    '退還': 'refund', '尚未投入命印': 'No marks invested',
+    '再按一次確認重置': 'Tap again to confirm reset',
+    '已重置，退還': 'Reset — refunded',
+    '攻勢': 'Offense', '守勢': 'Defense', '靈巧': 'Agility',
+    '銳鋒': 'Keen Edge', '致命': 'Lethality', '破甲': 'Armor Break',
+    '堅壁': 'Bulwark', '鐵壁': 'Iron Wall', '噬血': 'Bloodthirst',
+    '疾行': 'Swiftness', '財源': 'Fortune', '獸緣': 'Beast Bond',
+    '攻擊': 'ATK', '爆擊率': 'Crit', '生命': 'HP',
+    '防禦': 'DEF', '速度': 'SPD', '靈幣收益': 'Coins',
     '有新版本': 'New version available',
     '更新': 'Update',
     /* v1.16.0：深塔 / 副本 / 詞條 */
@@ -1807,6 +1823,34 @@ textarea, input,
     water: { stat: 'hunt', bonus: 0.08 },
   };
 
+  /* v1.18.0：戰鬥倍速（雙方同步加速 → 平衡不變，只是省時間） */
+  const SPEEDS = [1, 2, 3];
+
+  /* v1.18.0：命印天賦樹（3 分支 × 3 節點 × 5 級）
+     規則：**投入的命印不再給「每點 +6% 全屬性」**，改給該節點的效果；
+     未投入的命印維持原本的 +6% 全屬性 → 舊存檔完全相容，且產生機會成本。 */
+  const TALENTS = {
+    maxLevel: 5,
+    resetCores: 10,
+    branches: [
+      { id: 'atk', name: '攻勢', nodes: [
+        { id: 'atkP',   name: '銳鋒', per: 0.06, stat: 'atk',   label: '攻擊' },
+        { id: 'critP',  name: '致命', per: 0.02, stat: 'crit',  label: '爆擊率' },
+        { id: 'penP',   name: '破甲', per: 0.04, stat: 'pen',   label: '破防' },
+      ] },
+      { id: 'def', name: '守勢', nodes: [
+        { id: 'hpP',    name: '堅壁', per: 0.08, stat: 'hp',    label: '生命' },
+        { id: 'defP',   name: '鐵壁', per: 0.08, stat: 'def',   label: '防禦' },
+        { id: 'leechP', name: '噬血', per: 0.01, stat: 'leech', label: '吸血' },
+      ] },
+      { id: 'agi', name: '靈巧', nodes: [
+        { id: 'spdP',   name: '疾行', per: 0.06, stat: 'spd',   label: '速度' },
+        { id: 'coinP',  name: '財源', per: 0.10, stat: 'coin',  label: '靈幣收益' },
+        { id: 'coreP',  name: '獸緣', per: 0.08, stat: 'cores', label: '獸核' },
+      ] },
+    ],
+  };
+
   /* 商店（每日固定 6 格，庫存每日重置） */
   const SHOP = [
     { id: 'ticket2', name: '覺醒券 ×2', give: { tickets: 2 },  cost: { cores: 24 }, stock: 2 },
@@ -1837,7 +1881,7 @@ textarea, input,
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.17.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.18.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -2123,7 +2167,7 @@ textarea, input,
     BEASTS, BEAST_BY_ID, STAGE_AREAS, areaFor,
     VERSION, MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
     RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR, COUNTER, BOND, ASCEND, CORE_DROP, ELITE,
-    INHERIT, DEPTH, COMBOS, SET_BONUS, SHOP, RELIC_TIERS, RELIC_BY_KEY, RELICS, RELIC,
+    INHERIT, DEPTH, COMBOS, SET_BONUS, SHOP, RELIC_TIERS, SPEEDS, TALENTS, RELIC_BY_KEY, RELICS, RELIC,
     SPIRE, DUNGEON, DUNGEONS, AFFIX, AFFIX_BY_KEY,
     RING_ORDER, RING_MERGE_COUNT,
     BASE_KILLS_PER_STAGE, killsPerStage, waveSecFor, bossSecFor, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND, STAR_MAX,
@@ -2184,6 +2228,8 @@ textarea, input,
       spire: { best: 0, day: '', used: 0 },   // 無盡深塔：最高層 / 日期 / 今日已用次數
       dungeon: { day: '', done: [] },         // 每日副本：今天打過哪些
       shop: { day: '', bought: {} },          // 商店：今日各格已買次數
+      talents: {},                            // 命印天賦：nodeId → 等級
+      settings: { autoRing: true, autoBoss: true, autoHunt: true, autoStar: true, speed: 1 },
       rerolls: 0,                             // 重鑄券（商店買）
       elite: { day: '', ids: [] },   // 今日已打的精英靈獸
       depth: {},             // 深林層數：beastId -> 已連續狩獵次數
@@ -2302,6 +2348,9 @@ textarea, input,
     out.shop = Object.assign({ day: '', bought: {} }, (d && d.shop) || {});
     if (!out.shop.bought || typeof out.shop.bought !== 'object') out.shop.bought = {};
     out.rerolls = Math.max(0, out.rerolls | 0);
+    out.talents = Object.assign({}, (d && d.talents) || {});
+    if (!out.settings) out.settings = {};
+    if (!CFG.SPEEDS.includes(out.settings.speed | 0)) out.settings.speed = 1;
     if (!Array.isArray(out.dungeon.done)) out.dungeon.done = [];
     out.elite = Object.assign({ day: '', ids: [] }, (d && d.elite) || {});
     out.depth = Object.assign({}, (d && d.depth) || {});
@@ -2493,6 +2542,66 @@ textarea, input,
     return out;
   }
 
+  /* ---------- 命印天賦樹 ---------- */
+  function talentLevel(nid) {
+    return Math.min(CFG.TALENTS.maxLevel, ((S.talents || {})[nid] | 0));
+  }
+  function spentMarks() {
+    let n = 0;
+    CFG.TALENTS.branches.forEach((b) => b.nodes.forEach((nd) => { n += talentLevel(nd.id); }));
+    return n;
+  }
+  function unspentMarks() { return Math.max(0, (S.marks | 0) - spentMarks()); }
+  function talentMul() {
+    const out = { atk: 1, hp: 1, def: 1, spd: 1, crit: 0, pen: 0, leech: 0, coin: 0, cores: 0 };
+    CFG.TALENTS.branches.forEach((b) => b.nodes.forEach((nd) => {
+      const lv = talentLevel(nd.id);
+      if (!lv) return;
+      if (nd.stat === 'atk' || nd.stat === 'hp' || nd.stat === 'def' || nd.stat === 'spd') out[nd.stat] *= 1 + nd.per * lv;
+      else out[nd.stat] += nd.per * lv;
+    }));
+    return out;
+  }
+  function talentInfo() {
+    const t = talentMul();
+    return {
+      total: S.marks | 0, spent: spentMarks(), unspent: unspentMarks(),
+      resetCores: CFG.TALENTS.resetCores, mul: t,
+      branches: CFG.TALENTS.branches.map((b) => ({
+        id: b.id, name: b.name,
+        nodes: b.nodes.map((nd) => ({
+          id: nd.id, name: nd.name, label: nd.label, per: nd.per, stat: nd.stat,
+          level: talentLevel(nd.id), max: CFG.TALENTS.maxLevel,
+        })),
+      })),
+    };
+  }
+  function talentNode(nid) {
+    for (const b of CFG.TALENTS.branches) {
+      const nd = b.nodes.find((x) => x.id === nid);
+      if (nd) return nd;
+    }
+    return null;
+  }
+  function learnTalent(nid) {
+    const nd = talentNode(nid);
+    if (!nd) return { ok: false, msg: T('沒有這個天賦') };
+    const lv = talentLevel(nid);
+    if (lv >= CFG.TALENTS.maxLevel) return { ok: false, msg: T('已滿級') };
+    if (unspentMarks() < 1) return { ok: false, msg: T('沒有可用的命印') };
+    S.talents[nid] = lv + 1;
+    return { ok: true, level: lv + 1, node: nd };
+  }
+  function resetTalents() {
+    const spent = spentMarks();
+    if (!spent) return { ok: false, msg: T('尚未投入命印') };
+    const cost = CFG.TALENTS.resetCores;
+    if ((S.cores | 0) < cost) return { ok: false, msg: T('獸核不足'), need: cost };
+    S.cores -= cost;
+    S.talents = {};
+    return { ok: true, refunded: spent };
+  }
+
   /* ---------- 商店（每日 6 格）---------- */
   function shopReset() {
     const k = todayKey();
@@ -2528,7 +2637,7 @@ textarea, input,
     if (g.tickets) S.tickets += g.tickets;
     if (g.diamonds) S.diamonds += g.diamonds;
     if (g.coins) S.coins += g.coins;
-    if (g.cores) S.cores = (S.cores | 0) + g.cores;
+    if (g.cores) addCores(g.cores, { raw: true });
     if (g.rerolls) S.rerolls = (S.rerolls | 0) + g.rerolls;
     if (g.bones) {
       for (let i = 0; i < g.bones; i++) {
@@ -2658,6 +2767,17 @@ textarea, input,
       out[r.affix.key] = (out[r.affix.key] || 0) + r.affix.val;
     });
     return out;
+  }
+
+  /* 戰鬥修正：靈環詞條 + 命印天賦（破防 / 吸血），battle.js 只讀這一個入口 */
+  function combatMods() {
+    const a = affixTotals();
+    const t = talentMul();
+    return {
+      crit: (a.crit || 0) + (t.crit || 0),
+      pen: (a.pen || 0) + (t.pen || 0),
+      leech: (a.leech || 0) + (t.leech || 0),
+    };
   }
 
   /* ---------- 靈寶（覺醒里程獎勵）---------- */
@@ -2824,7 +2944,12 @@ textarea, input,
     soul.ascend = info.stage + 1;
     return { ok: true, stage: soul.ascend, cost: info.cost };
   }
-  function addCores(n) { S.cores = Math.max(0, (S.cores | 0) + (n | 0)); return S.cores; }
+  function addCores(n, opts) {
+    let add = (n | 0);
+    if (!(opts && opts.raw) && add > 0) add = Math.max(1, Math.round(add * (1 + talentMul().cores)));
+    S.cores = Math.max(0, (S.cores | 0) + add);
+    return S.cores;
+  }
 
   /* ---------- 精英靈獸（每日每隻一次）---------- */
   function eliteReset() {
@@ -2951,10 +3076,14 @@ textarea, input,
     const boneHp = 1 + own.hp + aura.hp;
     const boneDef = 1 + own.def + aura.def;
     const boneSpd = 1 + own.spd + aura.spd;
-    const markAtk = 1 + pm.atk * S.marks;
-    const markHp = 1 + pm.hp * S.marks;
-    const markDef = 1 + pm.def * S.marks;
-    const markSpd = 1;   // 命印不再加速度（速度有物理上限），改在 critChance() 給爆擊
+    /* v1.18.0：投入天賦的命印不再給「每點 +6% 全屬性」，只有未投入的才給；
+       天賦改走自己的乘算層（攻擊/生命/防禦/速度）→ 產生「集中 or 平均」的選擇。 */
+    const tm = talentMul();
+    const um = unspentMarks();
+    const markAtk = (1 + pm.atk * um) * tm.atk;
+    const markHp = (1 + pm.hp * um) * tm.hp;
+    const markDef = (1 + pm.def * um) * tm.def;
+    const markSpd = tm.spd;   // 疾行天賦才加速度
     return {
       atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk) * boneAtk * markAtk * tbMul * cb.atk * (1 + rl.atk) * st.atk),
       hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp) * boneHp * markHp * tbMul * cb.hp * (1 + rl.hp) * st.hp),
@@ -2983,7 +3112,8 @@ textarea, input,
   function critChance() {
     // 命印 + 靈環詞條（crit）都在這裡疊加，上限 60%
     const c = CFG.COMBAT.critBase
-      + Math.min(CFG.REBIRTH.critMax, (S.marks || 0) * CFG.REBIRTH.critPerMark)
+      + Math.min(CFG.REBIRTH.critMax, unspentMarks() * CFG.REBIRTH.critPerMark)
+      + (talentMul().crit || 0)
       + (affixTotals().crit || 0);
     return Math.min(0.6, c);
   }
@@ -3105,7 +3235,7 @@ textarea, input,
   }
 
   /* 命印帶來的收益倍率（靈幣/經驗） */
-  function incomeMul() { return 1 + CFG.REBIRTH.perMark.income * S.marks; }
+  function incomeMul() { return (1 + CFG.REBIRTH.perMark.income * S.marks) * (1 + talentMul().coin); }
 
   function totalRingsEquipped() {
     let n = 0;
@@ -3585,6 +3715,7 @@ textarea, input,
     bondInfo, combosInfo, depthOf, depthInfo, depthPlus, inheritInfo, inheritStar,
     relicProgress, relicTierWeights, hasRelic, relicCount, rollRelic, relicMilestone, relicBackfill, relicBonus, relicMilestoneInfo,
     setInfo, setMulFor, shopReset, shopInfo, shopBuy, autoStarUp,
+    talentLevel, spentMarks, unspentMarks, talentMul, talentInfo, learnTalent, resetTalents, combatMods,
     spireReset, spireInfo, spireUse, spireReport, spireStats, spireMul,
     dungeonReset, dungeonInfo, dungeonMark, dungeonReward, dungeonClaim,
     rollAffix, rerollAffix, affixTotals,
@@ -3965,7 +4096,7 @@ textarea, input,
     // 我方行動
     for (const u of B.units) {
       if (!u.alive) continue;
-      u.gauge += actsPerSec(u.spd) * DT;
+      u.gauge += actsPerSec(u.spd) * DT * rate();
       if (u.gauge < 1) continue;
       u.gauge = 0;
       if (!aliveEnemies().length) break;
@@ -3978,7 +4109,7 @@ textarea, input,
     // 敵方行動（每隻各自跑行動條）
     for (const e of B.enemies) {
       if (!e.alive) continue;
-      e.gauge += actsPerSec(e.spd) * DT;
+      e.gauge += actsPerSec(e.spd) * DT * rate();
       if (e.gauge < 1) continue;
       e.gauge = 0;
       if (e.stun > 0) { e.stun--; emit('stun', { who: 'enemy', enemyId: e.id }); continue; }
@@ -4128,7 +4259,7 @@ textarea, input,
       if (mul !== 1) dmg = Math.max(1, Math.round(dmg * mul));
     }
     enemy.hp -= dmg;
-    const leech = State.affixTotals ? (State.affixTotals().leech || 0) : 0;
+    const leech = State.combatMods ? (State.combatMods().leech || 0) : 0;
     if (leech > 0 && u && u.maxHp > 0) {
       u.hp = Math.min(u.maxHp, u.hp + dmg * leech);
     }
@@ -4302,6 +4433,12 @@ textarea, input,
   /* ---------- 傷害公式 ---------- */
   /* 速度 → 每秒出手次數：飽和曲線（原本速度 617 之後就完全沒用）
      acts/s = (1/DT) × (1 − e^(−spd/617))，永遠 < 8.33 但不會浪費 */
+  /* v1.18.0 倍速：雙方（我方與敵方）用同一個倍率加速 → 戰鬥結果不變，只是省時間 */
+  function rate() {
+    const sp = ((State.data && State.data.settings) || {}).speed | 0;
+    return CFG.SPEEDS.indexOf(sp) >= 0 ? sp : 1;
+  }
+
   function actsPerSec(spd) {
     const maxActs = 1 / DT;
     return maxActs * (1 - Math.exp(-(spd || 0) / CFG.COMBAT.spdK));
@@ -4315,7 +4452,7 @@ textarea, input,
 
   /* 詞條「破防」：玩家造成的傷害對敵方防禦打折（只影響我方輸出） */
   function effDef(def) {
-    const pen = State.affixTotals ? (State.affixTotals().pen || 0) : 0;
+    const pen = State.combatMods ? (State.combatMods().pen || 0) : 0;
     return Math.max(0, (def || 0) * (1 - Math.min(0.5, pen)));
   }
 
@@ -4387,6 +4524,16 @@ textarea, input,
     const res = State.load();
     bindNav();
     bindCodex();
+    const spdBtn = $('#btnSpeed');
+    if (spdBtn) spdBtn.addEventListener('click', () => {
+      const list = CFG.SPEEDS;
+      const cur = (State.data.settings || {}).speed | 0 || 1;
+      const next = list[(list.indexOf(cur) + 1) % list.length];
+      State.data.settings.speed = next;
+      State.save(true);
+      renderSpeed();
+      toast(`${T('倍速')} ×${next}`);
+    });
     const bs = $('#btnSpire'); if (bs) bs.addEventListener('click', showSpire);
     const bd = $('#btnDungeon'); if (bd) bd.addEventListener('click', showDungeons);
     bindTop();
@@ -4464,6 +4611,14 @@ textarea, input,
       const r = Battle.challengeBoss();
       if (!r.ok) toast(r.msg);
     });
+  }
+
+  function renderSpeed() {
+    const btn = $('#btnSpeed');
+    if (!btn) return;
+    const cur = (State.data.settings || {}).speed | 0 || 1;
+    btn.textContent = `${T('倍速')} ×${cur}`;
+    btn.classList.toggle('primary', cur > 1);
   }
 
   function renderSpireBtn() {
@@ -4966,7 +5121,8 @@ textarea, input,
       <div class="rb-line" style="opacity:.75">${T('轉生會重置等級／關卡／靈幣；靈印、星級、靈骨、靈環、命印都會保留。')}</div>
       <button id="btnRebirth" class="wide-btn ${info.can ? '' : ''}" ${info.can ? '' : 'disabled'}>
         ${info.can ? T(`轉生（+${info.gain} 命印）`) : T(`要推進到 第 ${info.needStage} 關才能轉生`)}
-      </button>`;
+      </button>
+      ${talentHtml()}`;
     const btn = $('#btnRebirth');
     if (btn) btn.addEventListener('click', () => {
       if (!info.can) return toast(T(`要推進到 第 ${info.needStage} 關才能轉生（本輪 +${info.deep} 關）`));
@@ -4978,6 +5134,63 @@ textarea, input,
       renderRebirth._t = setTimeout(() => {
         if (btn.isConnected) { btn.dataset.armed = ''; btn.classList.remove('armed'); renderRebirth(); }
       }, 4000);
+    });
+    bindTalents();
+  }
+
+  /* 命印天賦樹：3 分支 × 3 節點 × 5 級；投入的命印不再給「每點 +6% 全屬性」 */
+  function talentHtml() {
+    const t = State.talentInfo();
+    const rows = t.branches.map((b) => {
+      const nodes = b.nodes.map((nd) => {
+        const pct = Math.round(nd.per * 100);
+        const cur = nd.level ? `+${Math.round(nd.per * nd.level * 100)}%` : T('未投入');
+        const canAdd = nd.level < nd.max && t.unspent > 0;
+        return `<div class="merge-row">
+          <span class="mr-name">${T(nd.name)} <span class="hint">${T(nd.label)} +${pct}%/Lv</span></span>
+          <span class="hint">${nd.level}/${nd.max} · ${cur}</span>
+          <button class="mini-btn ${canAdd ? 'primary' : ''}" data-talent="${nd.id}" ${canAdd ? '' : 'disabled'}>
+            ${nd.level >= nd.max ? T('已滿級') : T('投入')}
+          </button>
+        </div>`;
+      }).join('');
+      return `<div class="merge-head" style="margin-top:6px"><b>${T(b.name)}</b></div>${nodes}`;
+    }).join('');
+    return `<div class="checkin-box" style="margin-top:8px">
+      <div class="merge-head"><b>${T('命印天賦')}</b>
+        <span class="hint">${T('未投入')} ${t.unspent} / ${t.total} · ${T('每點全屬性 +6%')}</span></div>
+      <div class="hint" style="margin:4px 0 6px">${T('投入天賦的命印改給該節點效果，不再給每點 +6% 全屬性。')}</div>
+      ${rows}
+      <button class="mini-btn" id="btnResetTalent" ${t.spent > 0 ? '' : 'disabled'}>
+        ${T('重置天賦')}（${t.resetCores} ${T('獸核')}${t.spent ? ` · ${T('退還')} ${t.spent}` : ''}）
+      </button>
+    </div>`;
+  }
+
+  function bindTalents() {
+    $$('#rebirthBox [data-talent]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = State.learnTalent(b.dataset.talent);
+        if (!r.ok) return toast(r.msg);
+        State.save(true);
+        Battle.refreshTeam();
+        renderRebirth();
+        toast(`${T(r.node.name)} → Lv${r.level}`);
+      });
+    });
+    const rb = $('#btnResetTalent');
+    if (rb) rb.addEventListener('click', () => {
+      if (rb.dataset.armed === '1') {
+        const r = State.resetTalents();
+        if (!r.ok) return toast(r.msg);
+        State.save(true);
+        Battle.refreshTeam();
+        renderRebirth();
+        return toast(`${T('已重置，退還')} ${r.refunded} ${T('命印')}`);
+      }
+      rb.dataset.armed = '1';
+      rb.textContent = T('再按一次確認重置');
+      setTimeout(() => { rb.dataset.armed = ''; renderRebirth(); }, 4000);
     });
   }
 
@@ -5554,6 +5767,7 @@ textarea, input,
   function renderAll() {
     renderTop();
     renderSpireBtn();
+    renderSpeed();
     renderBattle();
     renderSouls();
     renderBones();

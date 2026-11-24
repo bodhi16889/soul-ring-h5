@@ -358,7 +358,7 @@
     // 我方行動
     for (const u of B.units) {
       if (!u.alive) continue;
-      u.gauge += actsPerSec(u.spd) * DT;
+      u.gauge += actsPerSec(u.spd) * DT * rate();
       if (u.gauge < 1) continue;
       u.gauge = 0;
       if (!aliveEnemies().length) break;
@@ -371,7 +371,7 @@
     // 敵方行動（每隻各自跑行動條）
     for (const e of B.enemies) {
       if (!e.alive) continue;
-      e.gauge += actsPerSec(e.spd) * DT;
+      e.gauge += actsPerSec(e.spd) * DT * rate();
       if (e.gauge < 1) continue;
       e.gauge = 0;
       if (e.stun > 0) { e.stun--; emit('stun', { who: 'enemy', enemyId: e.id }); continue; }
@@ -521,7 +521,7 @@
       if (mul !== 1) dmg = Math.max(1, Math.round(dmg * mul));
     }
     enemy.hp -= dmg;
-    const leech = State.affixTotals ? (State.affixTotals().leech || 0) : 0;
+    const leech = State.combatMods ? (State.combatMods().leech || 0) : 0;
     if (leech > 0 && u && u.maxHp > 0) {
       u.hp = Math.min(u.maxHp, u.hp + dmg * leech);
     }
@@ -695,6 +695,12 @@
   /* ---------- 傷害公式 ---------- */
   /* 速度 → 每秒出手次數：飽和曲線（原本速度 617 之後就完全沒用）
      acts/s = (1/DT) × (1 − e^(−spd/617))，永遠 < 8.33 但不會浪費 */
+  /* v1.18.0 倍速：雙方（我方與敵方）用同一個倍率加速 → 戰鬥結果不變，只是省時間 */
+  function rate() {
+    const sp = ((State.data && State.data.settings) || {}).speed | 0;
+    return CFG.SPEEDS.indexOf(sp) >= 0 ? sp : 1;
+  }
+
   function actsPerSec(spd) {
     const maxActs = 1 / DT;
     return maxActs * (1 - Math.exp(-(spd || 0) / CFG.COMBAT.spdK));
@@ -708,7 +714,7 @@
 
   /* 詞條「破防」：玩家造成的傷害對敵方防禦打折（只影響我方輸出） */
   function effDef(def) {
-    const pen = State.affixTotals ? (State.affixTotals().pen || 0) : 0;
+    const pen = State.combatMods ? (State.combatMods().pen || 0) : 0;
     return Math.max(0, (def || 0) * (1 - Math.min(0.5, pen)));
   }
 

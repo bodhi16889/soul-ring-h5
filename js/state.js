@@ -45,6 +45,8 @@
       spire: { best: 0, day: '', used: 0 },   // 無盡深塔：最高層 / 日期 / 今日已用次數
       dungeon: { day: '', done: [] },         // 每日副本：今天打過哪些
       shop: { day: '', bought: {} },          // 商店：今日各格已買次數
+      talents: {},                            // 命印天賦：nodeId → 等級
+      settings: { autoRing: true, autoBoss: true, autoHunt: true, autoStar: true, speed: 1 },
       rerolls: 0,                             // 重鑄券（商店買）
       elite: { day: '', ids: [] },   // 今日已打的精英靈獸
       depth: {},             // 深林層數：beastId -> 已連續狩獵次數
@@ -163,6 +165,9 @@
     out.shop = Object.assign({ day: '', bought: {} }, (d && d.shop) || {});
     if (!out.shop.bought || typeof out.shop.bought !== 'object') out.shop.bought = {};
     out.rerolls = Math.max(0, out.rerolls | 0);
+    out.talents = Object.assign({}, (d && d.talents) || {});
+    if (!out.settings) out.settings = {};
+    if (!CFG.SPEEDS.includes(out.settings.speed | 0)) out.settings.speed = 1;
     if (!Array.isArray(out.dungeon.done)) out.dungeon.done = [];
     out.elite = Object.assign({ day: '', ids: [] }, (d && d.elite) || {});
     out.depth = Object.assign({}, (d && d.depth) || {});
@@ -354,6 +359,66 @@
     return out;
   }
 
+  /* ---------- 命印天賦樹 ---------- */
+  function talentLevel(nid) {
+    return Math.min(CFG.TALENTS.maxLevel, ((S.talents || {})[nid] | 0));
+  }
+  function spentMarks() {
+    let n = 0;
+    CFG.TALENTS.branches.forEach((b) => b.nodes.forEach((nd) => { n += talentLevel(nd.id); }));
+    return n;
+  }
+  function unspentMarks() { return Math.max(0, (S.marks | 0) - spentMarks()); }
+  function talentMul() {
+    const out = { atk: 1, hp: 1, def: 1, spd: 1, crit: 0, pen: 0, leech: 0, coin: 0, cores: 0 };
+    CFG.TALENTS.branches.forEach((b) => b.nodes.forEach((nd) => {
+      const lv = talentLevel(nd.id);
+      if (!lv) return;
+      if (nd.stat === 'atk' || nd.stat === 'hp' || nd.stat === 'def' || nd.stat === 'spd') out[nd.stat] *= 1 + nd.per * lv;
+      else out[nd.stat] += nd.per * lv;
+    }));
+    return out;
+  }
+  function talentInfo() {
+    const t = talentMul();
+    return {
+      total: S.marks | 0, spent: spentMarks(), unspent: unspentMarks(),
+      resetCores: CFG.TALENTS.resetCores, mul: t,
+      branches: CFG.TALENTS.branches.map((b) => ({
+        id: b.id, name: b.name,
+        nodes: b.nodes.map((nd) => ({
+          id: nd.id, name: nd.name, label: nd.label, per: nd.per, stat: nd.stat,
+          level: talentLevel(nd.id), max: CFG.TALENTS.maxLevel,
+        })),
+      })),
+    };
+  }
+  function talentNode(nid) {
+    for (const b of CFG.TALENTS.branches) {
+      const nd = b.nodes.find((x) => x.id === nid);
+      if (nd) return nd;
+    }
+    return null;
+  }
+  function learnTalent(nid) {
+    const nd = talentNode(nid);
+    if (!nd) return { ok: false, msg: T('沒有這個天賦') };
+    const lv = talentLevel(nid);
+    if (lv >= CFG.TALENTS.maxLevel) return { ok: false, msg: T('已滿級') };
+    if (unspentMarks() < 1) return { ok: false, msg: T('沒有可用的命印') };
+    S.talents[nid] = lv + 1;
+    return { ok: true, level: lv + 1, node: nd };
+  }
+  function resetTalents() {
+    const spent = spentMarks();
+    if (!spent) return { ok: false, msg: T('尚未投入命印') };
+    const cost = CFG.TALENTS.resetCores;
+    if ((S.cores | 0) < cost) return { ok: false, msg: T('獸核不足'), need: cost };
+    S.cores -= cost;
+    S.talents = {};
+    return { ok: true, refunded: spent };
+  }
+
   /* ---------- 商店（每日 6 格）---------- */
   function shopReset() {
     const k = todayKey();
@@ -389,7 +454,7 @@
     if (g.tickets) S.tickets += g.tickets;
     if (g.diamonds) S.diamonds += g.diamonds;
     if (g.coins) S.coins += g.coins;
-    if (g.cores) S.cores = (S.cores | 0) + g.cores;
+    if (g.cores) addCores(g.cores, { raw: true });
     if (g.rerolls) S.rerolls = (S.rerolls | 0) + g.rerolls;
     if (g.bones) {
       for (let i = 0; i < g.bones; i++) {
@@ -519,6 +584,17 @@
       out[r.affix.key] = (out[r.affix.key] || 0) + r.affix.val;
     });
     return out;
+  }
+
+  /* 戰鬥修正：靈環詞條 + 命印天賦（破防 / 吸血），battle.js 只讀這一個入口 */
+  function combatMods() {
+    const a = affixTotals();
+    const t = talentMul();
+    return {
+      crit: (a.crit || 0) + (t.crit || 0),
+      pen: (a.pen || 0) + (t.pen || 0),
+      leech: (a.leech || 0) + (t.leech || 0),
+    };
   }
 
   /* ---------- 靈寶（覺醒里程獎勵）---------- */
@@ -685,7 +761,12 @@
     soul.ascend = info.stage + 1;
     return { ok: true, stage: soul.ascend, cost: info.cost };
   }
-  function addCores(n) { S.cores = Math.max(0, (S.cores | 0) + (n | 0)); return S.cores; }
+  function addCores(n, opts) {
+    let add = (n | 0);
+    if (!(opts && opts.raw) && add > 0) add = Math.max(1, Math.round(add * (1 + talentMul().cores)));
+    S.cores = Math.max(0, (S.cores | 0) + add);
+    return S.cores;
+  }
 
   /* ---------- 精英靈獸（每日每隻一次）---------- */
   function eliteReset() {
@@ -812,10 +893,14 @@
     const boneHp = 1 + own.hp + aura.hp;
     const boneDef = 1 + own.def + aura.def;
     const boneSpd = 1 + own.spd + aura.spd;
-    const markAtk = 1 + pm.atk * S.marks;
-    const markHp = 1 + pm.hp * S.marks;
-    const markDef = 1 + pm.def * S.marks;
-    const markSpd = 1;   // 命印不再加速度（速度有物理上限），改在 critChance() 給爆擊
+    /* v1.18.0：投入天賦的命印不再給「每點 +6% 全屬性」，只有未投入的才給；
+       天賦改走自己的乘算層（攻擊/生命/防禦/速度）→ 產生「集中 or 平均」的選擇。 */
+    const tm = talentMul();
+    const um = unspentMarks();
+    const markAtk = (1 + pm.atk * um) * tm.atk;
+    const markHp = (1 + pm.hp * um) * tm.hp;
+    const markDef = (1 + pm.def * um) * tm.def;
+    const markSpd = tm.spd;   // 疾行天賦才加速度
     return {
       atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk) * boneAtk * markAtk * tbMul * cb.atk * (1 + rl.atk) * st.atk),
       hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp) * boneHp * markHp * tbMul * cb.hp * (1 + rl.hp) * st.hp),
@@ -844,7 +929,8 @@
   function critChance() {
     // 命印 + 靈環詞條（crit）都在這裡疊加，上限 60%
     const c = CFG.COMBAT.critBase
-      + Math.min(CFG.REBIRTH.critMax, (S.marks || 0) * CFG.REBIRTH.critPerMark)
+      + Math.min(CFG.REBIRTH.critMax, unspentMarks() * CFG.REBIRTH.critPerMark)
+      + (talentMul().crit || 0)
       + (affixTotals().crit || 0);
     return Math.min(0.6, c);
   }
@@ -966,7 +1052,7 @@
   }
 
   /* 命印帶來的收益倍率（靈幣/經驗） */
-  function incomeMul() { return 1 + CFG.REBIRTH.perMark.income * S.marks; }
+  function incomeMul() { return (1 + CFG.REBIRTH.perMark.income * S.marks) * (1 + talentMul().coin); }
 
   function totalRingsEquipped() {
     let n = 0;
@@ -1446,6 +1532,7 @@
     bondInfo, combosInfo, depthOf, depthInfo, depthPlus, inheritInfo, inheritStar,
     relicProgress, relicTierWeights, hasRelic, relicCount, rollRelic, relicMilestone, relicBackfill, relicBonus, relicMilestoneInfo,
     setInfo, setMulFor, shopReset, shopInfo, shopBuy, autoStarUp,
+    talentLevel, spentMarks, unspentMarks, talentMul, talentInfo, learnTalent, resetTalents, combatMods,
     spireReset, spireInfo, spireUse, spireReport, spireStats, spireMul,
     dungeonReset, dungeonInfo, dungeonMark, dungeonReward, dungeonClaim,
     rollAffix, rerollAffix, affixTotals,

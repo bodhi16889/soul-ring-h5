@@ -32,6 +32,16 @@
     const res = State.load();
     bindNav();
     bindCodex();
+    const spdBtn = $('#btnSpeed');
+    if (spdBtn) spdBtn.addEventListener('click', () => {
+      const list = CFG.SPEEDS;
+      const cur = (State.data.settings || {}).speed | 0 || 1;
+      const next = list[(list.indexOf(cur) + 1) % list.length];
+      State.data.settings.speed = next;
+      State.save(true);
+      renderSpeed();
+      toast(`${T('倍速')} ×${next}`);
+    });
     const bs = $('#btnSpire'); if (bs) bs.addEventListener('click', showSpire);
     const bd = $('#btnDungeon'); if (bd) bd.addEventListener('click', showDungeons);
     bindTop();
@@ -109,6 +119,14 @@
       const r = Battle.challengeBoss();
       if (!r.ok) toast(r.msg);
     });
+  }
+
+  function renderSpeed() {
+    const btn = $('#btnSpeed');
+    if (!btn) return;
+    const cur = (State.data.settings || {}).speed | 0 || 1;
+    btn.textContent = `${T('倍速')} ×${cur}`;
+    btn.classList.toggle('primary', cur > 1);
   }
 
   function renderSpireBtn() {
@@ -611,7 +629,8 @@
       <div class="rb-line" style="opacity:.75">${T('轉生會重置等級／關卡／靈幣；靈印、星級、靈骨、靈環、命印都會保留。')}</div>
       <button id="btnRebirth" class="wide-btn ${info.can ? '' : ''}" ${info.can ? '' : 'disabled'}>
         ${info.can ? T(`轉生（+${info.gain} 命印）`) : T(`要推進到 第 ${info.needStage} 關才能轉生`)}
-      </button>`;
+      </button>
+      ${talentHtml()}`;
     const btn = $('#btnRebirth');
     if (btn) btn.addEventListener('click', () => {
       if (!info.can) return toast(T(`要推進到 第 ${info.needStage} 關才能轉生（本輪 +${info.deep} 關）`));
@@ -623,6 +642,63 @@
       renderRebirth._t = setTimeout(() => {
         if (btn.isConnected) { btn.dataset.armed = ''; btn.classList.remove('armed'); renderRebirth(); }
       }, 4000);
+    });
+    bindTalents();
+  }
+
+  /* 命印天賦樹：3 分支 × 3 節點 × 5 級；投入的命印不再給「每點 +6% 全屬性」 */
+  function talentHtml() {
+    const t = State.talentInfo();
+    const rows = t.branches.map((b) => {
+      const nodes = b.nodes.map((nd) => {
+        const pct = Math.round(nd.per * 100);
+        const cur = nd.level ? `+${Math.round(nd.per * nd.level * 100)}%` : T('未投入');
+        const canAdd = nd.level < nd.max && t.unspent > 0;
+        return `<div class="merge-row">
+          <span class="mr-name">${T(nd.name)} <span class="hint">${T(nd.label)} +${pct}%/Lv</span></span>
+          <span class="hint">${nd.level}/${nd.max} · ${cur}</span>
+          <button class="mini-btn ${canAdd ? 'primary' : ''}" data-talent="${nd.id}" ${canAdd ? '' : 'disabled'}>
+            ${nd.level >= nd.max ? T('已滿級') : T('投入')}
+          </button>
+        </div>`;
+      }).join('');
+      return `<div class="merge-head" style="margin-top:6px"><b>${T(b.name)}</b></div>${nodes}`;
+    }).join('');
+    return `<div class="checkin-box" style="margin-top:8px">
+      <div class="merge-head"><b>${T('命印天賦')}</b>
+        <span class="hint">${T('未投入')} ${t.unspent} / ${t.total} · ${T('每點全屬性 +6%')}</span></div>
+      <div class="hint" style="margin:4px 0 6px">${T('投入天賦的命印改給該節點效果，不再給每點 +6% 全屬性。')}</div>
+      ${rows}
+      <button class="mini-btn" id="btnResetTalent" ${t.spent > 0 ? '' : 'disabled'}>
+        ${T('重置天賦')}（${t.resetCores} ${T('獸核')}${t.spent ? ` · ${T('退還')} ${t.spent}` : ''}）
+      </button>
+    </div>`;
+  }
+
+  function bindTalents() {
+    $$('#rebirthBox [data-talent]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = State.learnTalent(b.dataset.talent);
+        if (!r.ok) return toast(r.msg);
+        State.save(true);
+        Battle.refreshTeam();
+        renderRebirth();
+        toast(`${T(r.node.name)} → Lv${r.level}`);
+      });
+    });
+    const rb = $('#btnResetTalent');
+    if (rb) rb.addEventListener('click', () => {
+      if (rb.dataset.armed === '1') {
+        const r = State.resetTalents();
+        if (!r.ok) return toast(r.msg);
+        State.save(true);
+        Battle.refreshTeam();
+        renderRebirth();
+        return toast(`${T('已重置，退還')} ${r.refunded} ${T('命印')}`);
+      }
+      rb.dataset.armed = '1';
+      rb.textContent = T('再按一次確認重置');
+      setTimeout(() => { rb.dataset.armed = ''; renderRebirth(); }, 4000);
     });
   }
 
@@ -1199,6 +1275,7 @@
   function renderAll() {
     renderTop();
     renderSpireBtn();
+    renderSpeed();
     renderBattle();
     renderSouls();
     renderBones();
