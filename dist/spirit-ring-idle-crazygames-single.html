@@ -5294,7 +5294,7 @@ textarea, input,
             <span class="rb-gen">${genText}</span></span>
           <span class="hint">${rebText}</span></h3>
       <div class="rb-line">${T('天賦節點上限')} <b>Lv ${talentCap}</b>
-        <span class="hint">${I18N.lang === 'en' ? '(' : '（'}${T('每 2 次轉生 +1 級')}${I18N.lang === 'en' ? ')' : '）'}</span></div>
+        <span class="hint">${paren(T('每 2 次轉生 +1 級'))}</span></div>
       <div class="rb-line">${T(`歷史最高：第 ${info.bestStage} 關（需 ${info.minStage} 關）`)}</div>
       <div class="rb-line">${T(`本輪推進：+${info.deep} 關（上次轉生在 第 ${info.lastBest || info.minStage} 關）`)}</div>
       <div class="rb-line">${T(`目前加成：全屬性 +${Math.round(pm.atk * 100 * info.marks)}% · 收益 +${Math.round(pm.income * 100 * info.marks)}%`)}</div>
@@ -5362,10 +5362,10 @@ textarea, input,
       <div class="merge-head"><b>${T('命印天賦')}</b>
         <span class="hint">${T('未投入')} ${t.unspent} / ${t.total} · ${T('每點全屬性 +6%')}</span></div>
       <div class="hint" style="margin:4px 0 6px">${T('投入天賦的命印改給該節點效果，不再給每點 +6% 全屬性。')}</div>
-      <div class="hint" style="margin:-2px 0 6px">${T('節點上限')} <b>Lv ${t.maxLevel}</b>（${T('每 2 次轉生 +1 級，無上限')}）</div>
+      <div class="hint" style="margin:-2px 0 6px">${T('節點上限')} <b>Lv ${t.maxLevel}</b>${paren(T('每 2 次轉生 +1 級，無上限'))}</div>
       ${rows}
       <button class="mini-btn" id="btnResetTalent" ${t.spent > 0 ? '' : 'disabled'}>
-        ${T('重置天賦')}（${t.resetCores} ${T('獸核')}${t.spent ? ` · ${T('退還')} ${t.spent}` : ''}）
+        ${T('重置天賦')}${paren(`${t.resetCores} ${T('獸核')}${t.spent ? ` · ${T('退還')} ${t.spent}` : ''}`)}
       </button>
     </div>`;
   }
@@ -5849,6 +5849,8 @@ textarea, input,
       setTimeout(() => el.classList.remove('bump'), 180);
     }
   }
+
+  function paren(txt) { return I18N.lang === 'en' ? `(${txt})` : `（${txt}）`; }
 
   const STAT_LABEL = { atk: '攻擊', hp: '生命', def: '防禦', spd: '速度', all: '全屬性' };
   const PRIORITY_LABEL = { boss: '推進', hunt: '獵靈', farm: '推關' };

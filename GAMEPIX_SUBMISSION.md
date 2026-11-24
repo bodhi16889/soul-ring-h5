@@ -7,7 +7,7 @@
 
 | 用途 | 檔案 | 大小 | sha256（前 16 碼） |
 |---|---|---|---|
-| **Build（ZIP, v1.21.0）** | `dist/spirit-ring-idle-gamepix.zip` | **97,910 B** | `2eab8809e9c74716` |
+| **Build（ZIP, v1.21.0）** | `dist/spirit-ring-idle-gamepix.zip` | **97,923 B** | `66cb83ff9ef891f4` |
 | Icon | `gamepix/assets/icon-256.png` | 44 KB ｜ 256×256 | — |
 | Cover | `gamepix/assets/cover-1360x850.png` | 282 KB ｜ 1360×850 | — |
 | Screenshots | `gamepix/assets/screenshots/01-battle … 05-awaken.png` | 5 張 ｜ 1080×1920 | — |
@@ -93,7 +93,7 @@ Spire and daily dungeons give tower marks, coins, cores and tickets.
 
 上傳 `dist/spirit-ring-idle-gamepix.zip` → 存檔 → **Publish**。
 
-- v1.20.2 = 96,274 B／`2d8ba510…`；v1.21.0 = 97,910 B／`2eab8809…`（對不上就是傳到別版）
+- v1.20.2 = 96,274 B／`2d8ba510…`；v1.21.0 = 97,923 B／`66cb83ff9ef891f4…`（對不上就是傳到別版）
 - 不要傳 GitHub 的 Download ZIP（會多一層 `xxx-main/`，報 `No index.html found in the main root`）
 - 不要在 Finder 對資料夾按「壓縮」
 
