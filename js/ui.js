@@ -620,9 +620,18 @@
     if (!box) return;
     const info = State.rebirthInfo();
     const pm = CFG.REBIRTH.perMark;
+    /* 世代標示：「第 N 代」是玩家看得到的進度感；英文用 Gen N（不要走 T() 的插值模板，
+       否則英文模式會出現「第 12 次」這種中英混字） */
+    const gen = (info.rebirths | 0) + 1;
+    const genText = I18N.lang === 'en' ? `Gen ${gen}` : `第 ${gen} 代`;
+    const rebText = I18N.lang === 'en' ? `${info.rebirths | 0} rebirths` : `已轉生 ${info.rebirths | 0} 次`;
+    const talentCap = State.talentMaxLevel();
     box.innerHTML = `
-      <h3><span>🌀 ${T('轉生')} · ${T('命印')} <span class="rb-mark">${info.marks}</span></span>
-          <span class="hint">${T(`第 ${info.rebirths + 1} 次`)}</span></h3>
+      <h3><span>🌀 ${T('轉生')} · ${T('命印')} <span class="rb-mark">${info.marks}</span>
+            <span class="rb-gen">${genText}</span></span>
+          <span class="hint">${rebText}</span></h3>
+      <div class="rb-line">${T('天賦節點上限')} <b>Lv ${talentCap}</b>
+        <span class="hint">（${T('每 2 次轉生 +1 級')}）</span></div>
       <div class="rb-line">${T(`歷史最高：第 ${info.bestStage} 關（需 ${info.minStage} 關）`)}</div>
       <div class="rb-line">${T(`本輪推進：+${info.deep} 關（上次轉生在 第 ${info.lastBest || info.minStage} 關）`)}</div>
       <div class="rb-line">${T(`目前加成：全屬性 +${Math.round(pm.atk * 100 * info.marks)}% · 收益 +${Math.round(pm.income * 100 * info.marks)}%`)}</div>
@@ -631,6 +640,7 @@
       <button id="btnRebirth" class="wide-btn ${info.can ? '' : ''}" ${info.can ? '' : 'disabled'}>
         ${info.can ? T(`轉生（+${info.gain} 命印）`) : T(`要推進到 第 ${info.needStage} 關才能轉生`)}
       </button>
+      ${sigilHtml()}
       ${talentHtml()}`;
     const btn = $('#btnRebirth');
     if (btn) btn.addEventListener('click', () => {
@@ -645,6 +655,26 @@
       }, 4000);
     });
     bindTalents();
+  }
+
+  /* 印記：戰績（最高關卡）與覺醒里程都無上限，本身就是「一直變強」的出口 */
+  function sigilHtml() {
+    const g = State.sigilInfo();
+    return `<div class="checkin-box" style="margin-top:8px">
+      <div class="merge-head"><b>${T('印記')}</b>
+        <span class="hint">${T('全屬性')} +${(Math.round((g.mul - 1) * 1000) / 10)}%</span></div>
+      <div class="merge-row">
+        <span class="mr-name">🏔 ${T('戰績印記')}</span>
+        <span class="hint">×${g.stage} · +${(g.stagePct * 100).toFixed(1)}%</span>
+        <span class="hint">${T('下一枚')} ${g.nextStageAt}</span>
+      </div>
+      <div class="merge-row">
+        <span class="mr-name">✨ ${T('覺醒印記')}</span>
+        <span class="hint">×${g.awaken} · +${(g.awakenPct * 100).toFixed(1)}%</span>
+        <span class="hint">${T('距下一枚')} ${g.nextAwakenIn}</span>
+      </div>
+      <div class="hint" style="margin-top:4px">${T('兩者都沒有上限：每 10 關 +1 枚戰績印記，靈寶收齊後每 10 抽 +1 枚覺醒印記。')}</div>
+    </div>`;
   }
 
   /* 命印天賦樹：3 分支 × 3 節點 × 5 級；投入的命印不再給「每點 +6% 全屬性」 */
@@ -669,6 +699,7 @@
       <div class="merge-head"><b>${T('命印天賦')}</b>
         <span class="hint">${T('未投入')} ${t.unspent} / ${t.total} · ${T('每點全屬性 +6%')}</span></div>
       <div class="hint" style="margin:4px 0 6px">${T('投入天賦的命印改給該節點效果，不再給每點 +6% 全屬性。')}</div>
+      <div class="hint" style="margin:-2px 0 6px">${T('節點上限')} <b>Lv ${t.maxLevel}</b>（${T('每 2 次轉生 +1 級，無上限')}）</div>
       ${rows}
       <button class="mini-btn" id="btnResetTalent" ${t.spent > 0 ? '' : 'disabled'}>
         ${T('重置天賦')}（${t.resetCores} ${T('獸核')}${t.spent ? ` · ${T('退還')} ${t.spent}` : ''}）
@@ -1206,6 +1237,7 @@
         <span>再 ${info.nextIn} 抽 <b>得一件</b></span>
       </div>
       <div class="hint" style="margin-top:6px">${T('機率隨戰績提升')}：${odds}</div>
+      <div class="hint">${T('覺醒印記')} ×${State.sigilInfo().awaken}（${T('靈寶收齊後每 10 抽 +1，無上限')}）</div>
       <button class="wide-btn small" id="btnRelics" style="margin-top:8px">${T('靈寶收藏')}</button>`);
     const b = $('#btnRelics');
     if (b) b.addEventListener('click', showRelics);

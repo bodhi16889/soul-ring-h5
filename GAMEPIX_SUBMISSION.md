@@ -3,11 +3,11 @@
 後台：`https://my.gamepix.com/games/spirit-ring-idle`
 **Game Id：`il9S20`**（SDK 的 `aud` 會是 `gpx:game:il9S20`，接 JWT 時對照用）
 
-**本次要送的版本：v1.20.2**（2026-11-24 打包）
+**目前線上：v1.20.2（Game Jam 期間無法建新 release）** ／ **下一版：v1.21.0**（等投票結束再覆蓋 Build）
 
 | 用途 | 檔案 | 大小 | sha256（前 16 碼） |
 |---|---|---|---|
-| **Build（ZIP）** | `dist/spirit-ring-idle-gamepix.zip` | **96,274 B** | `2d8ba510102e33f9` |
+| **Build（ZIP, v1.21.0）** | `dist/spirit-ring-idle-gamepix.zip` | **97,888 B** | `bd833a9ea2616726` |
 | Icon | `gamepix/assets/icon-256.png` | 44 KB ｜ 256×256 | — |
 | Cover | `gamepix/assets/cover-1360x850.png` | 282 KB ｜ 1360×850 | — |
 | Screenshots | `gamepix/assets/screenshots/01-battle … 05-awaken.png` | 5 張 ｜ 1080×1920 | — |
@@ -93,7 +93,7 @@ Spire and daily dungeons give tower marks, coins, cores and tickets.
 
 上傳 `dist/spirit-ring-idle-gamepix.zip` → 存檔 → **Publish**。
 
-- 檔案大小要顯示 **96,274 B**（不是就是傳到舊檔；必要時改名再傳）
+- v1.20.2 = 96,274 B／`2d8ba510…`；v1.21.0 = 97,888 B／`bd833a9e…`（對不上就是傳到別版）
 - 不要傳 GitHub 的 Download ZIP（會多一層 `xxx-main/`，報 `No index.html found in the main root`）
 - 不要在 Finder 對資料夾按「壓縮」
 

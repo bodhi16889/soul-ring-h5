@@ -346,7 +346,13 @@ body {
   background: radial-gradient(circle at 20% 0%, rgba(255, 209, 102, .16), transparent 60%), rgba(0, 0, 0, .25); }
 .rebirth-box h3 { margin: 0 0 6px; font-size: 14px; color: var(--gold); letter-spacing: .06em; display: flex; justify-content: space-between; }
 .rebirth-box .rb-line { font-size: 12px; color: var(--muted); line-height: 1.7; }
-.rebirth-box .rb-mark { color: var(--gold); font-weight: 700; font-size: 15px; }
+.rebirth-box 
+.rb-gen {
+  font-size: 11px; font-weight: 700; letter-spacing: .04em;
+  color: #120b1f; background: linear-gradient(180deg, #ffe08a, #ffc247);
+  padding: 2px 8px; border-radius: 999px; margin-left: 6px; vertical-align: middle;
+}
+.rb-mark { color: var(--gold); font-weight: 700; font-size: 15px; }
 .rebirth-box button { margin-top: 8px; }
 .rebirth-box button.armed { background: linear-gradient(180deg, rgba(255, 107, 107, .95), rgba(190, 60, 60, .95)); color: #fff; }
 

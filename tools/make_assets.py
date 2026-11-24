@@ -107,7 +107,9 @@ def take_screenshots(port, skip_existing=False):
              "const f = document.getElementById('floaters'); if (f) f.innerHTML = ''; })()"),
             ("02-spirits", "__game.switchTab('souls')", 1.2),
             ("03-rings", "__game.switchTab('rings')", 1.2),
-            ("04-rebirth", "__game.switchTab('souls'); setTimeout(()=>{const b=document.querySelector('#rebirthBox'); if(b) b.scrollIntoView({block:'center'});}, 300)", 1.6),
+            # 轉生頁：把標題列（含「第 N 代」徽章）捲到最上方，否則徽章會被切掉
+            ("04-rebirth", "__game.switchTab('souls'); setTimeout(()=>{const h=document.querySelector('#rebirthBox h3'); "
+                           "if(h) h.scrollIntoView({block:'start'});}, 300)", 1.8),
             ("05-awaken", "__game.switchTab('gacha')", 1.4),
         ]
         for shot in shots:

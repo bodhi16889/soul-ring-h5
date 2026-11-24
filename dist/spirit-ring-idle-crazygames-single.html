@@ -355,7 +355,13 @@ body {
   background: radial-gradient(circle at 20% 0%, rgba(255, 209, 102, .16), transparent 60%), rgba(0, 0, 0, .25); }
 .rebirth-box h3 { margin: 0 0 6px; font-size: 14px; color: var(--gold); letter-spacing: .06em; display: flex; justify-content: space-between; }
 .rebirth-box .rb-line { font-size: 12px; color: var(--muted); line-height: 1.7; }
-.rebirth-box .rb-mark { color: var(--gold); font-weight: 700; font-size: 15px; }
+.rebirth-box 
+.rb-gen {
+  font-size: 11px; font-weight: 700; letter-spacing: .04em;
+  color: #120b1f; background: linear-gradient(180deg, #ffe08a, #ffc247);
+  padding: 2px 8px; border-radius: 999px; margin-left: 6px; vertical-align: middle;
+}
+.rb-mark { color: var(--gold); font-weight: 700; font-size: 15px; }
 .rebirth-box button { margin-top: 8px; }
 .rebirth-box button.armed { background: linear-gradient(180deg, rgba(255, 107, 107, .95), rgba(190, 60, 60, .95)); color: #fff; }
 
@@ -880,6 +886,14 @@ textarea, input,
     '疾行': 'Swiftness', '財源': 'Fortune', '獸緣': 'Beast Bond',
     '攻擊': 'ATK', '爆擊率': 'Crit', '生命': 'HP',
     '防禦': 'DEF', '速度': 'SPD', '靈幣收益': 'Coins',
+    /* v1.21.0 印記（無上限成長） */
+    '印記': 'Sigils', '戰績印記': 'Stage sigils', '覺醒印記': 'Awaken sigils',
+    '下一枚': 'next at', '距下一枚': 'to next',
+    '天賦節點上限': 'Talent node cap', '每 2 次轉生 +1 級': '+1 level every 2 rebirths',
+    '兩者都沒有上限：每 10 關 +1 枚戰績印記，靈寶收齊後每 10 抽 +1 枚覺醒印記。':
+      'Neither is capped: +1 stage sigil every 10 stages, and +1 awaken sigil every 10 pulls once all relics are collected.',
+    '靈寶收齊後每 10 抽 +1，無上限': 'once relics are complete: +1 per 10 pulls, uncapped',
+    '節點上限': 'Node cap', '每 2 次轉生 +1 級，無上限': 'every 2 rebirths adds a level, no cap',
     /* v1.20.0 離線經驗上限 */
     '離線經驗上限': 'Offline EXP cap', '原始': 'raw', '目前關卡': 'Stage',
     /* v1.19.0 靈寶升級 / 離線明細 / 自動化優先序 */
@@ -1123,10 +1137,10 @@ textarea, input,
     [/^升星（(\d+)\s*靈骨・(\d+)）$/, 'Star up ($1 bones · $2)'],
     [/^轉生（\+(\d+)\s*命印）$/, 'Rebirth (+$1 marks)'],
     [/^\+(\d+)\s*命印$/, '+$1 marks'],
-    [/^（每點全屬性 \+(\d+)%、收益 \+(\d+)%）$/, '(each mark: +$1% all stats, +$2% income)'],
+    [/^（每點全屬性 \+(\d+)%、收益 \+(\d+)%）$/, ' (each unspent mark: +$1% all stats, +$2% income)'],
     [/^歷史最高：第\s*(\d+)\s*關（需 (\d+) 關）$/, 'Best stage $1 (needs $2)'],
     [/^目前加成：全屬性 \+(\d+)% · 收益 \+(\d+)%$/, 'Bonus: +$1% all stats · +$2% income'],
-    [/^這次轉生可得：$/, 'This rebirth grants:'],
+    [/^這次轉生可得：$/, 'This rebirth grants: '],
     [/^Lv\.(\d+)（每 10 級開 1 槽）｜(.+)$/, 'Lv.$1 (1 slot / 10 levels) · $2'],
     [/^擊殺靈獸：靈幣 \+(\d+)、經驗 \+(\d+)$/, 'Beast slain: +$1 coins, +$2 EXP'],
     [/^等級提升 → Lv\.(\d+)$/, 'Level up → Lv.$1'],
@@ -1840,6 +1854,17 @@ textarea, input,
     water: { stat: 'hunt', bonus: 0.08 },
   };
 
+  /* v1.21.0：無盡成長（印記）
+     玩家訴求「戰績增加可以無上限升級」→ 用既有計數推導，不新增存檔欄位、不新增貨幣：
+       戰績印記 = floor(最高關卡 / 10)，每枚 +0.2% 全屬性
+       覺醒印記 = max(0, floor(券抽次數 / 10) - 12)，每枚 +0.3% 全屬性（12 = 靈寶件數）
+     兩個都沒有上限；靈寶收齊後的里程同時給獸核與覺醒印記。 */
+  const SIGIL = {
+    perStage: 10, stageBonus: 0.002,
+    awakenBonus: 0.003,
+    talentBase: 5, talentPerRebirth: 2, talentCap: 99,
+  };
+
   /* v1.20.0：離線經驗上限 —— 只推進到「等級上限 × ratio」。
      原本離線 2 小時就能從 Lv12 衝到 Lv100（實測），掛機價值有了但等級變無意義。
      0.8 = 保留「掛一晚升一截」的爽感，又留下 20% 要自己打。 */
@@ -1903,7 +1928,7 @@ textarea, input,
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.20.2';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.21.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -2189,7 +2214,7 @@ textarea, input,
     BEASTS, BEAST_BY_ID, STAGE_AREAS, areaFor,
     VERSION, MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
     RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR, COUNTER, BOND, ASCEND, CORE_DROP, ELITE,
-    INHERIT, DEPTH, COMBOS, SET_BONUS, SHOP, RELIC_TIERS, SPEEDS, TALENTS, OFFLINE, RELIC_BY_KEY, RELICS, RELIC,
+    INHERIT, DEPTH, COMBOS, SET_BONUS, SHOP, RELIC_TIERS, SPEEDS, TALENTS, OFFLINE, SIGIL, RELIC_BY_KEY, RELICS, RELIC,
     SPIRE, DUNGEON, DUNGEONS, AFFIX, AFFIX_BY_KEY,
     RING_ORDER, RING_MERGE_COUNT,
     BASE_KILLS_PER_STAGE, killsPerStage, waveSecFor, bossSecFor, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND, STAR_MAX,
@@ -2605,8 +2630,16 @@ textarea, input,
   }
 
   /* ---------- 命印天賦樹 ---------- */
+  /* v1.21.0：天賦上限不是固定的 5 級——每 2 次轉生 +1 級（上限 99）。
+     這是「每次轉生要能升級更多項目」的實作：轉生越多，同一棵樹能繼續點高。 */
+  function talentMaxLevel() {
+    const n = Math.max(0, S.rebirths | 0);
+    return Math.min(CFG.SIGIL.talentCap,
+      CFG.SIGIL.talentBase + Math.floor(n / CFG.SIGIL.talentPerRebirth));
+  }
+
   function talentLevel(nid) {
-    return Math.min(CFG.TALENTS.maxLevel, ((S.talents || {})[nid] | 0));
+    return Math.min(talentMaxLevel(), ((S.talents || {})[nid] | 0));
   }
   function spentMarks() {
     let n = 0;
@@ -2629,11 +2662,12 @@ textarea, input,
     return {
       total: S.marks | 0, spent: spentMarks(), unspent: unspentMarks(),
       resetCores: CFG.TALENTS.resetCores, mul: t,
+      maxLevel: talentMaxLevel(),
       branches: CFG.TALENTS.branches.map((b) => ({
         id: b.id, name: b.name,
         nodes: b.nodes.map((nd) => ({
           id: nd.id, name: nd.name, label: nd.label, per: nd.per, stat: nd.stat,
-          level: talentLevel(nd.id), max: CFG.TALENTS.maxLevel,
+          level: talentLevel(nd.id), max: talentMaxLevel(),
         })),
       })),
     };
@@ -2649,7 +2683,7 @@ textarea, input,
     const nd = talentNode(nid);
     if (!nd) return { ok: false, msg: T('沒有這個天賦') };
     const lv = talentLevel(nid);
-    if (lv >= CFG.TALENTS.maxLevel) return { ok: false, msg: T('已滿級') };
+    if (lv >= talentMaxLevel()) return { ok: false, msg: T('已滿級') };
     if (unspentMarks() < 1) return { ok: false, msg: T('沒有可用的命印') };
     S.talents[nid] = lv + 1;
     return { ok: true, level: lv + 1, node: nd };
@@ -2662,6 +2696,22 @@ textarea, input,
     S.cores -= cost;
     S.talents = {};
     return { ok: true, refunded: spent };
+  }
+
+  /* ---------- 印記：無上限的戰績／覺醒成長 ---------- */
+  function sigilInfo() {
+    const stageMarks = Math.max(0, Math.floor((S.bestStage | 0) / CFG.SIGIL.perStage));
+    const milestones = Math.max(0, Math.floor((S.ticketPulls | 0) / CFG.RELIC.every));
+    const awakenMarks = Math.max(0, milestones - CFG.RELICS.length);
+    const stagePct = stageMarks * CFG.SIGIL.stageBonus;
+    const awakenPct = awakenMarks * CFG.SIGIL.awakenBonus;
+    return {
+      stage: stageMarks, awaken: awakenMarks,
+      stagePct, awakenPct,
+      mul: (1 + stagePct) * (1 + awakenPct),
+      nextStageAt: (stageMarks + 1) * CFG.SIGIL.perStage,
+      nextAwakenIn: CFG.RELIC.every - ((S.ticketPulls | 0) % CFG.RELIC.every),
+    };
   }
 
   /* ---------- 商店（每日 6 格）---------- */
@@ -3175,7 +3225,8 @@ textarea, input,
     const cb = combosInfo().stat;   // 元素組合：atk / hp / def / spd 各自乘算
     const rl = relicBonus();        // 靈寶：限量收藏品，永久加成
     const st = setMulFor(el);       // 套裝：同元素 3 隻
-    const tbMul = (1 + trueBodyOf(soul).bonus) * achMul() * codexMul() * bondMul * ascMul * spireMul();   // 真身 × 成就 × 圖鑑 × 羈絆 × 覺醒
+    const sg = sigilInfo();        // 印記：戰績／覺醒里程（無上限）
+    const tbMul = (1 + trueBodyOf(soul).bonus) * achMul() * codexMul() * bondMul * ascMul * spireMul() * sg.mul;   // 真身 × 成就 × 圖鑑 × 羈絆 × 覺醒 × 印記
     /* 三種加成各自乘算，不能全部倒進同一個括號：
        靈環後期 +3600%，若命印（+6%/點）與靈骨（+14~20%）也加在同一個括號裡，
        25 點命印只讓戰力多 5%，玩家會覺得「轉生沒用、戰力卡死」。
@@ -3824,7 +3875,7 @@ textarea, input,
     relicProgress, relicTierWeights, hasRelic, relicCount, rollRelic, relicMilestone, relicBackfill, relicBonus, relicMilestoneInfo,
     setInfo, setMulFor, shopReset, shopInfo, shopBuy, autoStarUp,
     talentLevel, spentMarks, unspentMarks, talentMul, talentInfo, learnTalent, resetTalents, combatMods,
-    relicLevel, relicUpCost, relicUpgrade, relicInfo,
+    relicLevel, relicUpCost, relicUpgrade, relicInfo, sigilInfo, talentMaxLevel,
     spireReset, spireInfo, spireUse, spireReport, spireStats, spireMul,
     dungeonReset, dungeonInfo, dungeonMark, dungeonReward, dungeonClaim,
     rollAffix, rerollAffix, affixTotals,
@@ -5232,9 +5283,18 @@ textarea, input,
     if (!box) return;
     const info = State.rebirthInfo();
     const pm = CFG.REBIRTH.perMark;
+    /* 世代標示：「第 N 代」是玩家看得到的進度感；英文用 Gen N（不要走 T() 的插值模板，
+       否則英文模式會出現「第 12 次」這種中英混字） */
+    const gen = (info.rebirths | 0) + 1;
+    const genText = I18N.lang === 'en' ? `Gen ${gen}` : `第 ${gen} 代`;
+    const rebText = I18N.lang === 'en' ? `${info.rebirths | 0} rebirths` : `已轉生 ${info.rebirths | 0} 次`;
+    const talentCap = State.talentMaxLevel();
     box.innerHTML = `
-      <h3><span>🌀 ${T('轉生')} · ${T('命印')} <span class="rb-mark">${info.marks}</span></span>
-          <span class="hint">${T(`第 ${info.rebirths + 1} 次`)}</span></h3>
+      <h3><span>🌀 ${T('轉生')} · ${T('命印')} <span class="rb-mark">${info.marks}</span>
+            <span class="rb-gen">${genText}</span></span>
+          <span class="hint">${rebText}</span></h3>
+      <div class="rb-line">${T('天賦節點上限')} <b>Lv ${talentCap}</b>
+        <span class="hint">（${T('每 2 次轉生 +1 級')}）</span></div>
       <div class="rb-line">${T(`歷史最高：第 ${info.bestStage} 關（需 ${info.minStage} 關）`)}</div>
       <div class="rb-line">${T(`本輪推進：+${info.deep} 關（上次轉生在 第 ${info.lastBest || info.minStage} 關）`)}</div>
       <div class="rb-line">${T(`目前加成：全屬性 +${Math.round(pm.atk * 100 * info.marks)}% · 收益 +${Math.round(pm.income * 100 * info.marks)}%`)}</div>
@@ -5243,6 +5303,7 @@ textarea, input,
       <button id="btnRebirth" class="wide-btn ${info.can ? '' : ''}" ${info.can ? '' : 'disabled'}>
         ${info.can ? T(`轉生（+${info.gain} 命印）`) : T(`要推進到 第 ${info.needStage} 關才能轉生`)}
       </button>
+      ${sigilHtml()}
       ${talentHtml()}`;
     const btn = $('#btnRebirth');
     if (btn) btn.addEventListener('click', () => {
@@ -5257,6 +5318,26 @@ textarea, input,
       }, 4000);
     });
     bindTalents();
+  }
+
+  /* 印記：戰績（最高關卡）與覺醒里程都無上限，本身就是「一直變強」的出口 */
+  function sigilHtml() {
+    const g = State.sigilInfo();
+    return `<div class="checkin-box" style="margin-top:8px">
+      <div class="merge-head"><b>${T('印記')}</b>
+        <span class="hint">${T('全屬性')} +${(Math.round((g.mul - 1) * 1000) / 10)}%</span></div>
+      <div class="merge-row">
+        <span class="mr-name">🏔 ${T('戰績印記')}</span>
+        <span class="hint">×${g.stage} · +${(g.stagePct * 100).toFixed(1)}%</span>
+        <span class="hint">${T('下一枚')} ${g.nextStageAt}</span>
+      </div>
+      <div class="merge-row">
+        <span class="mr-name">✨ ${T('覺醒印記')}</span>
+        <span class="hint">×${g.awaken} · +${(g.awakenPct * 100).toFixed(1)}%</span>
+        <span class="hint">${T('距下一枚')} ${g.nextAwakenIn}</span>
+      </div>
+      <div class="hint" style="margin-top:4px">${T('兩者都沒有上限：每 10 關 +1 枚戰績印記，靈寶收齊後每 10 抽 +1 枚覺醒印記。')}</div>
+    </div>`;
   }
 
   /* 命印天賦樹：3 分支 × 3 節點 × 5 級；投入的命印不再給「每點 +6% 全屬性」 */
@@ -5281,6 +5362,7 @@ textarea, input,
       <div class="merge-head"><b>${T('命印天賦')}</b>
         <span class="hint">${T('未投入')} ${t.unspent} / ${t.total} · ${T('每點全屬性 +6%')}</span></div>
       <div class="hint" style="margin:4px 0 6px">${T('投入天賦的命印改給該節點效果，不再給每點 +6% 全屬性。')}</div>
+      <div class="hint" style="margin:-2px 0 6px">${T('節點上限')} <b>Lv ${t.maxLevel}</b>（${T('每 2 次轉生 +1 級，無上限')}）</div>
       ${rows}
       <button class="mini-btn" id="btnResetTalent" ${t.spent > 0 ? '' : 'disabled'}>
         ${T('重置天賦')}（${t.resetCores} ${T('獸核')}${t.spent ? ` · ${T('退還')} ${t.spent}` : ''}）
@@ -5818,6 +5900,7 @@ textarea, input,
         <span>再 ${info.nextIn} 抽 <b>得一件</b></span>
       </div>
       <div class="hint" style="margin-top:6px">${T('機率隨戰績提升')}：${odds}</div>
+      <div class="hint">${T('覺醒印記')} ×${State.sigilInfo().awaken}（${T('靈寶收齊後每 10 抽 +1，無上限')}）</div>
       <button class="wide-btn small" id="btnRelics" style="margin-top:8px">${T('靈寶收藏')}</button>`);
     const b = $('#btnRelics');
     if (b) b.addEventListener('click', showRelics);

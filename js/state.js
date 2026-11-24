@@ -400,8 +400,16 @@
   }
 
   /* ---------- 命印天賦樹 ---------- */
+  /* v1.21.0：天賦上限不是固定的 5 級——每 2 次轉生 +1 級（上限 99）。
+     這是「每次轉生要能升級更多項目」的實作：轉生越多，同一棵樹能繼續點高。 */
+  function talentMaxLevel() {
+    const n = Math.max(0, S.rebirths | 0);
+    return Math.min(CFG.SIGIL.talentCap,
+      CFG.SIGIL.talentBase + Math.floor(n / CFG.SIGIL.talentPerRebirth));
+  }
+
   function talentLevel(nid) {
-    return Math.min(CFG.TALENTS.maxLevel, ((S.talents || {})[nid] | 0));
+    return Math.min(talentMaxLevel(), ((S.talents || {})[nid] | 0));
   }
   function spentMarks() {
     let n = 0;
@@ -424,11 +432,12 @@
     return {
       total: S.marks | 0, spent: spentMarks(), unspent: unspentMarks(),
       resetCores: CFG.TALENTS.resetCores, mul: t,
+      maxLevel: talentMaxLevel(),
       branches: CFG.TALENTS.branches.map((b) => ({
         id: b.id, name: b.name,
         nodes: b.nodes.map((nd) => ({
           id: nd.id, name: nd.name, label: nd.label, per: nd.per, stat: nd.stat,
-          level: talentLevel(nd.id), max: CFG.TALENTS.maxLevel,
+          level: talentLevel(nd.id), max: talentMaxLevel(),
         })),
       })),
     };
@@ -444,7 +453,7 @@
     const nd = talentNode(nid);
     if (!nd) return { ok: false, msg: T('沒有這個天賦') };
     const lv = talentLevel(nid);
-    if (lv >= CFG.TALENTS.maxLevel) return { ok: false, msg: T('已滿級') };
+    if (lv >= talentMaxLevel()) return { ok: false, msg: T('已滿級') };
     if (unspentMarks() < 1) return { ok: false, msg: T('沒有可用的命印') };
     S.talents[nid] = lv + 1;
     return { ok: true, level: lv + 1, node: nd };
@@ -457,6 +466,22 @@
     S.cores -= cost;
     S.talents = {};
     return { ok: true, refunded: spent };
+  }
+
+  /* ---------- 印記：無上限的戰績／覺醒成長 ---------- */
+  function sigilInfo() {
+    const stageMarks = Math.max(0, Math.floor((S.bestStage | 0) / CFG.SIGIL.perStage));
+    const milestones = Math.max(0, Math.floor((S.ticketPulls | 0) / CFG.RELIC.every));
+    const awakenMarks = Math.max(0, milestones - CFG.RELICS.length);
+    const stagePct = stageMarks * CFG.SIGIL.stageBonus;
+    const awakenPct = awakenMarks * CFG.SIGIL.awakenBonus;
+    return {
+      stage: stageMarks, awaken: awakenMarks,
+      stagePct, awakenPct,
+      mul: (1 + stagePct) * (1 + awakenPct),
+      nextStageAt: (stageMarks + 1) * CFG.SIGIL.perStage,
+      nextAwakenIn: CFG.RELIC.every - ((S.ticketPulls | 0) % CFG.RELIC.every),
+    };
   }
 
   /* ---------- 商店（每日 6 格）---------- */
@@ -970,7 +995,8 @@
     const cb = combosInfo().stat;   // 元素組合：atk / hp / def / spd 各自乘算
     const rl = relicBonus();        // 靈寶：限量收藏品，永久加成
     const st = setMulFor(el);       // 套裝：同元素 3 隻
-    const tbMul = (1 + trueBodyOf(soul).bonus) * achMul() * codexMul() * bondMul * ascMul * spireMul();   // 真身 × 成就 × 圖鑑 × 羈絆 × 覺醒
+    const sg = sigilInfo();        // 印記：戰績／覺醒里程（無上限）
+    const tbMul = (1 + trueBodyOf(soul).bonus) * achMul() * codexMul() * bondMul * ascMul * spireMul() * sg.mul;   // 真身 × 成就 × 圖鑑 × 羈絆 × 覺醒 × 印記
     /* 三種加成各自乘算，不能全部倒進同一個括號：
        靈環後期 +3600%，若命印（+6%/點）與靈骨（+14~20%）也加在同一個括號裡，
        25 點命印只讓戰力多 5%，玩家會覺得「轉生沒用、戰力卡死」。
@@ -1619,7 +1645,7 @@
     relicProgress, relicTierWeights, hasRelic, relicCount, rollRelic, relicMilestone, relicBackfill, relicBonus, relicMilestoneInfo,
     setInfo, setMulFor, shopReset, shopInfo, shopBuy, autoStarUp,
     talentLevel, spentMarks, unspentMarks, talentMul, talentInfo, learnTalent, resetTalents, combatMods,
-    relicLevel, relicUpCost, relicUpgrade, relicInfo,
+    relicLevel, relicUpCost, relicUpgrade, relicInfo, sigilInfo, talentMaxLevel,
     spireReset, spireInfo, spireUse, spireReport, spireStats, spireMul,
     dungeonReset, dungeonInfo, dungeonMark, dungeonReward, dungeonClaim,
     rollAffix, rerollAffix, affixTotals,

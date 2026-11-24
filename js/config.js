@@ -180,6 +180,17 @@
     water: { stat: 'hunt', bonus: 0.08 },
   };
 
+  /* v1.21.0：無盡成長（印記）
+     玩家訴求「戰績增加可以無上限升級」→ 用既有計數推導，不新增存檔欄位、不新增貨幣：
+       戰績印記 = floor(最高關卡 / 10)，每枚 +0.2% 全屬性
+       覺醒印記 = max(0, floor(券抽次數 / 10) - 12)，每枚 +0.3% 全屬性（12 = 靈寶件數）
+     兩個都沒有上限；靈寶收齊後的里程同時給獸核與覺醒印記。 */
+  const SIGIL = {
+    perStage: 10, stageBonus: 0.002,
+    awakenBonus: 0.003,
+    talentBase: 5, talentPerRebirth: 2, talentCap: 99,
+  };
+
   /* v1.20.0：離線經驗上限 —— 只推進到「等級上限 × ratio」。
      原本離線 2 小時就能從 Lv12 衝到 Lv100（實測），掛機價值有了但等級變無意義。
      0.8 = 保留「掛一晚升一截」的爽感，又留下 20% 要自己打。 */
@@ -243,7 +254,7 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.20.2';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.21.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -529,7 +540,7 @@
     BEASTS, BEAST_BY_ID, STAGE_AREAS, areaFor,
     VERSION, MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
     RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR, COUNTER, BOND, ASCEND, CORE_DROP, ELITE,
-    INHERIT, DEPTH, COMBOS, SET_BONUS, SHOP, RELIC_TIERS, SPEEDS, TALENTS, OFFLINE, RELIC_BY_KEY, RELICS, RELIC,
+    INHERIT, DEPTH, COMBOS, SET_BONUS, SHOP, RELIC_TIERS, SPEEDS, TALENTS, OFFLINE, SIGIL, RELIC_BY_KEY, RELICS, RELIC,
     SPIRE, DUNGEON, DUNGEONS, AFFIX, AFFIX_BY_KEY,
     RING_ORDER, RING_MERGE_COUNT,
     BASE_KILLS_PER_STAGE, killsPerStage, waveSecFor, bossSecFor, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND, STAR_MAX,

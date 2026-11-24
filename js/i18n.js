@@ -175,6 +175,14 @@
     '疾行': 'Swiftness', '財源': 'Fortune', '獸緣': 'Beast Bond',
     '攻擊': 'ATK', '爆擊率': 'Crit', '生命': 'HP',
     '防禦': 'DEF', '速度': 'SPD', '靈幣收益': 'Coins',
+    /* v1.21.0 印記（無上限成長） */
+    '印記': 'Sigils', '戰績印記': 'Stage sigils', '覺醒印記': 'Awaken sigils',
+    '下一枚': 'next at', '距下一枚': 'to next',
+    '天賦節點上限': 'Talent node cap', '每 2 次轉生 +1 級': '+1 level every 2 rebirths',
+    '兩者都沒有上限：每 10 關 +1 枚戰績印記，靈寶收齊後每 10 抽 +1 枚覺醒印記。':
+      'Neither is capped: +1 stage sigil every 10 stages, and +1 awaken sigil every 10 pulls once all relics are collected.',
+    '靈寶收齊後每 10 抽 +1，無上限': 'once relics are complete: +1 per 10 pulls, uncapped',
+    '節點上限': 'Node cap', '每 2 次轉生 +1 級，無上限': 'every 2 rebirths adds a level, no cap',
     /* v1.20.0 離線經驗上限 */
     '離線經驗上限': 'Offline EXP cap', '原始': 'raw', '目前關卡': 'Stage',
     /* v1.19.0 靈寶升級 / 離線明細 / 自動化優先序 */
@@ -418,10 +426,10 @@
     [/^升星（(\d+)\s*靈骨・(\d+)）$/, 'Star up ($1 bones · $2)'],
     [/^轉生（\+(\d+)\s*命印）$/, 'Rebirth (+$1 marks)'],
     [/^\+(\d+)\s*命印$/, '+$1 marks'],
-    [/^（每點全屬性 \+(\d+)%、收益 \+(\d+)%）$/, '(each mark: +$1% all stats, +$2% income)'],
+    [/^（每點全屬性 \+(\d+)%、收益 \+(\d+)%）$/, ' (each unspent mark: +$1% all stats, +$2% income)'],
     [/^歷史最高：第\s*(\d+)\s*關（需 (\d+) 關）$/, 'Best stage $1 (needs $2)'],
     [/^目前加成：全屬性 \+(\d+)% · 收益 \+(\d+)%$/, 'Bonus: +$1% all stats · +$2% income'],
-    [/^這次轉生可得：$/, 'This rebirth grants:'],
+    [/^這次轉生可得：$/, 'This rebirth grants: '],
     [/^Lv\.(\d+)（每 10 級開 1 槽）｜(.+)$/, 'Lv.$1 (1 slot / 10 levels) · $2'],
     [/^擊殺靈獸：靈幣 \+(\d+)、經驗 \+(\d+)$/, 'Beast slain: +$1 coins, +$2 EXP'],
     [/^等級提升 → Lv\.(\d+)$/, 'Level up → Lv.$1'],
