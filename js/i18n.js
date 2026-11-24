@@ -175,6 +175,18 @@
     '疾行': 'Swiftness', '財源': 'Fortune', '獸緣': 'Beast Bond',
     '攻擊': 'ATK', '爆擊率': 'Crit', '生命': 'HP',
     '防禦': 'DEF', '速度': 'SPD', '靈幣收益': 'Coins',
+    /* v1.22.0 世界王 / 賽季 */
+    '世界王': 'World Boss', '世界王戰鬥中': 'World boss fight', '剩餘次數': 'Attempts left', '最佳': 'Best', '開戰': 'Fight',
+    '傷害': 'Damage', '賽季印記': 'Season sigil', '本季還有': 'season ends in',
+    '累積': 'total', '未達第一檔，可重打': 'below tier 1 — retry any time',
+    '世界王討伐成功': 'World boss defeated', '世界王時間到': "Time's up",
+    '世界王開戰：60 秒內盡量輸出': 'World boss: 60 seconds, deal as much as you can',
+    '世界王次數已用完': 'No attempts left today', '戰鬥中無法挑戰世界王': 'Cannot start while fighting',
+    '本季已領': 'Already claimed this season',
+    '每天一隻、限時 60 秒；打掉的血量比例決定獎勵，達第一檔才計次。':
+      'One boss per day, 60 second limit. Rewards scale with the share of HP you remove; only tier 1 or better uses the attempt.',
+    '沒有上陣靈印': 'No spirits on the team',
+    '噬星獸': 'Star Devourer', '燼獄魔': 'Ember Fiend', '深淵之眼': 'Abyssal Eye',
     /* v1.21.0 印記（無上限成長） */
     '印記': 'Sigils', '戰績印記': 'Stage sigils', '覺醒印記': 'Awaken sigils',
     '下一枚': 'next at', '距下一枚': 'to next',

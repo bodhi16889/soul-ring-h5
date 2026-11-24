@@ -32,6 +32,8 @@
     const res = State.load();
     bindNav();
     bindCodex();
+    const wb = $('#btnWorld');
+    if (wb) wb.addEventListener('click', showWorldBoss);
     const spdBtn = $('#btnSpeed');
     if (spdBtn) spdBtn.addEventListener('click', () => {
       const list = CFG.SPEEDS;
@@ -39,7 +41,7 @@
       const next = list[(list.indexOf(cur) + 1) % list.length];
       State.data.settings.speed = next;
       State.save(true);
-      renderSpeed();
+    renderSpeed();
       toast(`${T('倍速')} ×${next}`);
     });
     const bs = $('#btnSpire'); if (bs) bs.addEventListener('click', showSpire);
@@ -122,6 +124,16 @@
     });
   }
 
+  function renderWorldBtn() {
+    const b = $('#btnWorld');
+    if (!b) return;
+    const info = State.worldInfo();
+    b.textContent = I18N.lang === 'en'
+      ? `World Boss (${info.left}/${CFG.WORLD.perDay})`
+      : `世界王（${info.left}/${CFG.WORLD.perDay}）`;
+    b.disabled = info.left <= 0;
+  }
+
   function renderSpeed() {
     const btn = $('#btnSpeed');
     if (!btn) return;
@@ -152,20 +164,38 @@
     } else {
       $('#stageNum').textContent = snap.stage;
     }
-    $('#progText').textContent = `${Math.min(snap.kills, snap.needed)} / ${snap.needed}`;
-    $('#progBar').style.width = Math.min(100, (snap.kills / snap.needed) * 100) + '%';
-
-    const rate = CFG.offlinePerMinute(snap.stage);
-    $('#rateText').textContent = I18N.lang === 'en'
-      ? `${fmt(rate.coins)} coins/min · ${fmt(rate.exp)} EXP/min`
-      : T(`靈幣 ${fmt(rate.coins)}/分 · 經驗 ${fmt(rate.exp)}/分`);
+    const W = Battle.state;
+    const isWorld = snap.mode === 'world' && W.worldMaxHp > 0;
+    if (isWorld) {
+      /* 世界王：進度條改成「王血被打掉多少」，文字列改成倒數＋傷害% */
+      const pct = Math.max(0, Math.min(100, (W.worldDmg / W.worldMaxHp) * 100));
+      $('#progText').textContent = `${pct.toFixed(0)}%`;
+      $('#progBar').style.width = pct + '%';
+      const left = Math.max(0, Math.ceil(W.worldLeft));
+      const rl = $('#rateLabel');
+      if (rl) rl.textContent = T('世界王');
+      $('#rateText').textContent = I18N.lang === 'en'
+        ? `${left}s · damage ${pct.toFixed(0)}%`
+        : `${left} 秒 · 傷害 ${pct.toFixed(0)}%`;
+    } else {
+      $('#progText').textContent = `${Math.min(snap.kills, snap.needed)} / ${snap.needed}`;
+      $('#progBar').style.width = Math.min(100, (snap.kills / snap.needed) * 100) + '%';
+      const rl2 = $('#rateLabel');
+      if (rl2) rl2.textContent = T('掛機效率');
+      const rate = CFG.offlinePerMinute(snap.stage);
+      $('#rateText').textContent = I18N.lang === 'en'
+        ? `${fmt(rate.coins)} coins/min · ${fmt(rate.exp)} EXP/min`
+        : T(`靈幣 ${fmt(rate.coins)}/分 · 經驗 ${fmt(rate.exp)}/分`);
+    }
 
     const capped = State.atCap();
     const bossBtn = $('#bossBtn');
-    bossBtn.disabled = !snap.pendingBoss;
-    bossBtn.textContent = snap.pendingBoss
-      ? T(`挑戰 BOSS（${Math.round((CFG.AUTO_BOSS_DELAY || 1800) / 1000)} 秒後自動）`)
-      : capped ? T(`關卡清完 · 去打靈環`) : T(`清怪 ${snap.kills}/${snap.needed}`);
+    bossBtn.disabled = !snap.pendingBoss || isWorld;
+    bossBtn.textContent = isWorld
+      ? T('世界王戰鬥中')
+      : snap.pendingBoss
+        ? T(`挑戰 BOSS（${Math.round((CFG.AUTO_BOSS_DELAY || 1800) / 1000)} 秒後自動）`)
+        : capped ? T(`關卡清完 · 去打靈環`) : T(`清怪 ${snap.kills}/${snap.needed}`);
 
     renderTeam(snap.units);
     renderEnemies(snap.enemies || [], snap.mode);
@@ -458,6 +488,40 @@
           if (!r.ok) { toast(r.msg); return; }
           closeModal(); switchTab('battle'); renderAll();
           toast(T('深塔挑戰開始'));
+        } },
+       { text: T('關閉'), kind: '' }]);
+  }
+
+  function showWorldBoss() {
+    const info = State.worldInfo();
+    const tierRows = info.tiers.map((t, i) => {
+      const r = t.reward;
+      const bits = [];
+      if (r.cores) bits.push(`${r.cores} ${T('獸核')}`);
+      if (r.coins) bits.push(`${fmt(r.coins)} ${T('靈幣')}`);
+      if (r.tickets) bits.push(`${r.tickets} ${T('覺醒券')}`);
+      return `<div class="merge-row">
+        <span class="mr-name">${I18N.lang === 'en' ? `Tier ${i + 1}` : `第 ${i + 1} 檔`}</span>
+        <span class="hint">≥ ${Math.round(t.pct * 100)}%</span>
+        <span class="hint">${bits.join(' · ')}</span>
+      </div>`;
+    }).join('');
+    openModal(T('世界王'), T(`
+      <div class="hint">${T('每天一隻、限時 60 秒；打掉的血量比例決定獎勵，達第一檔才計次。')}</div>
+      <div class="stats" style="margin-top:8px">
+        <span>${info.boss.emoji} <b>${T(info.boss.name)}</b></span>
+        <span>${T('剩餘次數')} <b>${info.left}</b></span>
+        <span>${T('最佳')} <b>${info.best}%</b></span>
+      </div>
+      ${tierRows}
+      <div class="hint" style="margin-top:6px">${T('賽季印記')} ×${info.season.total}
+        （${T('全屬性')} +${Math.round((info.season.mul - 1) * 100)}%）
+        · ${T('本季還有')} ${info.season.daysLeft} ${T('天')}</div>`),
+      [{ text: T('開戰'), kind: 'primary', onClick: () => {
+          const r = Battle.worldStart();
+          if (!r.ok) { toast(r.msg); return; }
+          closeModal(); switchTab('battle'); renderAll();
+          toast(T('世界王開戰：60 秒內盡量輸出'));
         } },
        { text: T('關閉'), kind: '' }]);
   }
@@ -1342,6 +1406,7 @@
   function renderAll() {
     renderTop();
     renderSpireBtn();
+    renderWorldBtn();
     renderSpeed();
     renderBattle();
     renderSouls();
@@ -1449,6 +1514,17 @@
       case 'huntLose':
         addLog(T(`獵靈失敗：${ev.beast ? ev.beast.name : T('靈獸')} 太強，15 秒後可再試（先去升級或補靈骨）`), 'c-bad');
         break;
+      case 'worldEnd': {
+        const bits = [];
+        if (ev.reward && ev.reward.cores) bits.push(`${ev.reward.cores} ${T('獸核')}`);
+        if (ev.reward && ev.reward.coins) bits.push(`${fmt(ev.reward.coins)} ${T('靈幣')}`);
+        if (ev.reward && ev.reward.tickets) bits.push(`${ev.reward.tickets} ${T('覺醒券')}`);
+        banner(ev.cleared ? T('世界王討伐成功') : T('世界王時間到'));
+        addLog(`${T('世界王')} · ${T('傷害')} ${ev.pct}%`
+          + (bits.length ? ` · ${bits.join(' / ')}` : ` · ${T('未達第一檔，可重打')}`), ev.cleared ? 'c-ok' : 'c-bad');
+        if (ev.season && ev.season.ok) addLog(`${T('賽季印記')} +1（${T('累積')} ${ev.season.total}）`, 'c-gold');
+        break;
+      }
       case 'spireClear': {
         addLog(`${T('深塔')} ${T('第關')} ${ev.floor} ${T('層')}${ev.newBest ? ' · ' + T('新紀錄') : ''}`, ev.boss ? 'c-gold' : 'c-purple');
         if (ev.floor % 10 === 0) toast(`${T('深塔')} ${ev.floor} ${T('層')} → +${CFG.SPIRE.coreAmount} ${T('獸核')}`);

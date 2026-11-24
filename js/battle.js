@@ -23,6 +23,9 @@
     autoReviveAt: 0,
     autoAt: 0,
     waveNo: 0,
+    worldLeft: 0,          // 世界王剩餘秒數
+    worldDmg: 0,           // 世界王累積傷害
+    worldMaxHp: 0,         // 世界王血量（開戰時計算）
   };
 
   /* 舊介面：Battle.state.enemy / snapshot().enemy 仍回傳「第一隻活著的敵人」 */
@@ -74,6 +77,21 @@
       }];
       B.spireFloor = st.floor;
       emit('spireWave', { floor: st.floor, boss: st.boss });
+      return;
+    }
+    if (kind === 'world') {
+      /* 世界王：固定一隻、不套橡皮筋（血量在開戰時依「你的 DPS × 秒數 × 倍率」算好），
+         所以打掉幾 % 就是這一輪的成績。 */
+      const units = B.units.filter((u) => u.maxHp > 0);
+      const weakest = Math.min.apply(null, units.map((u) => u.maxHp));
+      const boss = State.worldBoss();
+      B.enemies = [{
+        id: 'world_' + boss.id, name: boss.name, emoji: boss.emoji,
+        maxHp: B.worldMaxHp, hp: B.worldMaxHp, atk: Math.max(1, Math.round(weakest * CFG.WORLD.atkOfWeakest)),
+        def: Math.round(State.teamStats().atk * 0.10), spd: 95,
+        gauge: 0, stun: 0, alive: true, boss: true, world: true, acts: 0, enraged: false,
+      }];
+      emit('worldWave', { boss, hp: B.worldMaxHp });
       return;
     }
     if (kind === 'dungeon') {
@@ -265,6 +283,38 @@
     return r;
   }
 
+  /* ---------- 每日世界王 ---------- */
+  function worldStart() {
+    if (B.mode !== 'farm') return { ok: false, msg: T('戰鬥中無法挑戰世界王') };
+    const use = State.worldUse();
+    if (!use.ok) return use;
+    const units = B.units.filter((u) => u.maxHp > 0);
+    if (!units.length) return { ok: false, msg: T('沒有上陣靈印') };
+    const st = State.teamStats();
+    const dps = units.reduce((a, u) => a + u.atk * actsPerSec(u.spd) * 0.85, 0);
+    B.worldMaxHp = Math.max(1000, Math.round(dps * CFG.WORLD.seconds * CFG.WORLD.hpMul));
+    B.worldDmg = 0;
+    B.worldLeft = CFG.WORLD.seconds;
+    B.mode = 'world';
+    reviveTeam(true);
+    spawnWave('world');
+    emit('worldStart', { boss: State.worldBoss(), hp: B.worldMaxHp, seconds: CFG.WORLD.seconds });
+    return { ok: true, left: use.left, hp: B.worldMaxHp };
+  }
+
+  function worldEnd(reason) {
+    const pct = B.worldMaxHp ? Math.min(1, B.worldDmg / B.worldMaxHp) : 0;
+    const r = State.worldReport(pct);
+    B.mode = 'farm';
+    B.worldLeft = 0;
+    B.worldDmg = 0;
+    B.worldMaxHp = 0;
+    reviveTeam(true);
+    spawnWave('farm');
+    emit('worldEnd', Object.assign({ reason }, r));
+    return r;
+  }
+
   /* ---------- 每日副本 ---------- */
   function dungeonStart(id) {
     if (B.mode !== 'farm') return { ok: false, msg: T('戰鬥中無法進入副本') };
@@ -303,6 +353,12 @@
     if (B.adBreak || (typeof window !== 'undefined' && window.__gpPaused)) return;
     if (!B.enemies.length) spawnWave(B.mode === 'hunt' ? 'hunt' : (B.mode === 'boss' ? 'boss' : 'farm'));
 
+    /* 世界王：限時倒數。速度倍率也一起吃（雙方同步加速），所以 x3 不會變成免費多打。 */
+    if (B.mode === 'world') {
+      B.worldLeft -= DT * rate();
+      if (B.worldLeft <= 0) { B.worldLeft = 0; worldEnd('timeout'); return; }
+    }
+
     // 全滅 → 2 秒後自動復活（放置遊戲不要卡死）
     if (!B.units.some((u) => u.alive)) {
       if (!B.autoReviveAt) {
@@ -328,6 +384,11 @@
       if (cleared % CFG.SPIRE.coreEvery === 0) State.addCores(CFG.SPIRE.coreAmount);
       B.spireFloor = cleared + 1;
       spawnWave('spire');
+      return;
+    }
+
+    if (B.mode === 'world') {
+      worldEnd('kill');
       return;
     }
 
@@ -393,6 +454,7 @@
          boss = 推進優先（預設，卡關才去獵靈）
          hunt = 獵靈優先（有空位就打得到就獵，之後才回頭打王）
          farm = 只推關（不自動打王、不自動獵靈 → 會停在 BOSS 前，這是玩家自己的選擇） */
+    if (B.mode === 'world') return;      // 世界王期間不要自動插隊
     const pri = cfg.autoPriority || 'boss';
     if (pri === 'farm') return;
 
@@ -530,6 +592,11 @@
     if (B.mode === 'hunt') {
       const mul = (B.huntCounter ? B.huntCounter.mult : 1) * (B.huntCombo || 1);
       if (mul !== 1) dmg = Math.max(1, Math.round(dmg * mul));
+    }
+    if (B.mode === 'world') {
+      /* 世界王只累積傷害，不做五行／連擊加成（那些是狩獵場的規則） */
+      const cap = Math.max(0, enemy.hp);
+      B.worldDmg += Math.min(dmg, cap);
     }
     enemy.hp -= dmg;
     const leech = State.combatMods ? (State.combatMods().leech || 0) : 0;
@@ -751,7 +818,7 @@
   }
 
   global.Battle = {
-    spireStart, spireEnd, dungeonStart,
+    spireStart, spireEnd, worldStart, worldEnd, dungeonStart,
     init, start, stop, refreshTeam, challengeBoss, hunt, backToFarm, reviveTeam,
     on, snapshot, spawnWave, targetEnemy,
     /* 測試用內部鉤子（不影響遊戲流程） */

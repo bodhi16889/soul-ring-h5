@@ -606,6 +606,7 @@ textarea, input,
       <div class="acts" style="display:flex;gap:8px;margin:6px 0 2px">
         <button id="btnSpire" class="mini-btn" data-i18n="無盡深塔">無盡深塔</button>
         <button id="btnDungeon" class="mini-btn" data-i18n="每日副本">每日副本</button>
+        <button id="btnWorld" class="mini-btn">世界王</button>
         <button id="btnSpeed" class="mini-btn" data-i18n="倍速">倍速 ×1</button>
       </div>
       <div class="stage-info">
@@ -615,7 +616,7 @@ textarea, input,
         </div>
         <div class="prog-bar"><i id="progBar"></i></div>
         <div class="rate-row">
-          <span data-i18n="掛機效率">掛機效率</span>
+          <span id="rateLabel" data-i18n="掛機效率">掛機效率</span>
           <span id="rateText">靈幣 0/分 · 經驗 0/分</span>
         </div>
       </div>
@@ -886,6 +887,18 @@ textarea, input,
     '疾行': 'Swiftness', '財源': 'Fortune', '獸緣': 'Beast Bond',
     '攻擊': 'ATK', '爆擊率': 'Crit', '生命': 'HP',
     '防禦': 'DEF', '速度': 'SPD', '靈幣收益': 'Coins',
+    /* v1.22.0 世界王 / 賽季 */
+    '世界王': 'World Boss', '世界王戰鬥中': 'World boss fight', '剩餘次數': 'Attempts left', '最佳': 'Best', '開戰': 'Fight',
+    '傷害': 'Damage', '賽季印記': 'Season sigil', '本季還有': 'season ends in',
+    '累積': 'total', '未達第一檔，可重打': 'below tier 1 — retry any time',
+    '世界王討伐成功': 'World boss defeated', '世界王時間到': "Time's up",
+    '世界王開戰：60 秒內盡量輸出': 'World boss: 60 seconds, deal as much as you can',
+    '世界王次數已用完': 'No attempts left today', '戰鬥中無法挑戰世界王': 'Cannot start while fighting',
+    '本季已領': 'Already claimed this season',
+    '每天一隻、限時 60 秒；打掉的血量比例決定獎勵，達第一檔才計次。':
+      'One boss per day, 60 second limit. Rewards scale with the share of HP you remove; only tier 1 or better uses the attempt.',
+    '沒有上陣靈印': 'No spirits on the team',
+    '噬星獸': 'Star Devourer', '燼獄魔': 'Ember Fiend', '深淵之眼': 'Abyssal Eye',
     /* v1.21.0 印記（無上限成長） */
     '印記': 'Sigils', '戰績印記': 'Stage sigils', '覺醒印記': 'Awaken sigils',
     '下一枚': 'next at', '距下一枚': 'to next',
@@ -1854,6 +1867,29 @@ textarea, input,
     water: { stat: 'hunt', bonus: 0.08 },
   };
 
+  /* v1.22.0：每日世界王（單機版）與賽季印記
+     世界王：每天一隻、限時 60 秒、每日 1 次；傷害佔王血的比例分三檔給獎。
+     王血在開戰時依「你的 DPS × 60 秒 × 1.6」計算 → 滿輸出可打穿、弱一點也拿得到第一檔。
+     賽季：每 14 天為一季，每季首次參戰給 1 枚賽季印記（永久 +1% 全屬性）。 */
+  const WORLD = {
+    perDay: 1,
+    seconds: 60,
+    hpMul: 1.6,
+    atkOfWeakest: 0.10,
+    tiers: [0.34, 0.67, 1.0],
+    rewards: [
+      { cores: 4, coins: 12000, tickets: 0 },
+      { cores: 8, coins: 30000, tickets: 1 },
+      { cores: 14, coins: 60000, tickets: 2 },
+    ],
+  };
+  const WORLD_BOSSES = [
+    { id: 'devourer',  name: '噬星獸', emoji: '🕳', element: 'earth' },
+    { id: 'pyroclast', name: '燼獄魔', emoji: '🔥', element: 'fire' },
+    { id: 'abysseye',  name: '深淵之眼', emoji: '👁', element: 'water' },
+  ];
+  const SEASON = { days: 14, markBonus: 0.01 };
+
   /* v1.21.0：無盡成長（印記）
      玩家訴求「戰績增加可以無上限升級」→ 用既有計數推導，不新增存檔欄位、不新增貨幣：
        戰績印記 = floor(最高關卡 / 10)，每枚 +0.2% 全屬性
@@ -1928,7 +1964,7 @@ textarea, input,
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.21.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.22.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -2214,7 +2250,7 @@ textarea, input,
     BEASTS, BEAST_BY_ID, STAGE_AREAS, areaFor,
     VERSION, MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
     RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR, COUNTER, BOND, ASCEND, CORE_DROP, ELITE,
-    INHERIT, DEPTH, COMBOS, SET_BONUS, SHOP, RELIC_TIERS, SPEEDS, TALENTS, OFFLINE, SIGIL, RELIC_BY_KEY, RELICS, RELIC,
+    INHERIT, DEPTH, COMBOS, SET_BONUS, SHOP, RELIC_TIERS, SPEEDS, TALENTS, OFFLINE, SIGIL, WORLD, WORLD_BOSSES, SEASON, RELIC_BY_KEY, RELICS, RELIC,
     SPIRE, DUNGEON, DUNGEONS, AFFIX, AFFIX_BY_KEY,
     RING_ORDER, RING_MERGE_COUNT,
     BASE_KILLS_PER_STAGE, killsPerStage, waveSecFor, bossSecFor, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND, STAR_MAX,
@@ -2277,6 +2313,8 @@ textarea, input,
       shop: { day: '', bought: {} },          // 商店：今日各格已買次數
       talents: {},                            // 命印天賦：nodeId → 等級
       relicLv: {},                            // 靈寶等級：id → 1..5
+      world: { day: '', used: 0, best: 0 },   // 世界王：日期 / 今日已用 / 最佳傷害%
+      season: { idx: -1, total: 0 },          // 賽季印記：本季編號 / 累積枚數
       settings: { autoRing: true, autoBoss: true, autoHunt: true, autoMerge: true, autoStar: true, speed: 1, autoPriority: 'boss' },
       rerolls: 0,                             // 重鑄券（商店買）
       elite: { day: '', ids: [] },   // 今日已打的精英靈獸
@@ -2396,6 +2434,8 @@ textarea, input,
     if (!out.shop.bought || typeof out.shop.bought !== 'object') out.shop.bought = {};
     out.rerolls = Math.max(0, out.rerolls | 0);
     out.talents = Object.assign({}, (d && d.talents) || {});
+    out.world = Object.assign({ day: '', used: 0, best: 0 }, (d && d.world) || {});
+    out.season = Object.assign({ idx: -1, total: 0 }, (d && d.season) || {});
     out.relicLv = Object.assign({}, (d && d.relicLv) || {});
     Object.keys(out.relicLv).forEach((k) => {
       out.relicLv[k] = Math.max(1, Math.min(CFG.RELIC.maxLevel, out.relicLv[k] | 0));
@@ -2696,6 +2736,71 @@ textarea, input,
     S.cores -= cost;
     S.talents = {};
     return { ok: true, refunded: spent };
+  }
+
+  /* ---------- 每日世界王 ---------- */
+  function epochDay() { return Math.floor(Date.now() / 86400000); }
+  function worldReset() {
+    const k = todayKey();
+    if (!S.world || S.world.day !== k) S.world = { day: k, used: 0, best: (S.world && S.world.best) | 0 };
+  }
+  function worldBoss() {
+    const list = CFG.WORLD_BOSSES;
+    return list[epochDay() % list.length];
+  }
+  function worldInfo() {
+    worldReset();
+    const boss = worldBoss();
+    return {
+      boss, used: S.world.used | 0, left: Math.max(0, CFG.WORLD.perDay - (S.world.used | 0)),
+      best: S.world.best | 0, seconds: CFG.WORLD.seconds,
+      tiers: CFG.WORLD.tiers.map((t, i) => ({ pct: t, reward: CFG.WORLD.rewards[i] })),
+      season: seasonInfo(),
+    };
+  }
+  function worldUse() {
+    worldReset();
+    if ((S.world.used | 0) >= CFG.WORLD.perDay) return { ok: false, msg: T('今日世界王次數已用完') };
+    return { ok: true, left: CFG.WORLD.perDay - (S.world.used | 0) };
+  }
+  /* 結算：pct = 打掉王血的比例（0..1）。達第一檔才計次，否則可重打。 */
+  function worldReport(pct) {
+    worldReset();
+    pct = Math.max(0, Math.min(1, Number(pct) || 0));
+    const before = S.world.best | 0;
+    const pctInt = Math.round(pct * 100);
+    if (pctInt > before) S.world.best = pctInt;
+    const idx = CFG.WORLD.tiers.findIndex((t) => pct >= t);
+    let reward = null;
+    let cleared = false;
+    if (idx >= 0) {
+      cleared = true;
+      if ((S.world.used | 0) < CFG.WORLD.perDay) S.world.used = (S.world.used | 0) + 1;
+      reward = CFG.WORLD.rewards[idx];
+      if (reward.cores) addCores(reward.cores);
+      if (reward.coins) S.coins += Math.round(reward.coins * incomeMul());
+      if (reward.tickets) S.tickets += reward.tickets;
+    }
+    const season = seasonMark();
+    return { pct: pctInt, best: S.world.best, newBest: pctInt > before,
+             cleared, tier: idx, reward, season };
+  }
+
+  /* ---------- 賽季印記（每 14 天一季，每季首次參戰 +1 枚）---------- */
+  function seasonIndex() { return Math.floor(epochDay() / CFG.SEASON.days); }
+  function seasonInfo() {
+    const idx = seasonIndex();
+    const total = (S.season && S.season.total) | 0;
+    const claimed = !!(S.season && S.season.idx === idx);
+    return { idx, total, claimed, daysLeft: CFG.SEASON.days - (epochDay() % CFG.SEASON.days),
+             mul: 1 + total * CFG.SEASON.markBonus };
+  }
+  function seasonMark() {
+    const idx = seasonIndex();
+    if (S.season && S.season.idx === idx) return { ok: false, msg: T('本季已領') };
+    const total = ((S.season && S.season.total) | 0) + 1;
+    S.season = { idx, total };
+    return { ok: true, total, mul: 1 + total * CFG.SEASON.markBonus };
   }
 
   /* ---------- 印記：無上限的戰績／覺醒成長 ---------- */
@@ -3226,7 +3331,7 @@ textarea, input,
     const rl = relicBonus();        // 靈寶：限量收藏品，永久加成
     const st = setMulFor(el);       // 套裝：同元素 3 隻
     const sg = sigilInfo();        // 印記：戰績／覺醒里程（無上限）
-    const tbMul = (1 + trueBodyOf(soul).bonus) * achMul() * codexMul() * bondMul * ascMul * spireMul() * sg.mul;   // 真身 × 成就 × 圖鑑 × 羈絆 × 覺醒 × 印記
+    const tbMul = (1 + trueBodyOf(soul).bonus) * achMul() * codexMul() * bondMul * ascMul * spireMul() * sg.mul * seasonInfo().mul;   // 真身 × 成就 × 圖鑑 × 羈絆 × 覺醒 × 印記
     /* 三種加成各自乘算，不能全部倒進同一個括號：
        靈環後期 +3600%，若命印（+6%/點）與靈骨（+14~20%）也加在同一個括號裡，
        25 點命印只讓戰力多 5%，玩家會覺得「轉生沒用、戰力卡死」。
@@ -3876,6 +3981,7 @@ textarea, input,
     setInfo, setMulFor, shopReset, shopInfo, shopBuy, autoStarUp,
     talentLevel, spentMarks, unspentMarks, talentMul, talentInfo, learnTalent, resetTalents, combatMods,
     relicLevel, relicUpCost, relicUpgrade, relicInfo, sigilInfo, talentMaxLevel,
+    worldInfo, worldUse, worldReport, worldBoss, seasonInfo, seasonMark, epochDay,
     spireReset, spireInfo, spireUse, spireReport, spireStats, spireMul,
     dungeonReset, dungeonInfo, dungeonMark, dungeonReward, dungeonClaim,
     rollAffix, rerollAffix, affixTotals,
@@ -3921,6 +4027,9 @@ textarea, input,
     autoReviveAt: 0,
     autoAt: 0,
     waveNo: 0,
+    worldLeft: 0,          // 世界王剩餘秒數
+    worldDmg: 0,           // 世界王累積傷害
+    worldMaxHp: 0,         // 世界王血量（開戰時計算）
   };
 
   /* 舊介面：Battle.state.enemy / snapshot().enemy 仍回傳「第一隻活著的敵人」 */
@@ -3972,6 +4081,21 @@ textarea, input,
       }];
       B.spireFloor = st.floor;
       emit('spireWave', { floor: st.floor, boss: st.boss });
+      return;
+    }
+    if (kind === 'world') {
+      /* 世界王：固定一隻、不套橡皮筋（血量在開戰時依「你的 DPS × 秒數 × 倍率」算好），
+         所以打掉幾 % 就是這一輪的成績。 */
+      const units = B.units.filter((u) => u.maxHp > 0);
+      const weakest = Math.min.apply(null, units.map((u) => u.maxHp));
+      const boss = State.worldBoss();
+      B.enemies = [{
+        id: 'world_' + boss.id, name: boss.name, emoji: boss.emoji,
+        maxHp: B.worldMaxHp, hp: B.worldMaxHp, atk: Math.max(1, Math.round(weakest * CFG.WORLD.atkOfWeakest)),
+        def: Math.round(State.teamStats().atk * 0.10), spd: 95,
+        gauge: 0, stun: 0, alive: true, boss: true, world: true, acts: 0, enraged: false,
+      }];
+      emit('worldWave', { boss, hp: B.worldMaxHp });
       return;
     }
     if (kind === 'dungeon') {
@@ -4163,6 +4287,38 @@ textarea, input,
     return r;
   }
 
+  /* ---------- 每日世界王 ---------- */
+  function worldStart() {
+    if (B.mode !== 'farm') return { ok: false, msg: T('戰鬥中無法挑戰世界王') };
+    const use = State.worldUse();
+    if (!use.ok) return use;
+    const units = B.units.filter((u) => u.maxHp > 0);
+    if (!units.length) return { ok: false, msg: T('沒有上陣靈印') };
+    const st = State.teamStats();
+    const dps = units.reduce((a, u) => a + u.atk * actsPerSec(u.spd) * 0.85, 0);
+    B.worldMaxHp = Math.max(1000, Math.round(dps * CFG.WORLD.seconds * CFG.WORLD.hpMul));
+    B.worldDmg = 0;
+    B.worldLeft = CFG.WORLD.seconds;
+    B.mode = 'world';
+    reviveTeam(true);
+    spawnWave('world');
+    emit('worldStart', { boss: State.worldBoss(), hp: B.worldMaxHp, seconds: CFG.WORLD.seconds });
+    return { ok: true, left: use.left, hp: B.worldMaxHp };
+  }
+
+  function worldEnd(reason) {
+    const pct = B.worldMaxHp ? Math.min(1, B.worldDmg / B.worldMaxHp) : 0;
+    const r = State.worldReport(pct);
+    B.mode = 'farm';
+    B.worldLeft = 0;
+    B.worldDmg = 0;
+    B.worldMaxHp = 0;
+    reviveTeam(true);
+    spawnWave('farm');
+    emit('worldEnd', Object.assign({ reason }, r));
+    return r;
+  }
+
   /* ---------- 每日副本 ---------- */
   function dungeonStart(id) {
     if (B.mode !== 'farm') return { ok: false, msg: T('戰鬥中無法進入副本') };
@@ -4201,6 +4357,12 @@ textarea, input,
     if (B.adBreak || (typeof window !== 'undefined' && window.__gpPaused)) return;
     if (!B.enemies.length) spawnWave(B.mode === 'hunt' ? 'hunt' : (B.mode === 'boss' ? 'boss' : 'farm'));
 
+    /* 世界王：限時倒數。速度倍率也一起吃（雙方同步加速），所以 x3 不會變成免費多打。 */
+    if (B.mode === 'world') {
+      B.worldLeft -= DT * rate();
+      if (B.worldLeft <= 0) { B.worldLeft = 0; worldEnd('timeout'); return; }
+    }
+
     // 全滅 → 2 秒後自動復活（放置遊戲不要卡死）
     if (!B.units.some((u) => u.alive)) {
       if (!B.autoReviveAt) {
@@ -4226,6 +4388,11 @@ textarea, input,
       if (cleared % CFG.SPIRE.coreEvery === 0) State.addCores(CFG.SPIRE.coreAmount);
       B.spireFloor = cleared + 1;
       spawnWave('spire');
+      return;
+    }
+
+    if (B.mode === 'world') {
+      worldEnd('kill');
       return;
     }
 
@@ -4291,6 +4458,7 @@ textarea, input,
          boss = 推進優先（預設，卡關才去獵靈）
          hunt = 獵靈優先（有空位就打得到就獵，之後才回頭打王）
          farm = 只推關（不自動打王、不自動獵靈 → 會停在 BOSS 前，這是玩家自己的選擇） */
+    if (B.mode === 'world') return;      // 世界王期間不要自動插隊
     const pri = cfg.autoPriority || 'boss';
     if (pri === 'farm') return;
 
@@ -4428,6 +4596,11 @@ textarea, input,
     if (B.mode === 'hunt') {
       const mul = (B.huntCounter ? B.huntCounter.mult : 1) * (B.huntCombo || 1);
       if (mul !== 1) dmg = Math.max(1, Math.round(dmg * mul));
+    }
+    if (B.mode === 'world') {
+      /* 世界王只累積傷害，不做五行／連擊加成（那些是狩獵場的規則） */
+      const cap = Math.max(0, enemy.hp);
+      B.worldDmg += Math.min(dmg, cap);
     }
     enemy.hp -= dmg;
     const leech = State.combatMods ? (State.combatMods().leech || 0) : 0;
@@ -4649,7 +4822,7 @@ textarea, input,
   }
 
   global.Battle = {
-    spireStart, spireEnd, dungeonStart,
+    spireStart, spireEnd, worldStart, worldEnd, dungeonStart,
     init, start, stop, refreshTeam, challengeBoss, hunt, backToFarm, reviveTeam,
     on, snapshot, spawnWave, targetEnemy,
     /* 測試用內部鉤子（不影響遊戲流程） */
@@ -4695,6 +4868,8 @@ textarea, input,
     const res = State.load();
     bindNav();
     bindCodex();
+    const wb = $('#btnWorld');
+    if (wb) wb.addEventListener('click', showWorldBoss);
     const spdBtn = $('#btnSpeed');
     if (spdBtn) spdBtn.addEventListener('click', () => {
       const list = CFG.SPEEDS;
@@ -4702,7 +4877,7 @@ textarea, input,
       const next = list[(list.indexOf(cur) + 1) % list.length];
       State.data.settings.speed = next;
       State.save(true);
-      renderSpeed();
+    renderSpeed();
       toast(`${T('倍速')} ×${next}`);
     });
     const bs = $('#btnSpire'); if (bs) bs.addEventListener('click', showSpire);
@@ -4785,6 +4960,16 @@ textarea, input,
     });
   }
 
+  function renderWorldBtn() {
+    const b = $('#btnWorld');
+    if (!b) return;
+    const info = State.worldInfo();
+    b.textContent = I18N.lang === 'en'
+      ? `World Boss (${info.left}/${CFG.WORLD.perDay})`
+      : `世界王（${info.left}/${CFG.WORLD.perDay}）`;
+    b.disabled = info.left <= 0;
+  }
+
   function renderSpeed() {
     const btn = $('#btnSpeed');
     if (!btn) return;
@@ -4815,20 +5000,38 @@ textarea, input,
     } else {
       $('#stageNum').textContent = snap.stage;
     }
-    $('#progText').textContent = `${Math.min(snap.kills, snap.needed)} / ${snap.needed}`;
-    $('#progBar').style.width = Math.min(100, (snap.kills / snap.needed) * 100) + '%';
-
-    const rate = CFG.offlinePerMinute(snap.stage);
-    $('#rateText').textContent = I18N.lang === 'en'
-      ? `${fmt(rate.coins)} coins/min · ${fmt(rate.exp)} EXP/min`
-      : T(`靈幣 ${fmt(rate.coins)}/分 · 經驗 ${fmt(rate.exp)}/分`);
+    const W = Battle.state;
+    const isWorld = snap.mode === 'world' && W.worldMaxHp > 0;
+    if (isWorld) {
+      /* 世界王：進度條改成「王血被打掉多少」，文字列改成倒數＋傷害% */
+      const pct = Math.max(0, Math.min(100, (W.worldDmg / W.worldMaxHp) * 100));
+      $('#progText').textContent = `${pct.toFixed(0)}%`;
+      $('#progBar').style.width = pct + '%';
+      const left = Math.max(0, Math.ceil(W.worldLeft));
+      const rl = $('#rateLabel');
+      if (rl) rl.textContent = T('世界王');
+      $('#rateText').textContent = I18N.lang === 'en'
+        ? `${left}s · damage ${pct.toFixed(0)}%`
+        : `${left} 秒 · 傷害 ${pct.toFixed(0)}%`;
+    } else {
+      $('#progText').textContent = `${Math.min(snap.kills, snap.needed)} / ${snap.needed}`;
+      $('#progBar').style.width = Math.min(100, (snap.kills / snap.needed) * 100) + '%';
+      const rl2 = $('#rateLabel');
+      if (rl2) rl2.textContent = T('掛機效率');
+      const rate = CFG.offlinePerMinute(snap.stage);
+      $('#rateText').textContent = I18N.lang === 'en'
+        ? `${fmt(rate.coins)} coins/min · ${fmt(rate.exp)} EXP/min`
+        : T(`靈幣 ${fmt(rate.coins)}/分 · 經驗 ${fmt(rate.exp)}/分`);
+    }
 
     const capped = State.atCap();
     const bossBtn = $('#bossBtn');
-    bossBtn.disabled = !snap.pendingBoss;
-    bossBtn.textContent = snap.pendingBoss
-      ? T(`挑戰 BOSS（${Math.round((CFG.AUTO_BOSS_DELAY || 1800) / 1000)} 秒後自動）`)
-      : capped ? T(`關卡清完 · 去打靈環`) : T(`清怪 ${snap.kills}/${snap.needed}`);
+    bossBtn.disabled = !snap.pendingBoss || isWorld;
+    bossBtn.textContent = isWorld
+      ? T('世界王戰鬥中')
+      : snap.pendingBoss
+        ? T(`挑戰 BOSS（${Math.round((CFG.AUTO_BOSS_DELAY || 1800) / 1000)} 秒後自動）`)
+        : capped ? T(`關卡清完 · 去打靈環`) : T(`清怪 ${snap.kills}/${snap.needed}`);
 
     renderTeam(snap.units);
     renderEnemies(snap.enemies || [], snap.mode);
@@ -5121,6 +5324,40 @@ textarea, input,
           if (!r.ok) { toast(r.msg); return; }
           closeModal(); switchTab('battle'); renderAll();
           toast(T('深塔挑戰開始'));
+        } },
+       { text: T('關閉'), kind: '' }]);
+  }
+
+  function showWorldBoss() {
+    const info = State.worldInfo();
+    const tierRows = info.tiers.map((t, i) => {
+      const r = t.reward;
+      const bits = [];
+      if (r.cores) bits.push(`${r.cores} ${T('獸核')}`);
+      if (r.coins) bits.push(`${fmt(r.coins)} ${T('靈幣')}`);
+      if (r.tickets) bits.push(`${r.tickets} ${T('覺醒券')}`);
+      return `<div class="merge-row">
+        <span class="mr-name">${I18N.lang === 'en' ? `Tier ${i + 1}` : `第 ${i + 1} 檔`}</span>
+        <span class="hint">≥ ${Math.round(t.pct * 100)}%</span>
+        <span class="hint">${bits.join(' · ')}</span>
+      </div>`;
+    }).join('');
+    openModal(T('世界王'), T(`
+      <div class="hint">${T('每天一隻、限時 60 秒；打掉的血量比例決定獎勵，達第一檔才計次。')}</div>
+      <div class="stats" style="margin-top:8px">
+        <span>${info.boss.emoji} <b>${T(info.boss.name)}</b></span>
+        <span>${T('剩餘次數')} <b>${info.left}</b></span>
+        <span>${T('最佳')} <b>${info.best}%</b></span>
+      </div>
+      ${tierRows}
+      <div class="hint" style="margin-top:6px">${T('賽季印記')} ×${info.season.total}
+        （${T('全屬性')} +${Math.round((info.season.mul - 1) * 100)}%）
+        · ${T('本季還有')} ${info.season.daysLeft} ${T('天')}</div>`),
+      [{ text: T('開戰'), kind: 'primary', onClick: () => {
+          const r = Battle.worldStart();
+          if (!r.ok) { toast(r.msg); return; }
+          closeModal(); switchTab('battle'); renderAll();
+          toast(T('世界王開戰：60 秒內盡量輸出'));
         } },
        { text: T('關閉'), kind: '' }]);
   }
@@ -6005,6 +6242,7 @@ textarea, input,
   function renderAll() {
     renderTop();
     renderSpireBtn();
+    renderWorldBtn();
     renderSpeed();
     renderBattle();
     renderSouls();
@@ -6112,6 +6350,17 @@ textarea, input,
       case 'huntLose':
         addLog(T(`獵靈失敗：${ev.beast ? ev.beast.name : T('靈獸')} 太強，15 秒後可再試（先去升級或補靈骨）`), 'c-bad');
         break;
+      case 'worldEnd': {
+        const bits = [];
+        if (ev.reward && ev.reward.cores) bits.push(`${ev.reward.cores} ${T('獸核')}`);
+        if (ev.reward && ev.reward.coins) bits.push(`${fmt(ev.reward.coins)} ${T('靈幣')}`);
+        if (ev.reward && ev.reward.tickets) bits.push(`${ev.reward.tickets} ${T('覺醒券')}`);
+        banner(ev.cleared ? T('世界王討伐成功') : T('世界王時間到'));
+        addLog(`${T('世界王')} · ${T('傷害')} ${ev.pct}%`
+          + (bits.length ? ` · ${bits.join(' / ')}` : ` · ${T('未達第一檔，可重打')}`), ev.cleared ? 'c-ok' : 'c-bad');
+        if (ev.season && ev.season.ok) addLog(`${T('賽季印記')} +1（${T('累積')} ${ev.season.total}）`, 'c-gold');
+        break;
+      }
       case 'spireClear': {
         addLog(`${T('深塔')} ${T('第關')} ${ev.floor} ${T('層')}${ev.newBest ? ' · ' + T('新紀錄') : ''}`, ev.boss ? 'c-gold' : 'c-purple');
         if (ev.floor % 10 === 0) toast(`${T('深塔')} ${ev.floor} ${T('層')} → +${CFG.SPIRE.coreAmount} ${T('獸核')}`);

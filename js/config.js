@@ -180,6 +180,29 @@
     water: { stat: 'hunt', bonus: 0.08 },
   };
 
+  /* v1.22.0：每日世界王（單機版）與賽季印記
+     世界王：每天一隻、限時 60 秒、每日 1 次；傷害佔王血的比例分三檔給獎。
+     王血在開戰時依「你的 DPS × 60 秒 × 1.6」計算 → 滿輸出可打穿、弱一點也拿得到第一檔。
+     賽季：每 14 天為一季，每季首次參戰給 1 枚賽季印記（永久 +1% 全屬性）。 */
+  const WORLD = {
+    perDay: 1,
+    seconds: 60,
+    hpMul: 1.6,
+    atkOfWeakest: 0.10,
+    tiers: [0.34, 0.67, 1.0],
+    rewards: [
+      { cores: 4, coins: 12000, tickets: 0 },
+      { cores: 8, coins: 30000, tickets: 1 },
+      { cores: 14, coins: 60000, tickets: 2 },
+    ],
+  };
+  const WORLD_BOSSES = [
+    { id: 'devourer',  name: '噬星獸', emoji: '🕳', element: 'earth' },
+    { id: 'pyroclast', name: '燼獄魔', emoji: '🔥', element: 'fire' },
+    { id: 'abysseye',  name: '深淵之眼', emoji: '👁', element: 'water' },
+  ];
+  const SEASON = { days: 14, markBonus: 0.01 };
+
   /* v1.21.0：無盡成長（印記）
      玩家訴求「戰績增加可以無上限升級」→ 用既有計數推導，不新增存檔欄位、不新增貨幣：
        戰績印記 = floor(最高關卡 / 10)，每枚 +0.2% 全屬性
@@ -254,7 +277,7 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.21.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.22.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -540,7 +563,7 @@
     BEASTS, BEAST_BY_ID, STAGE_AREAS, areaFor,
     VERSION, MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
     RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR, COUNTER, BOND, ASCEND, CORE_DROP, ELITE,
-    INHERIT, DEPTH, COMBOS, SET_BONUS, SHOP, RELIC_TIERS, SPEEDS, TALENTS, OFFLINE, SIGIL, RELIC_BY_KEY, RELICS, RELIC,
+    INHERIT, DEPTH, COMBOS, SET_BONUS, SHOP, RELIC_TIERS, SPEEDS, TALENTS, OFFLINE, SIGIL, WORLD, WORLD_BOSSES, SEASON, RELIC_BY_KEY, RELICS, RELIC,
     SPIRE, DUNGEON, DUNGEONS, AFFIX, AFFIX_BY_KEY,
     RING_ORDER, RING_MERGE_COUNT,
     BASE_KILLS_PER_STAGE, killsPerStage, waveSecFor, bossSecFor, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND, STAR_MAX,

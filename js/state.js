@@ -47,6 +47,8 @@
       shop: { day: '', bought: {} },          // 商店：今日各格已買次數
       talents: {},                            // 命印天賦：nodeId → 等級
       relicLv: {},                            // 靈寶等級：id → 1..5
+      world: { day: '', used: 0, best: 0 },   // 世界王：日期 / 今日已用 / 最佳傷害%
+      season: { idx: -1, total: 0 },          // 賽季印記：本季編號 / 累積枚數
       settings: { autoRing: true, autoBoss: true, autoHunt: true, autoMerge: true, autoStar: true, speed: 1, autoPriority: 'boss' },
       rerolls: 0,                             // 重鑄券（商店買）
       elite: { day: '', ids: [] },   // 今日已打的精英靈獸
@@ -166,6 +168,8 @@
     if (!out.shop.bought || typeof out.shop.bought !== 'object') out.shop.bought = {};
     out.rerolls = Math.max(0, out.rerolls | 0);
     out.talents = Object.assign({}, (d && d.talents) || {});
+    out.world = Object.assign({ day: '', used: 0, best: 0 }, (d && d.world) || {});
+    out.season = Object.assign({ idx: -1, total: 0 }, (d && d.season) || {});
     out.relicLv = Object.assign({}, (d && d.relicLv) || {});
     Object.keys(out.relicLv).forEach((k) => {
       out.relicLv[k] = Math.max(1, Math.min(CFG.RELIC.maxLevel, out.relicLv[k] | 0));
@@ -466,6 +470,71 @@
     S.cores -= cost;
     S.talents = {};
     return { ok: true, refunded: spent };
+  }
+
+  /* ---------- 每日世界王 ---------- */
+  function epochDay() { return Math.floor(Date.now() / 86400000); }
+  function worldReset() {
+    const k = todayKey();
+    if (!S.world || S.world.day !== k) S.world = { day: k, used: 0, best: (S.world && S.world.best) | 0 };
+  }
+  function worldBoss() {
+    const list = CFG.WORLD_BOSSES;
+    return list[epochDay() % list.length];
+  }
+  function worldInfo() {
+    worldReset();
+    const boss = worldBoss();
+    return {
+      boss, used: S.world.used | 0, left: Math.max(0, CFG.WORLD.perDay - (S.world.used | 0)),
+      best: S.world.best | 0, seconds: CFG.WORLD.seconds,
+      tiers: CFG.WORLD.tiers.map((t, i) => ({ pct: t, reward: CFG.WORLD.rewards[i] })),
+      season: seasonInfo(),
+    };
+  }
+  function worldUse() {
+    worldReset();
+    if ((S.world.used | 0) >= CFG.WORLD.perDay) return { ok: false, msg: T('今日世界王次數已用完') };
+    return { ok: true, left: CFG.WORLD.perDay - (S.world.used | 0) };
+  }
+  /* 結算：pct = 打掉王血的比例（0..1）。達第一檔才計次，否則可重打。 */
+  function worldReport(pct) {
+    worldReset();
+    pct = Math.max(0, Math.min(1, Number(pct) || 0));
+    const before = S.world.best | 0;
+    const pctInt = Math.round(pct * 100);
+    if (pctInt > before) S.world.best = pctInt;
+    const idx = CFG.WORLD.tiers.findIndex((t) => pct >= t);
+    let reward = null;
+    let cleared = false;
+    if (idx >= 0) {
+      cleared = true;
+      if ((S.world.used | 0) < CFG.WORLD.perDay) S.world.used = (S.world.used | 0) + 1;
+      reward = CFG.WORLD.rewards[idx];
+      if (reward.cores) addCores(reward.cores);
+      if (reward.coins) S.coins += Math.round(reward.coins * incomeMul());
+      if (reward.tickets) S.tickets += reward.tickets;
+    }
+    const season = seasonMark();
+    return { pct: pctInt, best: S.world.best, newBest: pctInt > before,
+             cleared, tier: idx, reward, season };
+  }
+
+  /* ---------- 賽季印記（每 14 天一季，每季首次參戰 +1 枚）---------- */
+  function seasonIndex() { return Math.floor(epochDay() / CFG.SEASON.days); }
+  function seasonInfo() {
+    const idx = seasonIndex();
+    const total = (S.season && S.season.total) | 0;
+    const claimed = !!(S.season && S.season.idx === idx);
+    return { idx, total, claimed, daysLeft: CFG.SEASON.days - (epochDay() % CFG.SEASON.days),
+             mul: 1 + total * CFG.SEASON.markBonus };
+  }
+  function seasonMark() {
+    const idx = seasonIndex();
+    if (S.season && S.season.idx === idx) return { ok: false, msg: T('本季已領') };
+    const total = ((S.season && S.season.total) | 0) + 1;
+    S.season = { idx, total };
+    return { ok: true, total, mul: 1 + total * CFG.SEASON.markBonus };
   }
 
   /* ---------- 印記：無上限的戰績／覺醒成長 ---------- */
@@ -996,7 +1065,7 @@
     const rl = relicBonus();        // 靈寶：限量收藏品，永久加成
     const st = setMulFor(el);       // 套裝：同元素 3 隻
     const sg = sigilInfo();        // 印記：戰績／覺醒里程（無上限）
-    const tbMul = (1 + trueBodyOf(soul).bonus) * achMul() * codexMul() * bondMul * ascMul * spireMul() * sg.mul;   // 真身 × 成就 × 圖鑑 × 羈絆 × 覺醒 × 印記
+    const tbMul = (1 + trueBodyOf(soul).bonus) * achMul() * codexMul() * bondMul * ascMul * spireMul() * sg.mul * seasonInfo().mul;   // 真身 × 成就 × 圖鑑 × 羈絆 × 覺醒 × 印記
     /* 三種加成各自乘算，不能全部倒進同一個括號：
        靈環後期 +3600%，若命印（+6%/點）與靈骨（+14~20%）也加在同一個括號裡，
        25 點命印只讓戰力多 5%，玩家會覺得「轉生沒用、戰力卡死」。
@@ -1646,6 +1715,7 @@
     setInfo, setMulFor, shopReset, shopInfo, shopBuy, autoStarUp,
     talentLevel, spentMarks, unspentMarks, talentMul, talentInfo, learnTalent, resetTalents, combatMods,
     relicLevel, relicUpCost, relicUpgrade, relicInfo, sigilInfo, talentMaxLevel,
+    worldInfo, worldUse, worldReport, worldBoss, seasonInfo, seasonMark, epochDay,
     spireReset, spireInfo, spireUse, spireReport, spireStats, spireMul,
     dungeonReset, dungeonInfo, dungeonMark, dungeonReward, dungeonClaim,
     rollAffix, rerollAffix, affixTotals,

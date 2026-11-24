@@ -3,11 +3,11 @@
 後台：`https://my.gamepix.com/games/spirit-ring-idle`
 **Game Id：`il9S20`**（SDK 的 `aud` 會是 `gpx:game:il9S20`，接 JWT 時對照用）
 
-**目前線上：v1.20.2（Game Jam 期間無法建新 release）** ／ **下一版：v1.21.0**（等投票結束再覆蓋 Build）
+**目前線上：v1.20.2（Game Jam 期間無法建新 release）** ／ **下一版：v1.22.0（含每日世界王＋賽季印記）**（等投票結束再覆蓋 Build）
 
 | 用途 | 檔案 | 大小 | sha256（前 16 碼） |
 |---|---|---|---|
-| **Build（ZIP, v1.21.0）** | `dist/spirit-ring-idle-gamepix.zip` | **97,923 B** | `66cb83ff9ef891f4` |
+| **Build（ZIP, v1.22.0）** | `dist/spirit-ring-idle-gamepix.zip` | **101,422 B** | `a76785e3d64ec89b` |
 | Icon | `gamepix/assets/icon-256.png` | 44 KB ｜ 256×256 | — |
 | Cover | `gamepix/assets/cover-1360x850.png` | 282 KB ｜ 1360×850 | — |
 | Screenshots | `gamepix/assets/screenshots/01-battle … 05-awaken.png` | 5 張 ｜ 1080×1920 | — |
