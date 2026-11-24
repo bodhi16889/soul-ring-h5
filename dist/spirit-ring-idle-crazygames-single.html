@@ -648,6 +648,7 @@ textarea, input,
     <section class="view" data-view="gacha">
       <div class="panel-head"><h2 data-i18n="靈印殿">靈印殿</h2><span id="ticketInfo" class="hint"></span></div>
       <div class="checkin-box" id="dailyBox"></div>
+      <div class="checkin-box" id="shopBox"></div>
       <div class="checkin-box" id="relicBox"></div>
       <div class="checkin-box" id="weeklyBox"></div>
       <div class="checkin-box">
@@ -664,6 +665,7 @@ textarea, input,
         <div class="gacha-art">✦</div>
         <button id="btnPull1" class="wide-btn" data-i18n="覺醒一次（1 券 / 100 💎）">覺醒一次（1 券 / 100 💎）</button>
         <button id="btnPull10" class="wide-btn alt" data-i18n="十連覺醒（10 券 / 900 💎）">十連覺醒（10 券 / 900 💎）</button>
+        <button id="btnPullUntil" class="wide-btn small" data-i18n="抽到下次里程">抽到下次里程</button>
       </div>
       <button id="btnRewardAd" class="wide-btn small alt" data-i18n="看廣告領 888 靈幣">看廣告領 888 靈幣</button>
       <div class="code-box">
@@ -822,6 +824,43 @@ textarea, input,
     /* 靈印名稱 */
     '巨靈槌': 'Colossus Hammer', '赤焰鳶': 'Ember Kite', '青藤': 'Verdant Vine',
     /* v1.15.0：覺醒里程 / 靈寶 */
+    /* v1.17.0：商店 / 套裝 / 成就 40 / QoL */
+    '商店': 'Shop', '每日 0 點補貨': 'Restocks daily', '重鑄券': 'Reroll tickets',
+    '剩': 'left', '售完': 'Sold out', '購買': 'Buy', '購買成功：': 'Purchased: ',
+    '套裝': 'Set', '暈眩': 'stun', '群體': 'AoE', '已抽': 'Pulled', '券與鑽石都不足': 'Not enough tickets or gems',
+    '自動升星': 'Auto star-up', '抽到下次里程': 'Pull to next relic',
+    '沒有這個商品': 'No such item', '今日已售完': 'Sold out today',
+    '覺醒券 ×2': 'Tickets ×2', '靈骨 ×2': 'Bones ×2', '獸核 ×8': 'Beast cores ×8',
+    '鑽石 ×200': 'Gems ×200', '靈幣 ×30,000': 'Coins ×30,000', '重鑄券 ×2': 'Reroll tickets ×2',
+    /* 成就 12→40 */
+    '深潛者': 'Deep Diver', '推進到第 300 關': 'Reach stage 300',
+    '破界者': 'Boundary Breaker', '推進到第 800 關': 'Reach stage 800',
+    '輪迴半百': 'Fifty Cycles', '完成 50 次轉生': 'Rebirth 50 times',
+    '千世輪迴': 'Thousand Lives', '完成 200 次轉生': 'Rebirth 200 times',
+    '命印五百': 'Five Hundred Marks', '累積 500 枚命印': 'Hold 500 marks',
+    '八星不凡': 'Eight Stars', '任一靈印升到 8★': 'Get any spirit to 8★',
+    '十星極境': 'Ten Star Peak', '任一靈印升到 10★': 'Get any spirit to 10★',
+    '傳承五回': 'Inheritance ×5', '累積 5 次傳承': 'Inherit stars 5 times',
+    '覺醒三階': 'Ascension III', '任一靈印覺醒 3 階': 'Ascend any spirit to stage 3',
+    '覺醒圓滿': 'Ascension Max', '任一靈印覺醒 5 階': 'Ascend any spirit to stage 5',
+    '靈寶半集': 'Half the Relics', '收集 6 件靈寶': 'Collect 6 relics',
+    '靈寶全收': 'All Relics', '收集全部 12 件靈寶': 'Collect all 12 relics',
+    '圖鑑二十': 'Codex 20', '圖鑑收集 20 項': 'Collect 20 codex entries',
+    '圖鑑全收': 'Full Codex', '圖鑑收集全部項目': 'Collect every codex entry',
+    '獵靈百次': 'Hundred Hunts', '累積獵靈 100 次': 'Hunt 100 times',
+    '擊殺萬隻': 'Ten Thousand Kills', '累積擊殺 10,000 隻': 'Defeat 10,000 enemies',
+    '擊殺十萬': 'Hundred Thousand Kills', '累積擊殺 100,000 隻': 'Defeat 100,000 enemies',
+    '獸核百枚': 'Hundred Cores', '持有 100 枚獸核': 'Hold 100 beast cores',
+    '覺醒百抽': 'Hundred Pulls', '累積覺醒抽 100 次': 'Pull 100 times',
+    '深塔三十': 'Spire 30', '深塔抵達第 30 層': 'Reach spire floor 30',
+    '深塔六十': 'Spire 60', '深塔抵達第 60 層': 'Reach spire floor 60',
+    '深塔百層': 'Spire 100', '深塔抵達第 100 層': 'Reach spire floor 100',
+    '初見詞條': 'First Affix', '取得第一個帶詞條的靈環': 'Get your first affixed ring',
+    '詞條收藏': 'Affix Collector', '同時持有 5 個帶詞條的靈環': 'Hold 5 affixed rings at once',
+    '週勤九回': 'Weekly Regular', '累積完成 9 次週任務': 'Complete 9 weekly quests',
+    '副本常客': 'Dungeon Regular', '累積完成 10 次副本': 'Clear 10 dungeons',
+    '家財萬貫': 'Tycoon', '持有 1,000,000 靈幣': 'Hold 1,000,000 coins',
+    '券不手軟': 'Tickets Galore', '持有 20 張覺醒券': 'Hold 20 tickets',
     '有新版本': 'New version available',
     '更新': 'Update',
     /* v1.16.0：深塔 / 副本 / 詞條 */
@@ -1759,6 +1798,25 @@ textarea, input,
     },
   };
 
+  /* 套裝：同一元素 3 隻上陣 → 該元素武魂額外獲得一項加成 */
+  const SET_BONUS = {
+    wind:  { stat: 'spd',  bonus: 0.08 },
+    fire:  { stat: 'atk',  bonus: 0.08 },
+    wood:  { stat: 'hp',   bonus: 0.08 },
+    earth: { stat: 'def',  bonus: 0.10 },
+    water: { stat: 'hunt', bonus: 0.08 },
+  };
+
+  /* 商店（每日固定 6 格，庫存每日重置） */
+  const SHOP = [
+    { id: 'ticket2', name: '覺醒券 ×2', give: { tickets: 2 },  cost: { cores: 24 }, stock: 2 },
+    { id: 'bone2',   name: '靈骨 ×2',   give: { bones: 2 },    cost: { cores: 30 }, stock: 1 },
+    { id: 'core8',   name: '獸核 ×8',   give: { cores: 8 },    cost: { diamonds: 260 }, stock: 1 },
+    { id: 'diamond200', name: '鑽石 ×200', give: { diamonds: 200 }, cost: { coins: 60000 }, stock: 1 },
+    { id: 'coins1',  name: '靈幣 ×30,000', give: { coins: 30000 }, cost: { diamonds: 120 }, stock: 2 },
+    { id: 'reroll2', name: '重鑄券 ×2',  give: { rerolls: 2 }, cost: { cores: 36 }, stock: 1 },
+  ];
+
   /* 元素組合羈絆（只要隊伍裡同時有這兩種元素就生效，可疊加） */
   const COMBOS = [
     { id: 'blaze',  pair: ['wind', 'fire'],  name: '燎原',  stat: 'spd',  bonus: 0.12 },
@@ -1779,7 +1837,7 @@ textarea, input,
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.16.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.17.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -1976,6 +2034,35 @@ textarea, input,
     { id: 'star5',    name: '五星圓滿',   desc: '任一靈印升到 5★',      test: (s) => s.souls.some((x) => x.star >= 5) },
     { id: 'bones5',   name: '靈骨收藏家', desc: '持有 5 塊靈骨',        test: (s) => (s.bones || []).length >= 5 },
     { id: 'rings45',  name: '環滿全身',   desc: '全隊裝備 45 個靈環',   test: (s) => s.souls.reduce((a, x) => a + (x.rings || []).length, 0) >= 45 },
+    /* v1.17.0：12 → 40（分五類：關卡 / 轉生 / 養成 / 收集 / 極限） */
+    { id: 'stage300', name: '深潛者',     desc: '推進到第 300 關',      test: (s) => s.bestStage >= 300 },
+    { id: 'stage800', name: '破界者',     desc: '推進到第 800 關',      test: (s) => s.bestStage >= 800 },
+    { id: 'reb50',    name: '輪迴半百',   desc: '完成 50 次轉生',       test: (s) => (s.rebirths || 0) >= 50 },
+    { id: 'reb200',   name: '千世輪迴',   desc: '完成 200 次轉生',      test: (s) => (s.rebirths || 0) >= 200 },
+    { id: 'marks500', name: '命印五百',   desc: '累積 500 枚命印',      test: (s) => (s.marks || 0) >= 500 },
+    { id: 'star8',    name: '八星不凡',   desc: '任一靈印升到 8★',      test: (s) => s.souls.some((x) => (x.star || 3) >= 8) },
+    { id: 'star10',   name: '十星極境',   desc: '任一靈印升到 10★',     test: (s) => s.souls.some((x) => (x.star || 3) >= 10) },
+    { id: 'inh5',     name: '傳承五回',   desc: '累積 5 次傳承',        test: (s) => ((s.stats || {}).inherits || 0) >= 5 },
+    { id: 'asc3',     name: '覺醒三階',   desc: '任一靈印覺醒 3 階',    test: (s) => s.souls.some((x) => (x.ascend || 0) >= 3) },
+    { id: 'asc5',     name: '覺醒圓滿',   desc: '任一靈印覺醒 5 階',    test: (s) => s.souls.some((x) => (x.ascend || 0) >= 5) },
+    { id: 'relic6',   name: '靈寶半集',   desc: '收集 6 件靈寶',        test: (s) => (s.relics || []).length >= 6 },
+    { id: 'relic12',  name: '靈寶全收',   desc: '收集全部 12 件靈寶',   test: (s) => (s.relics || []).length >= 12 },
+    { id: 'codex20',  name: '圖鑑二十',   desc: '圖鑑收集 20 項',       test: (s) => { const c = s.codex || {}; return ['souls','bones','rings','beasts'].reduce((a,k)=>a+Object.keys(c[k]||{}).length,0) >= 20; } },
+    { id: 'codex35',  name: '圖鑑全收',   desc: '圖鑑收集全部項目',     test: (s) => { const c = s.codex || {}; return ['souls','bones','rings','beasts'].reduce((a,k)=>a+Object.keys(c[k]||{}).length,0) >= 35; } },
+    { id: 'hunt100',  name: '獵靈百次',   desc: '累積獵靈 100 次',      test: (s) => ((s.stats || {}).hunts || 0) >= 100 },
+    { id: 'kill1w',   name: '擊殺萬隻',   desc: '累積擊殺 10,000 隻',   test: (s) => ((s.stats || {}).kills || 0) >= 10000 },
+    { id: 'kill10w',  name: '擊殺十萬',   desc: '累積擊殺 100,000 隻',  test: (s) => ((s.stats || {}).kills || 0) >= 100000 },
+    { id: 'core100',  name: '獸核百枚',   desc: '持有 100 枚獸核',      test: (s) => (s.cores || 0) >= 100 },
+    { id: 'pull100',  name: '覺醒百抽',   desc: '累積覺醒抽 100 次',    test: (s) => ((s.stats || {}).pulls || 0) >= 100 },
+    { id: 'spire30',  name: '深塔三十',   desc: '深塔抵達第 30 層',     test: (s) => ((s.spire || {}).best || 0) >= 30 },
+    { id: 'spire60',  name: '深塔六十',   desc: '深塔抵達第 60 層',     test: (s) => ((s.spire || {}).best || 0) >= 60 },
+    { id: 'spire100', name: '深塔百層',   desc: '深塔抵達第 100 層',    test: (s) => ((s.spire || {}).best || 0) >= 100 },
+    { id: 'affix1',   name: '初見詞條',   desc: '取得第一個帶詞條的靈環', test: (s) => (s.ringBag || []).some((r) => r.affix) },
+    { id: 'affix5',   name: '詞條收藏',   desc: '同時持有 5 個帶詞條的靈環', test: (s) => (s.ringBag || []).filter((r) => r.affix).length >= 5 },
+    { id: 'week9',    name: '週勤九回',   desc: '累積完成 9 次週任務',  test: (s) => ((s.stats || {}).weeklyClaims || 0) >= 9 },
+    { id: 'dg10',     name: '副本常客',   desc: '累積完成 10 次副本',   test: (s) => ((s.stats || {}).dungeons || 0) >= 10 },
+    { id: 'coin1m',   name: '家財萬貫',   desc: '持有 1,000,000 靈幣',  test: (s) => (s.coins || 0) >= 1000000 },
+    { id: 'ticket20', name: '券不手軟',   desc: '持有 20 張覺醒券',     test: (s) => (s.tickets || 0) >= 20 },
   ];
 
   /* ---------- 里程碑獎勵（每 50 關給十萬年環）---------- */
@@ -2036,7 +2123,7 @@ textarea, input,
     BEASTS, BEAST_BY_ID, STAGE_AREAS, areaFor,
     VERSION, MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
     RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR, COUNTER, BOND, ASCEND, CORE_DROP, ELITE,
-    INHERIT, DEPTH, COMBOS, RELIC_TIERS, RELIC_BY_KEY, RELICS, RELIC,
+    INHERIT, DEPTH, COMBOS, SET_BONUS, SHOP, RELIC_TIERS, RELIC_BY_KEY, RELICS, RELIC,
     SPIRE, DUNGEON, DUNGEONS, AFFIX, AFFIX_BY_KEY,
     RING_ORDER, RING_MERGE_COUNT,
     BASE_KILLS_PER_STAGE, killsPerStage, waveSecFor, bossSecFor, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND, STAR_MAX,
@@ -2096,6 +2183,8 @@ textarea, input,
       milestoneAt: 0,        // 上次已結算的券抽里程（防止重複發獎）
       spire: { best: 0, day: '', used: 0 },   // 無盡深塔：最高層 / 日期 / 今日已用次數
       dungeon: { day: '', done: [] },         // 每日副本：今天打過哪些
+      shop: { day: '', bought: {} },          // 商店：今日各格已買次數
+      rerolls: 0,                             // 重鑄券（商店買）
       elite: { day: '', ids: [] },   // 今日已打的精英靈獸
       depth: {},             // 深林層數：beastId -> 已連續狩獵次數
       pendingOffline: null,  // 這次回歸的離線收益（可看廣告加倍一次）
@@ -2107,7 +2196,7 @@ textarea, input,
       rebirths: 0,           // 轉生次數
       marks: 0,              // 命印：永久加成（每點全屬性 +6%）
       settings: { autoBoss: true, autoHunt: true, autoRing: true, autoMerge: true },   // 放置用開關
-      stats: { kills: 0, hunts: 0, pulls: 0 },
+      stats: { kills: 0, hunts: 0, pulls: 0, inherits: 0, weeklyClaims: 0, dungeons: 0 },
       lastSave: Date.now(),
     };
   }
@@ -2210,6 +2299,9 @@ textarea, input,
     out.milestoneAt = Math.max(0, out.milestoneAt | 0);
     out.spire = Object.assign({ best: 0, day: '', used: 0 }, (d && d.spire) || {});
     out.dungeon = Object.assign({ day: '', done: [] }, (d && d.dungeon) || {});
+    out.shop = Object.assign({ day: '', bought: {} }, (d && d.shop) || {});
+    if (!out.shop.bought || typeof out.shop.bought !== 'object') out.shop.bought = {};
+    out.rerolls = Math.max(0, out.rerolls | 0);
     if (!Array.isArray(out.dungeon.done)) out.dungeon.done = [];
     out.elite = Object.assign({ day: '', ids: [] }, (d && d.elite) || {});
     out.depth = Object.assign({}, (d && d.depth) || {});
@@ -2367,6 +2459,7 @@ textarea, input,
     if (info.claimed) return { ok: false, msg: T('本週已領過') };
     if (!info.can) return { ok: false, msg: T('任務還沒完成') };
     S.week.claimed.push(id);
+    S.stats.weeklyClaims = (S.stats.weeklyClaims | 0) + 1;
     S.diamonds += info.reward.diamonds || 0;
     return { ok: true, reward: info.reward };
   }
@@ -2382,6 +2475,84 @@ textarea, input,
     const strong = Object.keys(counts).filter((el) => counts[el] >= CFG.BOND.sameNeed);
     return { counts, kinds, strong, tri: kinds >= CFG.BOND.triKinds,
              sameBonus: CFG.BOND.sameBonus, triBonus: CFG.BOND.triBonus };
+  }
+
+  /* ---------- 套裝：同元素 3 隻 ---------- */
+  function setInfo() {
+    const counts = bondInfo().counts;
+    const active = Object.keys(CFG.SET_BONUS).filter((el) => (counts[el] || 0) >= 3);
+    return { counts, active, bonus: active.map((el) => ({ el, ...CFG.SET_BONUS[el] })) };
+  }
+  function setMulFor(element) {
+    const sets = setInfo();
+    if (sets.active.indexOf(element) < 0) return { atk: 1, hp: 1, def: 1, spd: 1, hunt: 1 };
+    const b = CFG.SET_BONUS[element];
+    const out = { atk: 1, hp: 1, def: 1, spd: 1, hunt: 1 };
+    if (b.stat === 'hunt') out.hunt = 1 + b.bonus;
+    else out[b.stat] = 1 + b.bonus;
+    return out;
+  }
+
+  /* ---------- 商店（每日 6 格）---------- */
+  function shopReset() {
+    const k = todayKey();
+    if (!S.shop || S.shop.day !== k) S.shop = { day: k, bought: {} };
+  }
+  function shopInfo() {
+    shopReset();
+    return CFG.SHOP.map((it) => {
+      const bought = (S.shop.bought[it.id] | 0);
+      const canAfford = Object.keys(it.cost).every((cur) => {
+        if (cur === 'cores') return (S.cores | 0) >= it.cost[cur];
+        if (cur === 'diamonds') return S.diamonds >= it.cost[cur];
+        if (cur === 'coins') return S.coins >= it.cost[cur];
+        return false;
+      });
+      return { ...it, bought, left: Math.max(0, it.stock - bought),
+               can: bought < it.stock && canAfford };
+    });
+  }
+  function shopBuy(id) {
+    shopReset();
+    const it = shopInfo().find((x) => x.id === id);
+    if (!it) return { ok: false, msg: T('沒有這個商品') };
+    if (it.bought >= it.stock) return { ok: false, msg: T('今日已售完') };
+    const cur = it.cost;
+    if (cur.cores && (S.cores | 0) < cur.cores) return { ok: false, msg: T('獸核不足') };
+    if (cur.diamonds && S.diamonds < cur.diamonds) return { ok: false, msg: T('鑽石不足') };
+    if (cur.coins && S.coins < cur.coins) return { ok: false, msg: T('靈幣不足') };
+    if (cur.cores) S.cores -= cur.cores;
+    if (cur.diamonds) S.diamonds -= cur.diamonds;
+    if (cur.coins) S.coins -= cur.coins;
+    const g = it.give;
+    if (g.tickets) S.tickets += g.tickets;
+    if (g.diamonds) S.diamonds += g.diamonds;
+    if (g.coins) S.coins += g.coins;
+    if (g.cores) S.cores = (S.cores | 0) + g.cores;
+    if (g.rerolls) S.rerolls = (S.rerolls | 0) + g.rerolls;
+    if (g.bones) {
+      for (let i = 0; i < g.bones; i++) {
+        const b = CFG.BONES[Math.floor(Math.random() * CFG.BONES.length)];
+        S.bones.push({ uid: 'bo' + Date.now().toString(36) + '_' + i, id: b.id });
+        codexMark('bones', b.id);
+      }
+    }
+    S.shop.bought[id] = (S.shop.bought[id] | 0) + 1;
+    return { ok: true, item: it };
+  }
+
+  /* ---------- 自動升星（QoL）---------- */
+  function autoStarUp() {
+    if ((S.settings || {}).autoStar === false) return null;
+    const list = (S.souls || []).slice().sort((a, b) => (b.star || 3) - (a.star || 3));
+    for (const soul of list) {
+      const info = starUpInfo(soul);
+      if (info.maxed) continue;
+      if (freeBones().length < info.bones || S.coins < info.coins) return null;
+      const r = starUp(soul.id);
+      if (r.ok) return r;
+    }
+    return null;
   }
 
   /* ---------- 無盡深塔 ---------- */
@@ -2455,6 +2626,7 @@ textarea, input,
       S.ticketPulls = (S.ticketPulls || 0);   // 券本身不動里程，抽的時候才算
     }
     dungeonMark(id);
+    S.stats.dungeons = (S.stats.dungeons | 0) + 1;
     return { ok: true, reward: rw };
   }
 
@@ -2468,12 +2640,16 @@ textarea, input,
   function rerollAffix(uid) {
     const ring = S.ringBag.find((r) => r.uid === uid);
     if (!ring) return { ok: false, msg: T('找不到靈環') };
-    if ((S.cores | 0) < CFG.AFFIX.rerollCost) return { ok: false, msg: T('獸核不足'), need: CFG.AFFIX.rerollCost };
-    S.cores -= CFG.AFFIX.rerollCost;
+    let paid = 0;
+    if ((S.rerolls | 0) > 0) { S.rerolls -= 1; paid = 0; }
+    else {
+      if ((S.cores | 0) < CFG.AFFIX.rerollCost) return { ok: false, msg: T('獸核不足'), need: CFG.AFFIX.rerollCost };
+      S.cores -= CFG.AFFIX.rerollCost; paid = CFG.AFFIX.rerollCost;
+    }
     let a = null;
     for (let i = 0; i < 12 && !a; i++) a = rollAffix();
     ring.affix = a;   // null 代表洗成無詞條（風險）
-    return { ok: true, affix: a, cost: CFG.AFFIX.rerollCost };
+    return { ok: true, affix: a, cost: paid, usedTicket: paid === 0 };
   }
   function affixTotals() {
     const out = { crit: 0, leech: 0, pen: 0, swift: 0 };
@@ -2619,6 +2795,7 @@ textarea, input,
     S.cores -= info.cost;
     const from = S.souls.find((x) => x.id === fromId);
     const to = S.souls.find((x) => x.id === toId);
+    S.stats.inherits = (S.stats.inherits | 0) + 1;
     from.star = (from.star || 3) - 1;
     to.star = (to.star || 3) + 1;
     return { ok: true, fromStar: from.star, toStar: to.star, cost: info.cost };
@@ -2764,6 +2941,7 @@ textarea, input,
     const ascMul = 1 + CFG.ASCEND.bonusPerStage * (soul.ascend || 0);
     const cb = combosInfo().stat;   // 元素組合：atk / hp / def / spd 各自乘算
     const rl = relicBonus();        // 靈寶：限量收藏品，永久加成
+    const st = setMulFor(el);       // 套裝：同元素 3 隻
     const tbMul = (1 + trueBodyOf(soul).bonus) * achMul() * codexMul() * bondMul * ascMul * spireMul();   // 真身 × 成就 × 圖鑑 × 羈絆 × 覺醒
     /* 三種加成各自乘算，不能全部倒進同一個括號：
        靈環後期 +3600%，若命印（+6%/點）與靈骨（+14~20%）也加在同一個括號裡，
@@ -2778,10 +2956,10 @@ textarea, input,
     const markDef = 1 + pm.def * S.marks;
     const markSpd = 1;   // 命印不再加速度（速度有物理上限），改在 critChance() 給爆擊
     return {
-      atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk) * boneAtk * markAtk * tbMul * cb.atk * (1 + rl.atk)),
-      hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp) * boneHp * markHp * tbMul * cb.hp * (1 + rl.hp)),
-      def: Math.round(base.def * starMul * lvMul * boneDef * markDef * tbMul * cb.def * (1 + rl.def)),
-      spd: Math.round(base.spd * boneSpd * markSpd * tbMul * cb.spd * (1 + rl.spd)),
+      atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk) * boneAtk * markAtk * tbMul * cb.atk * (1 + rl.atk) * st.atk),
+      hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp) * boneHp * markHp * tbMul * cb.hp * (1 + rl.hp) * st.hp),
+      def: Math.round(base.def * starMul * lvMul * boneDef * markDef * tbMul * cb.def * (1 + rl.def) * st.def),
+      spd: Math.round(base.spd * boneSpd * markSpd * tbMul * cb.spd * (1 + rl.spd) * st.spd),
       role: base.role,
       name: base.name,
       emoji: base.emoji,
@@ -3406,6 +3584,7 @@ textarea, input,
     claimOfflineDouble, weekKey, weeklyAdd, weeklyInfo, weeklyClaim, codexMark, codexSync, codexInfo, codexMul,
     bondInfo, combosInfo, depthOf, depthInfo, depthPlus, inheritInfo, inheritStar,
     relicProgress, relicTierWeights, hasRelic, relicCount, rollRelic, relicMilestone, relicBackfill, relicBonus, relicMilestoneInfo,
+    setInfo, setMulFor, shopReset, shopInfo, shopBuy, autoStarUp,
     spireReset, spireInfo, spireUse, spireReport, spireStats, spireMul,
     dungeonReset, dungeonInfo, dungeonMark, dungeonReward, dungeonClaim,
     rollAffix, rerollAffix, affixTotals,
@@ -4238,6 +4417,8 @@ textarea, input,
       State.save();
       renderTop();
       State.dailyAdd('idle', 5 / 60);      // 掛機分鐘（每日任務）
+      const asi = State.autoStarUp();
+      if (asi) { State.save(true); Battle.refreshTeam(); renderAll(); }
       checkAch();
     }, 5000);
     setInterval(() => { if (tab === 'hunt') renderHunt(); }, 1000);
@@ -4404,6 +4585,8 @@ textarea, input,
     if (bond.tri) bondBits.push(T('三元素'));
     const combos = State.combosInfo();
     if (combos.active.length) bondBits.push(combos.active.map((c) => T(c.name)).join(' · '));
+    const sets = State.setInfo();
+    if (sets.active.length) bondBits.push(T('套裝') + ' ' + sets.active.map((el) => T(CFG.ELEMENT_LABEL[el])).join('/'));
     const bondTxt = bondBits.length
       ? ` · ${T('羈絆')} ${bondBits.join(' / ')}${bond.tri ? ` +${Math.round(bond.triBonus * 100)}%` : ''}`
       : '';
@@ -4826,9 +5009,9 @@ textarea, input,
       const el = CFG.ELEMENT_LABEL[r.element] || '';
       return T(`<div class="card compact">
         <div class="row1"><span class="ring-dot ${t.css}"></span><b>${T(t.name)}</b>
-        <span class="tag" style="color:${CFG.ELEMENT_COLOR[r.element] || '#fff'}">${el}系</span>
+        <span class="tag" style="color:${CFG.ELEMENT_COLOR[r.element] || '#fff'}">${I18N.lang === 'en' ? el : el + '系'}</span>
         <span class="hint">攻擊 +${Math.round(t.atk * 100)}% · 生命 +${Math.round(t.hp * 100)}%</span></div>
-        ${sk ? T(`<div class="hint" style="margin-top:4px">${sk.label}（${sk.type === 'aoe' ? T('群體') : T('震懾')} ×${sk.mult}${sk.chance ? T(`，${Math.round(sk.chance * 100)}% 暈眩`) : ''}）</div>`) : T('<div class="hint" style="margin-top:4px">被動：純屬性增幅（無靈技）</div>')}
+        ${sk ? `<div class="hint" style="margin-top:4px">${T(sk.label)} · ${sk.type === 'aoe' ? T('群體') : T('震懾')} ×${sk.mult}${sk.chance ? ` · ${Math.round(sk.chance * 100)}% ${T('暈眩')}` : ''}</div>` : T('<div class="hint" style="margin-top:4px">被動：純屬性增幅（無靈技）</div>')}
         <div class="acts">
           ${s.souls.map((soul) => {
             const base = CFG.SOUL_BY_ID[soul.id] || { name: soul.id };
@@ -4978,6 +5161,8 @@ textarea, input,
 
   /* ================= 覺醒抽卡 ================= */
   function bindGacha() {
+    const pu = $('#btnPullUntil');
+    if (pu) pu.addEventListener('click', pullUntilMilestone);
     const rw = $('#btnRewardAd');
     if (rw) {
       rw.addEventListener('click', () => {
@@ -5020,6 +5205,35 @@ textarea, input,
       State.save(true);
       toast(T('兌換成功：') + r.msg);
       renderAll();
+    });
+  }
+
+  /* 一鍵抽到下一次里程（先券、再鑽，最多 10 抽） */
+  function pullUntilMilestone() {
+    const s = State.data;
+    const need = CFG.RELIC.every - ((s.ticketPulls || 0) % CFG.RELIC.every);
+    let done = 0;
+    const milestones = [];
+    for (let i = 0; i < need; i++) {
+      let useTicket = s.tickets >= CFG.PULL_COST_TICKET;
+      if (!useTicket && s.diamonds < CFG.PULL_COST_DIAMOND) break;
+      const r = State.pullOnce(useTicket);
+      if (!r.ok) break;
+      done++;
+      if (r.milestone) milestones.push(r.milestone);
+    }
+    if (!done) return toast(T('券與鑽石都不足'));
+    State.save(true);
+    Battle.refreshTeam();
+    renderAll();
+    toast(T(`已抽 ${done} 次`));
+    milestones.forEach((m) => {
+      if (m.kind === 'relic') {
+        const t = CFG.RELIC_BY_KEY[m.relic.tier];
+        toast(`${T('覺醒里程獎勵')}：${T(m.relic.name)}（${T(t.name)} +${Math.round(t.bonus * 100)}%）`);
+      } else {
+        toast(`${T('靈寶已全收集')}：+${m.cores} ${T('獸核')}`);
+      }
     });
   }
 
@@ -5220,6 +5434,36 @@ textarea, input,
     }
   }
 
+  function renderShop() {
+    const box = $('#shopBox');
+    if (!box) return;
+    const list = State.shopInfo();
+    const rows = list.map((it) => {
+      const cost = Object.keys(it.cost).map((c) => {
+        const n = it.cost[c];
+        return c === 'cores' ? `${n} ${T('獸核')}` : c === 'diamonds' ? `${n} 💎` : `${fmt(n)} ${T('靈幣')}`;
+      }).join(' + ');
+      return `<div class="merge-row">
+        <span class="mr-name">${T(it.name)}</span>
+        <span class="hint">${cost} · ${T('剩')} ${it.left}</span>
+        <button class="mini-btn ${it.can ? 'primary' : ''}" data-shop="${it.id}" ${it.can ? '' : 'disabled'}>
+          ${it.left <= 0 ? T('售完') : T('購買')}
+        </button>
+      </div>`;
+    }).join('');
+    box.innerHTML = `<div class="merge-head"><b>${T('商店')}</b>
+        <span class="hint">${T('每日 0 點補貨')} · ${T('重鑄券')} ${State.data.rerolls || 0}</span></div>${rows}`;
+    $$('#shopBox [data-shop]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = State.shopBuy(b.dataset.shop);
+        if (!r.ok) return toast(r.msg);
+        State.save(true);
+        renderAll();
+        toast(T(`購買成功：`) + T(r.item.name));
+      });
+    });
+  }
+
   function renderRelic() {
     const box = $('#relicBox');
     if (!box) return;
@@ -5322,6 +5566,7 @@ textarea, input,
     renderWeekly();
     renderCodex();
     renderRelic();
+    renderShop();
   }
 
   /* ================= 戰鬥事件 → 畫面 ================= */
@@ -5673,6 +5918,7 @@ textarea, input,
         <button class="mini-btn" id="btnAutoBoss">自動挑戰 BOSS：${s.settings.autoBoss === false ? T('關') : T('開')}</button>
         <button class="mini-btn" id="btnAutoHunt">卡等自動獵靈：${s.settings.autoHunt === false ? T('關') : T('開')}</button>
         <button class="mini-btn" id="btnAutoRing">自動裝備靈環：${s.settings.autoRing === false ? T('關') : T('開')}</button>
+        <button class="mini-btn" id="btnAutoStar">自動升星：${(s.settings || {}).autoStar === false ? T('關') : T('開')}</button>
       </div>
       <div class="acts" style="display:flex;gap:8px;margin-top:8px">
         <button class="mini-btn" id="btnExport">匯出存檔碼</button>
@@ -5695,6 +5941,13 @@ textarea, input,
       if (!global.SFX) return;
       SFX.bgmSet(!SFX.bgm);
       bgmBtn.textContent = `${T('音樂')}${I18N.lang === 'en' ? ': ' : '：'}${SFX.bgm ? T('開') : T('關')}`;
+    });
+    const autoStarBtn = $('#btnAutoStar');
+    if (autoStarBtn) autoStarBtn.addEventListener('click', () => {
+      const s2 = State.data;
+      s2.settings.autoStar = s2.settings.autoStar === false;   // 切換
+      State.save(true);
+      autoStarBtn.textContent = `${T('自動升星')}：${s2.settings.autoStar ? T('開') : T('關')}`;
     });
     $('#btnLangEn').addEventListener('click', () => I18N.setLang('en'));
     $('#btnLangZh').addEventListener('click', () => I18N.setLang('zh'));

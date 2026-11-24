@@ -1086,6 +1086,14 @@ def main() -> int:
           s.bestStage = 1; s.rebirths = 0; s.marks = 0; s.team = ['haotian'];
           s.souls.forEach((x) => { x.star = 3; }); s.bones = [];
           s.souls.forEach((x) => { x.rings = []; });
+          /* v1.17.0：成就從 12 擴到 40，這裡要把新成就依賴的欄位也清乾淨，
+             否則前面測試留下的 relics/cores/codex/stats 會讓「全新狀態」誤解鎖。 */
+          s.relics = []; s.cores = 0; s.ticketPulls = 0; s.milestoneAt = 0;
+          s.spire = { best: 0, day: '', used: 0 };
+          s.dungeon = { day: '', done: [] };
+          s.ringBag = []; s.tickets = 0; s.coins = 0; s.diamonds = 0;
+          s.codex = { souls: {}, bones: {}, rings: {}, beasts: {} };
+          s.stats = { kills: 0, hunts: 0, pulls: 0, inherits: 0, weeklyClaims: 0, dungeons: 0 };
           __game.renderAll();
           const before = St.power();
           const nothing = St.checkAchievements();

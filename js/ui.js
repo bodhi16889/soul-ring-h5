@@ -62,6 +62,8 @@
       State.save();
       renderTop();
       State.dailyAdd('idle', 5 / 60);      // 掛機分鐘（每日任務）
+      const asi = State.autoStarUp();
+      if (asi) { State.save(true); Battle.refreshTeam(); renderAll(); }
       checkAch();
     }, 5000);
     setInterval(() => { if (tab === 'hunt') renderHunt(); }, 1000);
@@ -228,6 +230,8 @@
     if (bond.tri) bondBits.push(T('三元素'));
     const combos = State.combosInfo();
     if (combos.active.length) bondBits.push(combos.active.map((c) => T(c.name)).join(' · '));
+    const sets = State.setInfo();
+    if (sets.active.length) bondBits.push(T('套裝') + ' ' + sets.active.map((el) => T(CFG.ELEMENT_LABEL[el])).join('/'));
     const bondTxt = bondBits.length
       ? ` · ${T('羈絆')} ${bondBits.join(' / ')}${bond.tri ? ` +${Math.round(bond.triBonus * 100)}%` : ''}`
       : '';
@@ -650,9 +654,9 @@
       const el = CFG.ELEMENT_LABEL[r.element] || '';
       return T(`<div class="card compact">
         <div class="row1"><span class="ring-dot ${t.css}"></span><b>${T(t.name)}</b>
-        <span class="tag" style="color:${CFG.ELEMENT_COLOR[r.element] || '#fff'}">${el}系</span>
+        <span class="tag" style="color:${CFG.ELEMENT_COLOR[r.element] || '#fff'}">${I18N.lang === 'en' ? el : el + '系'}</span>
         <span class="hint">攻擊 +${Math.round(t.atk * 100)}% · 生命 +${Math.round(t.hp * 100)}%</span></div>
-        ${sk ? T(`<div class="hint" style="margin-top:4px">${sk.label}（${sk.type === 'aoe' ? T('群體') : T('震懾')} ×${sk.mult}${sk.chance ? T(`，${Math.round(sk.chance * 100)}% 暈眩`) : ''}）</div>`) : T('<div class="hint" style="margin-top:4px">被動：純屬性增幅（無靈技）</div>')}
+        ${sk ? `<div class="hint" style="margin-top:4px">${T(sk.label)} · ${sk.type === 'aoe' ? T('群體') : T('震懾')} ×${sk.mult}${sk.chance ? ` · ${Math.round(sk.chance * 100)}% ${T('暈眩')}` : ''}</div>` : T('<div class="hint" style="margin-top:4px">被動：純屬性增幅（無靈技）</div>')}
         <div class="acts">
           ${s.souls.map((soul) => {
             const base = CFG.SOUL_BY_ID[soul.id] || { name: soul.id };
@@ -802,6 +806,8 @@
 
   /* ================= 覺醒抽卡 ================= */
   function bindGacha() {
+    const pu = $('#btnPullUntil');
+    if (pu) pu.addEventListener('click', pullUntilMilestone);
     const rw = $('#btnRewardAd');
     if (rw) {
       rw.addEventListener('click', () => {
@@ -844,6 +850,35 @@
       State.save(true);
       toast(T('兌換成功：') + r.msg);
       renderAll();
+    });
+  }
+
+  /* 一鍵抽到下一次里程（先券、再鑽，最多 10 抽） */
+  function pullUntilMilestone() {
+    const s = State.data;
+    const need = CFG.RELIC.every - ((s.ticketPulls || 0) % CFG.RELIC.every);
+    let done = 0;
+    const milestones = [];
+    for (let i = 0; i < need; i++) {
+      let useTicket = s.tickets >= CFG.PULL_COST_TICKET;
+      if (!useTicket && s.diamonds < CFG.PULL_COST_DIAMOND) break;
+      const r = State.pullOnce(useTicket);
+      if (!r.ok) break;
+      done++;
+      if (r.milestone) milestones.push(r.milestone);
+    }
+    if (!done) return toast(T('券與鑽石都不足'));
+    State.save(true);
+    Battle.refreshTeam();
+    renderAll();
+    toast(T(`已抽 ${done} 次`));
+    milestones.forEach((m) => {
+      if (m.kind === 'relic') {
+        const t = CFG.RELIC_BY_KEY[m.relic.tier];
+        toast(`${T('覺醒里程獎勵')}：${T(m.relic.name)}（${T(t.name)} +${Math.round(t.bonus * 100)}%）`);
+      } else {
+        toast(`${T('靈寶已全收集')}：+${m.cores} ${T('獸核')}`);
+      }
     });
   }
 
@@ -1044,6 +1079,36 @@
     }
   }
 
+  function renderShop() {
+    const box = $('#shopBox');
+    if (!box) return;
+    const list = State.shopInfo();
+    const rows = list.map((it) => {
+      const cost = Object.keys(it.cost).map((c) => {
+        const n = it.cost[c];
+        return c === 'cores' ? `${n} ${T('獸核')}` : c === 'diamonds' ? `${n} 💎` : `${fmt(n)} ${T('靈幣')}`;
+      }).join(' + ');
+      return `<div class="merge-row">
+        <span class="mr-name">${T(it.name)}</span>
+        <span class="hint">${cost} · ${T('剩')} ${it.left}</span>
+        <button class="mini-btn ${it.can ? 'primary' : ''}" data-shop="${it.id}" ${it.can ? '' : 'disabled'}>
+          ${it.left <= 0 ? T('售完') : T('購買')}
+        </button>
+      </div>`;
+    }).join('');
+    box.innerHTML = `<div class="merge-head"><b>${T('商店')}</b>
+        <span class="hint">${T('每日 0 點補貨')} · ${T('重鑄券')} ${State.data.rerolls || 0}</span></div>${rows}`;
+    $$('#shopBox [data-shop]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = State.shopBuy(b.dataset.shop);
+        if (!r.ok) return toast(r.msg);
+        State.save(true);
+        renderAll();
+        toast(T(`購買成功：`) + T(r.item.name));
+      });
+    });
+  }
+
   function renderRelic() {
     const box = $('#relicBox');
     if (!box) return;
@@ -1146,6 +1211,7 @@
     renderWeekly();
     renderCodex();
     renderRelic();
+    renderShop();
   }
 
   /* ================= 戰鬥事件 → 畫面 ================= */
@@ -1497,6 +1563,7 @@
         <button class="mini-btn" id="btnAutoBoss">自動挑戰 BOSS：${s.settings.autoBoss === false ? T('關') : T('開')}</button>
         <button class="mini-btn" id="btnAutoHunt">卡等自動獵靈：${s.settings.autoHunt === false ? T('關') : T('開')}</button>
         <button class="mini-btn" id="btnAutoRing">自動裝備靈環：${s.settings.autoRing === false ? T('關') : T('開')}</button>
+        <button class="mini-btn" id="btnAutoStar">自動升星：${(s.settings || {}).autoStar === false ? T('關') : T('開')}</button>
       </div>
       <div class="acts" style="display:flex;gap:8px;margin-top:8px">
         <button class="mini-btn" id="btnExport">匯出存檔碼</button>
@@ -1519,6 +1586,13 @@
       if (!global.SFX) return;
       SFX.bgmSet(!SFX.bgm);
       bgmBtn.textContent = `${T('音樂')}${I18N.lang === 'en' ? ': ' : '：'}${SFX.bgm ? T('開') : T('關')}`;
+    });
+    const autoStarBtn = $('#btnAutoStar');
+    if (autoStarBtn) autoStarBtn.addEventListener('click', () => {
+      const s2 = State.data;
+      s2.settings.autoStar = s2.settings.autoStar === false;   // 切換
+      State.save(true);
+      autoStarBtn.textContent = `${T('自動升星')}：${s2.settings.autoStar ? T('開') : T('關')}`;
     });
     $('#btnLangEn').addEventListener('click', () => I18N.setLang('en'));
     $('#btnLangZh').addEventListener('click', () => I18N.setLang('zh'));

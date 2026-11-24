@@ -165,6 +165,25 @@
     },
   };
 
+  /* 套裝：同一元素 3 隻上陣 → 該元素武魂額外獲得一項加成 */
+  const SET_BONUS = {
+    wind:  { stat: 'spd',  bonus: 0.08 },
+    fire:  { stat: 'atk',  bonus: 0.08 },
+    wood:  { stat: 'hp',   bonus: 0.08 },
+    earth: { stat: 'def',  bonus: 0.10 },
+    water: { stat: 'hunt', bonus: 0.08 },
+  };
+
+  /* 商店（每日固定 6 格，庫存每日重置） */
+  const SHOP = [
+    { id: 'ticket2', name: '覺醒券 ×2', give: { tickets: 2 },  cost: { cores: 24 }, stock: 2 },
+    { id: 'bone2',   name: '靈骨 ×2',   give: { bones: 2 },    cost: { cores: 30 }, stock: 1 },
+    { id: 'core8',   name: '獸核 ×8',   give: { cores: 8 },    cost: { diamonds: 260 }, stock: 1 },
+    { id: 'diamond200', name: '鑽石 ×200', give: { diamonds: 200 }, cost: { coins: 60000 }, stock: 1 },
+    { id: 'coins1',  name: '靈幣 ×30,000', give: { coins: 30000 }, cost: { diamonds: 120 }, stock: 2 },
+    { id: 'reroll2', name: '重鑄券 ×2',  give: { rerolls: 2 }, cost: { cores: 36 }, stock: 1 },
+  ];
+
   /* 元素組合羈絆（只要隊伍裡同時有這兩種元素就生效，可疊加） */
   const COMBOS = [
     { id: 'blaze',  pair: ['wind', 'fire'],  name: '燎原',  stat: 'spd',  bonus: 0.12 },
@@ -185,7 +204,7 @@
   function areaFor(stage) { return STAGE_AREAS[Math.floor((stage - 1) / 10) % STAGE_AREAS.length]; }
 
   /* ---------- 成長公式 ---------- */
-  const VERSION = '1.16.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
+  const VERSION = '1.17.0';        // 1.4.0 = 去識別化改名 / 英文預設 i18n / GamePix SDK
   const MAX_LEVEL = 100;          // GDD：百級神祇
   const RING_SLOTS_PER_LEVEL = 10;  // 每 10 級開 1 個靈環槽
   const MAX_RING_SLOTS = 9;         // 單一靈印最多 9 槽（GDD）
@@ -382,6 +401,35 @@
     { id: 'star5',    name: '五星圓滿',   desc: '任一靈印升到 5★',      test: (s) => s.souls.some((x) => x.star >= 5) },
     { id: 'bones5',   name: '靈骨收藏家', desc: '持有 5 塊靈骨',        test: (s) => (s.bones || []).length >= 5 },
     { id: 'rings45',  name: '環滿全身',   desc: '全隊裝備 45 個靈環',   test: (s) => s.souls.reduce((a, x) => a + (x.rings || []).length, 0) >= 45 },
+    /* v1.17.0：12 → 40（分五類：關卡 / 轉生 / 養成 / 收集 / 極限） */
+    { id: 'stage300', name: '深潛者',     desc: '推進到第 300 關',      test: (s) => s.bestStage >= 300 },
+    { id: 'stage800', name: '破界者',     desc: '推進到第 800 關',      test: (s) => s.bestStage >= 800 },
+    { id: 'reb50',    name: '輪迴半百',   desc: '完成 50 次轉生',       test: (s) => (s.rebirths || 0) >= 50 },
+    { id: 'reb200',   name: '千世輪迴',   desc: '完成 200 次轉生',      test: (s) => (s.rebirths || 0) >= 200 },
+    { id: 'marks500', name: '命印五百',   desc: '累積 500 枚命印',      test: (s) => (s.marks || 0) >= 500 },
+    { id: 'star8',    name: '八星不凡',   desc: '任一靈印升到 8★',      test: (s) => s.souls.some((x) => (x.star || 3) >= 8) },
+    { id: 'star10',   name: '十星極境',   desc: '任一靈印升到 10★',     test: (s) => s.souls.some((x) => (x.star || 3) >= 10) },
+    { id: 'inh5',     name: '傳承五回',   desc: '累積 5 次傳承',        test: (s) => ((s.stats || {}).inherits || 0) >= 5 },
+    { id: 'asc3',     name: '覺醒三階',   desc: '任一靈印覺醒 3 階',    test: (s) => s.souls.some((x) => (x.ascend || 0) >= 3) },
+    { id: 'asc5',     name: '覺醒圓滿',   desc: '任一靈印覺醒 5 階',    test: (s) => s.souls.some((x) => (x.ascend || 0) >= 5) },
+    { id: 'relic6',   name: '靈寶半集',   desc: '收集 6 件靈寶',        test: (s) => (s.relics || []).length >= 6 },
+    { id: 'relic12',  name: '靈寶全收',   desc: '收集全部 12 件靈寶',   test: (s) => (s.relics || []).length >= 12 },
+    { id: 'codex20',  name: '圖鑑二十',   desc: '圖鑑收集 20 項',       test: (s) => { const c = s.codex || {}; return ['souls','bones','rings','beasts'].reduce((a,k)=>a+Object.keys(c[k]||{}).length,0) >= 20; } },
+    { id: 'codex35',  name: '圖鑑全收',   desc: '圖鑑收集全部項目',     test: (s) => { const c = s.codex || {}; return ['souls','bones','rings','beasts'].reduce((a,k)=>a+Object.keys(c[k]||{}).length,0) >= 35; } },
+    { id: 'hunt100',  name: '獵靈百次',   desc: '累積獵靈 100 次',      test: (s) => ((s.stats || {}).hunts || 0) >= 100 },
+    { id: 'kill1w',   name: '擊殺萬隻',   desc: '累積擊殺 10,000 隻',   test: (s) => ((s.stats || {}).kills || 0) >= 10000 },
+    { id: 'kill10w',  name: '擊殺十萬',   desc: '累積擊殺 100,000 隻',  test: (s) => ((s.stats || {}).kills || 0) >= 100000 },
+    { id: 'core100',  name: '獸核百枚',   desc: '持有 100 枚獸核',      test: (s) => (s.cores || 0) >= 100 },
+    { id: 'pull100',  name: '覺醒百抽',   desc: '累積覺醒抽 100 次',    test: (s) => ((s.stats || {}).pulls || 0) >= 100 },
+    { id: 'spire30',  name: '深塔三十',   desc: '深塔抵達第 30 層',     test: (s) => ((s.spire || {}).best || 0) >= 30 },
+    { id: 'spire60',  name: '深塔六十',   desc: '深塔抵達第 60 層',     test: (s) => ((s.spire || {}).best || 0) >= 60 },
+    { id: 'spire100', name: '深塔百層',   desc: '深塔抵達第 100 層',    test: (s) => ((s.spire || {}).best || 0) >= 100 },
+    { id: 'affix1',   name: '初見詞條',   desc: '取得第一個帶詞條的靈環', test: (s) => (s.ringBag || []).some((r) => r.affix) },
+    { id: 'affix5',   name: '詞條收藏',   desc: '同時持有 5 個帶詞條的靈環', test: (s) => (s.ringBag || []).filter((r) => r.affix).length >= 5 },
+    { id: 'week9',    name: '週勤九回',   desc: '累積完成 9 次週任務',  test: (s) => ((s.stats || {}).weeklyClaims || 0) >= 9 },
+    { id: 'dg10',     name: '副本常客',   desc: '累積完成 10 次副本',   test: (s) => ((s.stats || {}).dungeons || 0) >= 10 },
+    { id: 'coin1m',   name: '家財萬貫',   desc: '持有 1,000,000 靈幣',  test: (s) => (s.coins || 0) >= 1000000 },
+    { id: 'ticket20', name: '券不手軟',   desc: '持有 20 張覺醒券',     test: (s) => (s.tickets || 0) >= 20 },
   ];
 
   /* ---------- 里程碑獎勵（每 50 關給十萬年環）---------- */
@@ -442,7 +490,7 @@
     BEASTS, BEAST_BY_ID, STAGE_AREAS, areaFor,
     VERSION, MAX_LEVEL, RING_SLOTS_PER_LEVEL, MAX_RING_SLOTS,
     RING_SKILL, RESONANCE, TRUE_BODY, ELEMENT_LABEL, ELEMENT_COLOR, COUNTER, BOND, ASCEND, CORE_DROP, ELITE,
-    INHERIT, DEPTH, COMBOS, RELIC_TIERS, RELIC_BY_KEY, RELICS, RELIC,
+    INHERIT, DEPTH, COMBOS, SET_BONUS, SHOP, RELIC_TIERS, RELIC_BY_KEY, RELICS, RELIC,
     SPIRE, DUNGEON, DUNGEONS, AFFIX, AFFIX_BY_KEY,
     RING_ORDER, RING_MERGE_COUNT,
     BASE_KILLS_PER_STAGE, killsPerStage, waveSecFor, bossSecFor, AUTO_BOSS_DELAY, AUTO_HUNT_DELAY, BAND, STAR_MAX,

@@ -44,6 +44,8 @@
       milestoneAt: 0,        // 上次已結算的券抽里程（防止重複發獎）
       spire: { best: 0, day: '', used: 0 },   // 無盡深塔：最高層 / 日期 / 今日已用次數
       dungeon: { day: '', done: [] },         // 每日副本：今天打過哪些
+      shop: { day: '', bought: {} },          // 商店：今日各格已買次數
+      rerolls: 0,                             // 重鑄券（商店買）
       elite: { day: '', ids: [] },   // 今日已打的精英靈獸
       depth: {},             // 深林層數：beastId -> 已連續狩獵次數
       pendingOffline: null,  // 這次回歸的離線收益（可看廣告加倍一次）
@@ -55,7 +57,7 @@
       rebirths: 0,           // 轉生次數
       marks: 0,              // 命印：永久加成（每點全屬性 +6%）
       settings: { autoBoss: true, autoHunt: true, autoRing: true, autoMerge: true },   // 放置用開關
-      stats: { kills: 0, hunts: 0, pulls: 0 },
+      stats: { kills: 0, hunts: 0, pulls: 0, inherits: 0, weeklyClaims: 0, dungeons: 0 },
       lastSave: Date.now(),
     };
   }
@@ -158,6 +160,9 @@
     out.milestoneAt = Math.max(0, out.milestoneAt | 0);
     out.spire = Object.assign({ best: 0, day: '', used: 0 }, (d && d.spire) || {});
     out.dungeon = Object.assign({ day: '', done: [] }, (d && d.dungeon) || {});
+    out.shop = Object.assign({ day: '', bought: {} }, (d && d.shop) || {});
+    if (!out.shop.bought || typeof out.shop.bought !== 'object') out.shop.bought = {};
+    out.rerolls = Math.max(0, out.rerolls | 0);
     if (!Array.isArray(out.dungeon.done)) out.dungeon.done = [];
     out.elite = Object.assign({ day: '', ids: [] }, (d && d.elite) || {});
     out.depth = Object.assign({}, (d && d.depth) || {});
@@ -315,6 +320,7 @@
     if (info.claimed) return { ok: false, msg: T('本週已領過') };
     if (!info.can) return { ok: false, msg: T('任務還沒完成') };
     S.week.claimed.push(id);
+    S.stats.weeklyClaims = (S.stats.weeklyClaims | 0) + 1;
     S.diamonds += info.reward.diamonds || 0;
     return { ok: true, reward: info.reward };
   }
@@ -330,6 +336,84 @@
     const strong = Object.keys(counts).filter((el) => counts[el] >= CFG.BOND.sameNeed);
     return { counts, kinds, strong, tri: kinds >= CFG.BOND.triKinds,
              sameBonus: CFG.BOND.sameBonus, triBonus: CFG.BOND.triBonus };
+  }
+
+  /* ---------- 套裝：同元素 3 隻 ---------- */
+  function setInfo() {
+    const counts = bondInfo().counts;
+    const active = Object.keys(CFG.SET_BONUS).filter((el) => (counts[el] || 0) >= 3);
+    return { counts, active, bonus: active.map((el) => ({ el, ...CFG.SET_BONUS[el] })) };
+  }
+  function setMulFor(element) {
+    const sets = setInfo();
+    if (sets.active.indexOf(element) < 0) return { atk: 1, hp: 1, def: 1, spd: 1, hunt: 1 };
+    const b = CFG.SET_BONUS[element];
+    const out = { atk: 1, hp: 1, def: 1, spd: 1, hunt: 1 };
+    if (b.stat === 'hunt') out.hunt = 1 + b.bonus;
+    else out[b.stat] = 1 + b.bonus;
+    return out;
+  }
+
+  /* ---------- 商店（每日 6 格）---------- */
+  function shopReset() {
+    const k = todayKey();
+    if (!S.shop || S.shop.day !== k) S.shop = { day: k, bought: {} };
+  }
+  function shopInfo() {
+    shopReset();
+    return CFG.SHOP.map((it) => {
+      const bought = (S.shop.bought[it.id] | 0);
+      const canAfford = Object.keys(it.cost).every((cur) => {
+        if (cur === 'cores') return (S.cores | 0) >= it.cost[cur];
+        if (cur === 'diamonds') return S.diamonds >= it.cost[cur];
+        if (cur === 'coins') return S.coins >= it.cost[cur];
+        return false;
+      });
+      return { ...it, bought, left: Math.max(0, it.stock - bought),
+               can: bought < it.stock && canAfford };
+    });
+  }
+  function shopBuy(id) {
+    shopReset();
+    const it = shopInfo().find((x) => x.id === id);
+    if (!it) return { ok: false, msg: T('沒有這個商品') };
+    if (it.bought >= it.stock) return { ok: false, msg: T('今日已售完') };
+    const cur = it.cost;
+    if (cur.cores && (S.cores | 0) < cur.cores) return { ok: false, msg: T('獸核不足') };
+    if (cur.diamonds && S.diamonds < cur.diamonds) return { ok: false, msg: T('鑽石不足') };
+    if (cur.coins && S.coins < cur.coins) return { ok: false, msg: T('靈幣不足') };
+    if (cur.cores) S.cores -= cur.cores;
+    if (cur.diamonds) S.diamonds -= cur.diamonds;
+    if (cur.coins) S.coins -= cur.coins;
+    const g = it.give;
+    if (g.tickets) S.tickets += g.tickets;
+    if (g.diamonds) S.diamonds += g.diamonds;
+    if (g.coins) S.coins += g.coins;
+    if (g.cores) S.cores = (S.cores | 0) + g.cores;
+    if (g.rerolls) S.rerolls = (S.rerolls | 0) + g.rerolls;
+    if (g.bones) {
+      for (let i = 0; i < g.bones; i++) {
+        const b = CFG.BONES[Math.floor(Math.random() * CFG.BONES.length)];
+        S.bones.push({ uid: 'bo' + Date.now().toString(36) + '_' + i, id: b.id });
+        codexMark('bones', b.id);
+      }
+    }
+    S.shop.bought[id] = (S.shop.bought[id] | 0) + 1;
+    return { ok: true, item: it };
+  }
+
+  /* ---------- 自動升星（QoL）---------- */
+  function autoStarUp() {
+    if ((S.settings || {}).autoStar === false) return null;
+    const list = (S.souls || []).slice().sort((a, b) => (b.star || 3) - (a.star || 3));
+    for (const soul of list) {
+      const info = starUpInfo(soul);
+      if (info.maxed) continue;
+      if (freeBones().length < info.bones || S.coins < info.coins) return null;
+      const r = starUp(soul.id);
+      if (r.ok) return r;
+    }
+    return null;
   }
 
   /* ---------- 無盡深塔 ---------- */
@@ -403,6 +487,7 @@
       S.ticketPulls = (S.ticketPulls || 0);   // 券本身不動里程，抽的時候才算
     }
     dungeonMark(id);
+    S.stats.dungeons = (S.stats.dungeons | 0) + 1;
     return { ok: true, reward: rw };
   }
 
@@ -416,12 +501,16 @@
   function rerollAffix(uid) {
     const ring = S.ringBag.find((r) => r.uid === uid);
     if (!ring) return { ok: false, msg: T('找不到靈環') };
-    if ((S.cores | 0) < CFG.AFFIX.rerollCost) return { ok: false, msg: T('獸核不足'), need: CFG.AFFIX.rerollCost };
-    S.cores -= CFG.AFFIX.rerollCost;
+    let paid = 0;
+    if ((S.rerolls | 0) > 0) { S.rerolls -= 1; paid = 0; }
+    else {
+      if ((S.cores | 0) < CFG.AFFIX.rerollCost) return { ok: false, msg: T('獸核不足'), need: CFG.AFFIX.rerollCost };
+      S.cores -= CFG.AFFIX.rerollCost; paid = CFG.AFFIX.rerollCost;
+    }
     let a = null;
     for (let i = 0; i < 12 && !a; i++) a = rollAffix();
     ring.affix = a;   // null 代表洗成無詞條（風險）
-    return { ok: true, affix: a, cost: CFG.AFFIX.rerollCost };
+    return { ok: true, affix: a, cost: paid, usedTicket: paid === 0 };
   }
   function affixTotals() {
     const out = { crit: 0, leech: 0, pen: 0, swift: 0 };
@@ -567,6 +656,7 @@
     S.cores -= info.cost;
     const from = S.souls.find((x) => x.id === fromId);
     const to = S.souls.find((x) => x.id === toId);
+    S.stats.inherits = (S.stats.inherits | 0) + 1;
     from.star = (from.star || 3) - 1;
     to.star = (to.star || 3) + 1;
     return { ok: true, fromStar: from.star, toStar: to.star, cost: info.cost };
@@ -712,6 +802,7 @@
     const ascMul = 1 + CFG.ASCEND.bonusPerStage * (soul.ascend || 0);
     const cb = combosInfo().stat;   // 元素組合：atk / hp / def / spd 各自乘算
     const rl = relicBonus();        // 靈寶：限量收藏品，永久加成
+    const st = setMulFor(el);       // 套裝：同元素 3 隻
     const tbMul = (1 + trueBodyOf(soul).bonus) * achMul() * codexMul() * bondMul * ascMul * spireMul();   // 真身 × 成就 × 圖鑑 × 羈絆 × 覺醒
     /* 三種加成各自乘算，不能全部倒進同一個括號：
        靈環後期 +3600%，若命印（+6%/點）與靈骨（+14~20%）也加在同一個括號裡，
@@ -726,10 +817,10 @@
     const markDef = 1 + pm.def * S.marks;
     const markSpd = 1;   // 命印不再加速度（速度有物理上限），改在 critChance() 給爆擊
     return {
-      atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk) * boneAtk * markAtk * tbMul * cb.atk * (1 + rl.atk)),
-      hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp) * boneHp * markHp * tbMul * cb.hp * (1 + rl.hp)),
-      def: Math.round(base.def * starMul * lvMul * boneDef * markDef * tbMul * cb.def * (1 + rl.def)),
-      spd: Math.round(base.spd * boneSpd * markSpd * tbMul * cb.spd * (1 + rl.spd)),
+      atk: Math.round(base.atk * starMul * lvMul * (1 + rb.atk) * boneAtk * markAtk * tbMul * cb.atk * (1 + rl.atk) * st.atk),
+      hp: Math.round(base.hp * starMul * lvMul * (1 + rb.hp) * boneHp * markHp * tbMul * cb.hp * (1 + rl.hp) * st.hp),
+      def: Math.round(base.def * starMul * lvMul * boneDef * markDef * tbMul * cb.def * (1 + rl.def) * st.def),
+      spd: Math.round(base.spd * boneSpd * markSpd * tbMul * cb.spd * (1 + rl.spd) * st.spd),
       role: base.role,
       name: base.name,
       emoji: base.emoji,
@@ -1354,6 +1445,7 @@
     claimOfflineDouble, weekKey, weeklyAdd, weeklyInfo, weeklyClaim, codexMark, codexSync, codexInfo, codexMul,
     bondInfo, combosInfo, depthOf, depthInfo, depthPlus, inheritInfo, inheritStar,
     relicProgress, relicTierWeights, hasRelic, relicCount, rollRelic, relicMilestone, relicBackfill, relicBonus, relicMilestoneInfo,
+    setInfo, setMulFor, shopReset, shopInfo, shopBuy, autoStarUp,
     spireReset, spireInfo, spireUse, spireReport, spireStats, spireMul,
     dungeonReset, dungeonInfo, dungeonMark, dungeonReward, dungeonClaim,
     rollAffix, rerollAffix, affixTotals,

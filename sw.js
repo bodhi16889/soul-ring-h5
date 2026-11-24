@@ -10,7 +10,7 @@
  *
  * 改版時只要改 VERSION，activate 會清掉舊快取。
  */
-const VERSION = 'v1.16.0';
+const VERSION = 'v1.17.0';
 const CACHE = 'soulring-' + VERSION;
 
 const SHELL = [
