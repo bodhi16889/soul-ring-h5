@@ -51,6 +51,16 @@ def main() -> int:
         ver = page.evaluate("CFG.VERSION")
         ok("版本 ≥ 1.19.0", tuple(int(x) for x in ver.split(".")) >= (1, 19, 0), ver)
 
+        # ---------- 全新存檔的設定預設值 ----------
+        defaults = page.evaluate('''(() => {
+            const s = State.data.settings;
+            return {p: s.autoPriority, sp: s.speed, st: s.autoStar, am: s.autoMerge};
+        })()''')
+        ok('新檔設定四個欄位都有預設值（優先序/倍速/自動升星/自動合成）',
+           defaults['p'] == 'boss' and defaults['sp'] == 1
+           and defaults['st'] is True and defaults['am'] is True,
+           json.dumps(defaults, ensure_ascii=False))
+
         # ---------- 靈寶升級 ----------
         relic = page.evaluate("""(() => {
             const S = __game.State, s = S.data;
@@ -164,6 +174,15 @@ def main() -> int:
         ok("只推關：3.2 秒內既不開 BOSS 也不開獵靈",
            prio["farm"]["types"] == [] and prio["farm"]["mode"] == "farm",
            json.dumps(prio["farm"], ensure_ascii=False))
+
+        page.evaluate("State.data.settings.speed = 3; State.data.settings.autoPriority = 'hunt'; State.save(true)")
+        time.sleep(0.4)
+        page.reload(wait_until='load')
+        page.wait_for_function('window.__game && window.__game.ready', timeout=30000)
+        time.sleep(0.5)
+        kept = page.evaluate("({sp: State.data.settings.speed, p: State.data.settings.autoPriority})")
+        ok('reload 後倍速與優先序仍然保留', kept['sp'] == 3 and kept['p'] == 'hunt',
+           json.dumps(kept, ensure_ascii=False))
 
         # ---------- UI ----------
         page.evaluate("State.data.relics = ['stonecharm']; State.data.relicLv = {}; State.data.cores = 50; __game.switchTab('gacha')")

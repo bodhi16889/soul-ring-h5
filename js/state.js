@@ -47,7 +47,7 @@
       shop: { day: '', bought: {} },          // 商店：今日各格已買次數
       talents: {},                            // 命印天賦：nodeId → 等級
       relicLv: {},                            // 靈寶等級：id → 1..5
-      settings: { autoRing: true, autoBoss: true, autoHunt: true, autoStar: true, speed: 1 },
+      settings: { autoRing: true, autoBoss: true, autoHunt: true, autoMerge: true, autoStar: true, speed: 1, autoPriority: 'boss' },
       rerolls: 0,                             // 重鑄券（商店買）
       elite: { day: '', ids: [] },   // 今日已打的精英靈獸
       depth: {},             // 深林層數：beastId -> 已連續狩獵次數
@@ -59,7 +59,6 @@
       checkin: { lastDay: '', streak: 0, total: 0 },   // 每日簽到
       rebirths: 0,           // 轉生次數
       marks: 0,              // 命印：永久加成（每點全屬性 +6%）
-      settings: { autoBoss: true, autoHunt: true, autoRing: true, autoMerge: true },   // 放置用開關
       stats: { kills: 0, hunts: 0, pulls: 0, inherits: 0, weeklyClaims: 0, dungeons: 0 },
       lastSave: Date.now(),
     };
@@ -190,7 +189,14 @@
     // 避免一升級就直接白拿一大筆（要再推更深才有）
     out.lastRebirthBest = typeof d.lastRebirthBest === 'number'
       ? d.lastRebirthBest : Math.max(0, out.bestStage | 0);
-    out.settings = Object.assign({ autoBoss: true, autoHunt: true, autoRing: true, autoMerge: true }, (d && d.settings) || {});
+    /* 這裡會整包覆蓋 settings —— 預設值要跟上面一致，否則 reload 後
+       倍速（speed）、自動升星（autoStar）、自動化優先序（autoPriority）會被吃掉。 */
+    out.settings = Object.assign({
+      autoBoss: true, autoHunt: true, autoRing: true, autoMerge: true,
+      autoStar: true, speed: 1, autoPriority: 'boss',
+    }, (d && d.settings) || {});
+    if (!CFG.SPEEDS.includes(out.settings.speed | 0)) out.settings.speed = 1;
+    if (['boss', 'hunt', 'farm'].indexOf(out.settings.autoPriority) < 0) out.settings.autoPriority = 'boss';
     out.slots = Math.max(1, Math.min(5, out.slots | 0 || 1));
     out.team = out.team.filter((id) => out.souls.some((s) => s.id === id)).slice(0, out.slots);
     out.souls.forEach((s) => {

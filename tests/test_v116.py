@@ -160,8 +160,9 @@ def main() -> int:
             r2.affix = { key: 'pen', val: 0.08 };
             const totals = S.affixTotals();
             const before = S.critChance();
+            const hadAffix = !!(r1.affix && r1.affix.key);   // 重鑄前先記，重鑄有 12% 機率洗成無詞條
             const rr = S.rerollAffix(r1.uid);
-            return {hasAffix: !!r1.affix, totals, before, rr, cores: s.cores};
+            return {hasAffix: hadAffix, totals, before, rr, cores: s.cores};
         })()""")
         ok("靈環會帶詞條、詞條會彙總", af["hasAffix"] and af["totals"]["pen"] >= 0.08,
            json.dumps(af["totals"], ensure_ascii=False))
